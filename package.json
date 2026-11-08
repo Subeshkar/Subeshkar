@@ -1,0 +1,22 @@
+{
+  "name": "dioma-live",
+  "version": "0.1.0",
+  "description": "Dioma — personal AI assistant on WhatsApp with Gmail and Google Calendar, approvals before every action.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
+    "better-sqlite3": "^13.0.3",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "googleapis": "^189.0.0",
+    "node-cron": "^3.0.3"
+  }
+}
