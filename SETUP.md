@@ -130,3 +130,13 @@ Template messages have a small per-message fee from Meta.
 | Google says redirect_uri_mismatch | Redirect URI in Google must be exactly `BASE_URL/auth/google/callback` |
 | Google "access blocked" | Add your Gmail as a test user (step 5.3) |
 | Everything forgotten after a deploy | The Volume isn't mounted at `/data`, or `DATA_DIR` isn't `/data` |
+
+## Personal WhatsApp (QR link, unofficial)
+
+1. Railway → service → **Variables**: add `MCP_TOKEN` (any random text, 24+ characters). Keep `DATA_DIR=/data`.
+2. Railway → service → **Volumes**: add a volume mounted at `/data`, so the WhatsApp link survives redeploys.
+3. Open `https://<your-domain>/personal`, log in with the admin password, tap **Show QR code**.
+4. Phone: WhatsApp → Settings → Linked devices → Link a device → scan.
+5. Copy the connector link shown on that page into claude.ai → Settings → Connectors → Add custom connector (name: **Dioma WhatsApp**).
+
+This uses the WhatsApp Web protocol, which WhatsApp's terms do not allow. WhatsApp may block the number.

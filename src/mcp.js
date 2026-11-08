@@ -1,0 +1,83 @@
+// MCP endpoint so the Dioma app (and Claude) can read and send personal WhatsApp.
+// Add it in claude.ai as a custom connector: https://<your-domain>/mcp/<MCP_TOKEN>
+import crypto from 'node:crypto';
+import { z } from 'zod';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { personalStatus, listChats, listMessages, sendPersonal, markChatRead } from './wa-personal.js';
+
+const json = (data) => ({ content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: Array.isArray(data) ? { data } : data });
+
+function buildServer() {
+  const server = new McpServer({ name: 'Dioma Personal WhatsApp', version: '0.2.0' });
+
+  server.registerTool('personal_status', {
+    title: 'Personal WhatsApp status',
+    description: 'Whether the personal WhatsApp is linked, plus chat and unread counts.',
+    inputSchema: {},
+    annotations: { readOnlyHint: true }
+  }, async () => { const s = personalStatus(); delete s.qr; return json(s); });
+
+  server.registerTool('personal_chats', {
+    title: 'List personal WhatsApp chats',
+    description: 'Personal WhatsApp chats, most recent first, with unread counts and the last message.',
+    inputSchema: {
+      limit: z.number().int().min(1).max(200).optional().describe('How many chats (default 40)'),
+      unread_only: z.boolean().optional().describe('Only chats with unread messages'),
+      q: z.string().optional().describe('Search by name or number')
+    },
+    annotations: { readOnlyHint: true }
+  }, async ({ limit, unread_only, q }) => json({ data: listChats({ limit: limit || 40, unreadOnly: !!unread_only, q: q || '' }) }));
+
+  server.registerTool('personal_messages', {
+    title: 'Read a personal WhatsApp chat',
+    description: 'Messages in one personal WhatsApp chat, oldest to newest.',
+    inputSchema: {
+      chat_id: z.string().describe('Chat id from personal_chats'),
+      limit: z.number().int().min(1).max(200).optional().describe('How many recent messages (default 30)')
+    },
+    annotations: { readOnlyHint: true }
+  }, async ({ chat_id, limit }) => json({ data: listMessages(chat_id, limit || 30) }));
+
+  server.registerTool('personal_mark_read', {
+    title: 'Mark personal chat read in Dioma',
+    description: 'Clears the unread badge for a chat inside Dioma.',
+    inputSchema: { chat_id: z.string() }
+  }, async ({ chat_id }) => { await markChatRead(chat_id); return json({ ok: true }); });
+
+  server.registerTool('personal_send', {
+    title: 'Send from personal WhatsApp',
+    description: 'Sends a text message from the owner\'s personal WhatsApp. Only call after the owner approved the exact text.',
+    inputSchema: {
+      chat_id: z.string().describe('Chat id from personal_chats, or a phone number with country code'),
+      text: z.string().min(1).max(4000)
+    },
+    annotations: { destructiveHint: false, openWorldHint: true }
+  }, async ({ chat_id, text }) => json(await sendPersonal(chat_id, text)));
+
+  return server;
+}
+
+const safeEqual = (a, b) => {
+  const x = Buffer.from(String(a)); const y = Buffer.from(String(b));
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+};
+
+export function mountMcp(app) {
+  const handler = async (req, res) => {
+    const token = process.env.MCP_TOKEN;
+    if (!token || token.length < 24 || !safeEqual(req.params.token, token)) return res.status(404).json({ error: 'not found' });
+    if (req.method !== 'POST') return res.status(405).set('Allow', 'POST').json({ jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed' }, id: null });
+    const server = buildServer();
+    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
+    res.on('close', () => { transport.close(); server.close(); });
+    try {
+      await server.connect(transport);
+      await transport.handleRequest(req, res, req.body);
+    } catch (e) {
+      console.error('MCP error', e);
+      if (!res.headersSent) res.status(500).json({ jsonrpc: '2.0', error: { code: -32603, message: 'Internal error' }, id: null });
+    }
+  };
+  app.all('/mcp/:token', handler);
+}

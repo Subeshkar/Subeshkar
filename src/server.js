@@ -6,7 +6,9 @@ import { handleMessage, sendApprovals, writeBrief } from './agent.js';
 import { decide } from './actions.js';
 import { authUrl, readState, finishAuth } from './google.js';
 import { startScheduler } from './scheduler.js';
-import { landingPage, dashboardPage, messagePage } from './pages.js';
+import { landingPage, dashboardPage, messagePage, personalPage } from './pages.js';
+import { startPersonal, stopPersonal, resumePersonal, personalStatus } from './wa-personal.js';
+import { mountMcp } from './mcp.js';
 
 const app = express();
 app.set('trust proxy', true);
@@ -124,8 +126,18 @@ app.post('/dashboard/brief', adminOnly, async (req, res) => {
   res.redirect('/dashboard');
 });
 
+// ---------- Personal WhatsApp (QR link) ----------
+const baseUrl = (req) => (process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+const mcpUrl = (req) => (process.env.MCP_TOKEN && process.env.MCP_TOKEN.length >= 24 ? `${baseUrl(req)}/mcp/${process.env.MCP_TOKEN}` : null);
+app.get('/personal', adminOnly, (req, res) => res.send(personalPage(personalStatus(), mcpUrl(req))));
+app.get('/personal/status', adminOnly, (_req, res) => { const s = personalStatus(); res.json({ ...s, qr: !!s.qr }); });
+app.post('/personal/start', adminOnly, async (_req, res) => { await startPersonal(); setTimeout(() => res.redirect('/personal'), 2500); });
+app.post('/personal/unlink', adminOnly, async (_req, res) => { await stopPersonal(true); res.redirect('/personal'); });
+mountMcp(app);
+
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`Dioma running on port ${port}`);
   startScheduler();
+  resumePersonal();
 });
