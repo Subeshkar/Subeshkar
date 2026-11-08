@@ -1,6 +1,8 @@
 // MCP endpoint so the Dioma app (and Claude) can read and send personal WhatsApp.
 // Add it in claude.ai as a custom connector: https://<your-domain>/mcp/<MCP_TOKEN>
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -58,6 +60,17 @@ function buildServer() {
   return server;
 }
 
+// Uses MCP_TOKEN if set, otherwise creates one once and keeps it on the data volume.
+export function mcpToken() {
+  if (process.env.MCP_TOKEN && process.env.MCP_TOKEN.length >= 24) return process.env.MCP_TOKEN;
+  const file = path.join(process.env.DATA_DIR || './data', 'mcp-token.txt');
+  try { const t = fs.readFileSync(file, 'utf8').trim(); if (t.length >= 24) return t; } catch { /* create below */ }
+  const t = crypto.randomBytes(24).toString('hex');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, t, { mode: 0o600 });
+  return t;
+}
+
 const safeEqual = (a, b) => {
   const x = Buffer.from(String(a)); const y = Buffer.from(String(b));
   return x.length === y.length && crypto.timingSafeEqual(x, y);
@@ -65,8 +78,8 @@ const safeEqual = (a, b) => {
 
 export function mountMcp(app) {
   const handler = async (req, res) => {
-    const token = process.env.MCP_TOKEN;
-    if (!token || token.length < 24 || !safeEqual(req.params.token, token)) return res.status(404).json({ error: 'not found' });
+    const token = mcpToken();
+    if (!safeEqual(req.params.token, token)) return res.status(404).json({ error: 'not found' });
     if (req.method !== 'POST') return res.status(405).set('Allow', 'POST').json({ jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed' }, id: null });
     const server = buildServer();
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
