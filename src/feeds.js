@@ -54,8 +54,8 @@ export async function newsToday(region = 'world') {
 
 const STOCKS = {
   world: [['NVDA', 'Nvidia'], ['MSFT', 'Microsoft'], ['AAPL', 'Apple'], ['GOOGL', 'Alphabet'], ['AMZN', 'Amazon'], ['META', 'Meta'], ['AVGO', 'Broadcom'], ['TSLA', 'Tesla'], ['BRK-B', 'Berkshire Hathaway'], ['TSM', 'TSMC']],
-  uae: [['IHC.AD', 'International Holding Co'], ['ADNOCGAS.AD', 'ADNOC Gas'], ['FAB.AD', 'First Abu Dhabi Bank'], ['EAND.AD', 'e&'], ['EMIRATESNBD.AE', 'Emirates NBD'], ['EMAAR.AE', 'Emaar Properties'], ['DEWA.AE', 'DEWA'], ['ALDAR.AD', 'Aldar'], ['ADCB.AD', 'ADCB'], ['ALPHADHABI.AD', 'Alpha Dhabi']],
-  gcc: [['2222.SR', 'Saudi Aramco'], ['1120.SR', 'Al Rajhi Bank'], ['1180.SR', 'Saudi National Bank'], ['QNBK.QA', 'QNB'], ['IHC.AD', 'IHC (UAE)'], ['7010.SR', 'stc'], ['2082.SR', 'ACWA Power'], ['2010.SR', 'SABIC'], ['KFH.KW', 'Kuwait Finance House'], ['FAB.AD', 'FAB (UAE)']]
+  uae: [['EMIRATESNBD.AE', 'Emirates NBD'], ['EMAAR.AE', 'Emaar Properties'], ['DEWA.AE', 'DEWA'], ['DIB.AE', 'Dubai Islamic Bank'], ['EMAARDEV.AE', 'Emaar Development'], ['SALIK.AE', 'Salik'], ['DU.AE', 'du (EITC)'], ['AIRARABIA.AE', 'Air Arabia'], ['TALABAT.AE', 'talabat'], ['PARKIN.AE', 'Parkin']],
+  gcc: [['2222.SR', 'Saudi Aramco'], ['1120.SR', 'Al Rajhi Bank'], ['1180.SR', 'Saudi National Bank'], ['QNBK.QA', 'QNB'], ['1211.SR', 'Ma\'aden'], ['7010.SR', 'stc'], ['2082.SR', 'ACWA Power'], ['2010.SR', 'SABIC'], ['KFH.KW', 'Kuwait Finance House'], ['EMIRATESNBD.AE', 'Emirates NBD (UAE)']]
 };
 
 async function quotes(region) {
