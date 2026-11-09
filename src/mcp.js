@@ -33,7 +33,12 @@ function buildServer() {
       q: z.string().optional().describe('Search by name or number')
     },
     annotations: { readOnlyHint: true }
-  }, async ({ limit, unread_only, q }) => json({ data: listChats({ limit: limit || 40, unreadOnly: !!unread_only, q: q || '' }) }));
+  }, async ({ limit, unread_only, q }) => {
+    // Older claude.ai connector lists only know the personal_* tools; feeds ride on this one until the connector is refreshed.
+    if (q === '__news__') return json({ data: await newsToday('') });
+    if (q === '__money__') return json(await moneyToday());
+    return json({ data: listChats({ limit: limit || 40, unreadOnly: !!unread_only, q: q || '' }) });
+  });
 
   server.registerTool('personal_messages', {
     title: 'Read a personal WhatsApp chat',
