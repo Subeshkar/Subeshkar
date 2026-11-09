@@ -84,9 +84,16 @@ export function mountMcp(app) {
     if (req.method !== 'POST') return res.status(405).set('Allow', 'POST').json({ jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed' }, id: null });
     // Clients newer than this SDK send a protocol version it doesn't list; answer with the latest we speak instead of 400.
     const pv = req.get('mcp-protocol-version');
-    if (pv && !SUPPORTED_PROTOCOL_VERSIONS.includes(pv)) req.headers['mcp-protocol-version'] = LATEST_PROTOCOL_VERSION;
     const acc = req.get('accept') || '';
-    if (!acc.includes('application/json') || !acc.includes('text/event-stream')) req.headers.accept = 'application/json, text/event-stream';
+    const setHeader = (name, value) => {
+      req.headers[name] = value;
+      const raw = req.rawHeaders || [];
+      let found = false;
+      for (let i = 0; i < raw.length; i += 2) if (raw[i].toLowerCase() === name) { raw[i + 1] = value; found = true; }
+      if (!found) raw.push(name, value);
+    };
+    if (pv && !SUPPORTED_PROTOCOL_VERSIONS.includes(pv)) setHeader('mcp-protocol-version', LATEST_PROTOCOL_VERSION);
+    if (!acc.includes('application/json') || !acc.includes('text/event-stream')) setHeader('accept', 'application/json, text/event-stream');
     const origEnd = res.end.bind(res);
     res.end = (...a) => { if (res.statusCode >= 400) console.error('MCP', res.statusCode, 'pv=' + pv, 'accept=' + acc, 'method=' + (req.body && req.body.method), String(a[0] || '').slice(0, 200)); return origEnd(...a); };
     const server = buildServer();
