@@ -133,3 +133,15 @@ ${s.status === 'connected' ? '<form method="post" action="/personal/unlink"><but
 <p class="muted small">Unofficial link (WhatsApp Web protocol). WhatsApp may block numbers that use it.</p>
 </section>`);
 }
+
+export function loginPage(next, bad) {
+  return shell('Dioma login', `<div class="top"><div class="brand">${mascot(30)} DIOMA</div></div>
+<form method="post" action="/login" style="display:flex;flex-direction:column;gap:14px;max-width:420px;margin:30px auto 0">
+<h1 style="font-size:clamp(34px,8vw,56px)">Log in</h1>
+<input type="hidden" name="next" value="${esc(next || '/personal')}">
+<label for="pw" class="tag">Admin password</label>
+<input id="pw" name="password" type="password" autocomplete="current-password" autofocus required style="min-height:50px;border-radius:12px;border:1px solid var(--line);background:#1B1B1B;color:#fff;padding:0 14px;font-size:18px">
+${bad ? '<p style="margin:0;color:var(--red)">That password is not right. It is the ADMIN_PASSWORD value in Railway → Variables.</p>' : ''}
+<button class="btn" type="submit" style="min-height:52px;font-size:17px">Open</button>
+</form>`);
+}

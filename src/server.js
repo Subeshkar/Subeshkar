@@ -1,12 +1,13 @@
 import 'dotenv/config';
 import express from 'express';
+import crypto from 'node:crypto';
 import { getUser, updateUser, setPerm, alreadyProcessed, logActivity } from './db.js';
 import { sendText, markRead, verifySignature, sendProactive } from './whatsapp.js';
 import { handleMessage, sendApprovals, writeBrief } from './agent.js';
 import { decide } from './actions.js';
 import { authUrl, readState, finishAuth } from './google.js';
 import { startScheduler } from './scheduler.js';
-import { landingPage, dashboardPage, messagePage, personalPage } from './pages.js';
+import { landingPage, dashboardPage, messagePage, personalPage, loginPage } from './pages.js';
 import { startPersonal, stopPersonal, resumePersonal, personalStatus } from './wa-personal.js';
 import { mountMcp, mcpToken } from './mcp.js';
 
@@ -103,16 +104,35 @@ app.get('/auth/google/callback', async (req, res) => {
 });
 
 // ---------- Dashboard (password protected) ----------
+const sessionSig = (v) => crypto.createHmac('sha256', (process.env.SESSION_SECRET || 'dev-secret') + (process.env.ADMIN_PASSWORD || '')).update(v).digest('hex');
+function hasSession(req) {
+  const m = /(?:^|;\s*)dioma_admin=([^;]+)/.exec(req.get('cookie') || '');
+  if (!m) return false;
+  const [exp, sig] = decodeURIComponent(m[1]).split('.');
+  return Number(exp) > Date.now() && sig === sessionSig(exp);
+}
 function adminOnly(req, res, next) {
   const pass = process.env.ADMIN_PASSWORD;
-  if (!pass) return res.status(503).send('Set ADMIN_PASSWORD to use the dashboard.');
+  if (!pass) return res.status(503).send(messagePage('Not set up', 'Add ADMIN_PASSWORD in Railway variables.', false));
+  if (hasSession(req)) return next();
   const [scheme, encoded] = (req.get('authorization') || '').split(' ');
   if (scheme === 'Basic' && encoded) {
     const given = Buffer.from(encoded, 'base64').toString().split(':').slice(1).join(':');
     if (given === pass) return next();
   }
-  res.set('WWW-Authenticate', 'Basic realm="Dioma dashboard"').status(401).send('Password needed.');
+  if (req.method === 'GET') return res.status(401).send(loginPage(req.originalUrl, req.query.bad === '1'));
+  res.status(401).send('Password needed.');
 }
+app.post('/login', (req, res) => {
+  const next = String(req.body.next || '/personal');
+  const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : '/personal';
+  if (process.env.ADMIN_PASSWORD && String(req.body.password || '').trim() === process.env.ADMIN_PASSWORD.trim()) {
+    const exp = String(Date.now() + 30 * 24 * 3600 * 1000);
+    res.set('Set-Cookie', `dioma_admin=${encodeURIComponent(exp + '.' + sessionSig(exp))}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${30 * 24 * 3600}`);
+    return res.redirect(safeNext);
+  }
+  res.redirect(`${safeNext}${safeNext.includes('?') ? '&' : '?'}bad=1`);
+});
 
 app.get('/dashboard', adminOnly, (_req, res) => res.send(dashboardPage()));
 app.post('/dashboard/perm', adminOnly, (req, res) => { setPerm(req.body.phone, req.body.app, req.body.mode); res.redirect('/dashboard'); });
