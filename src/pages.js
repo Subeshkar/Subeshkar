@@ -111,19 +111,22 @@ export function messagePage(title, text, ok = true) {
 <h1 style="font-size:clamp(34px,7vw,60px)">${esc(title)}</h1><p style="font-size:18px;max-width:520px;color:#E6E6E6">${esc(text)}</p></div>`);
 }
 
-const PERSONAL_LABEL = { off: 'Not linked', starting: 'Starting…', qr: 'Scan the QR code', connected: 'Linked', reconnecting: 'Reconnecting…', logged_out: 'Logged out', error: 'Error' };
+const PERSONAL_LABEL = { pair: 'Enter the code', off: 'Not linked', starting: 'Starting…', qr: 'Scan the QR code', connected: 'Linked', reconnecting: 'Reconnecting…', logged_out: 'Logged out', error: 'Error' };
 
 export function personalPage(s, mcpUrl) {
-  const body = s.status === 'qr' && s.qr
+  const body = s.pairCode
+    ? `<div class="card" style="text-align:center"><p class="tag" style="margin:0 0 8px">Your code</p><p style="font-family:'Oswald',sans-serif;font-size:48px;letter-spacing:6px;margin:0;color:var(--y)">${esc(s.pairCode)}</p><p class="muted" style="margin:12px 0 0">On your phone: WhatsApp → Settings → <b>Linked devices</b> → <b>Link a device</b> → tap <b>Link with phone number instead</b> → type this code.</p></div>`
+    : s.status === 'qr' && s.qr
     ? `<div class="card" style="text-align:center"><img src="${s.qr}" alt="WhatsApp link QR code" width="300" height="300" style="background:#fff;border-radius:14px;padding:8px;max-width:100%"><p class="muted" style="margin:14px 0 0">On your phone: WhatsApp → Settings → <b>Linked devices</b> → <b>Link a device</b> → scan this code.<br>The code changes every ~20 seconds; this page refreshes itself.</p></div>`
     : s.status === 'connected'
       ? `<div class="card"><p style="margin:0 0 6px"><span class="tag">Linked</span></p><p style="margin:0">+${esc(s.me || '')} · ${s.chats} chats · ${s.unread} unread</p><p class="muted" style="margin:10px 0 0">Old chats keep syncing for a few minutes after linking.</p></div>`
       : `<div class="card"><p style="margin:0">${esc(PERSONAL_LABEL[s.status] || s.status)}${s.error ? ` · <span style="color:var(--red)">${esc(s.error)}</span>` : ''}</p></div>`;
-  const refresh = ['qr', 'starting', 'reconnecting'].includes(s.status) ? '<meta http-equiv="refresh" content="5">' : '';
+  const refresh = ['qr', 'starting', 'reconnecting'].includes(s.status) && !s.pairCode ? '<meta http-equiv="refresh" content="5">' : '';
   return shell('Personal WhatsApp', `${refresh}<div class="top"><div class="brand">${mascot(30)} DIOMA</div><a href="/dashboard">Dashboard</a></div>
 <p class="eyebrow">Personal WhatsApp</p><h1 style="font-size:clamp(34px,7vw,60px)">${esc(PERSONAL_LABEL[s.status] || s.status)}</h1>
 <section style="display:flex;flex-direction:column;gap:14px;margin-top:20px;max-width:560px">
 ${body}
+${s.status !== 'connected' ? `<form method="post" action="/personal/pair" class="card" style="display:flex;flex-direction:column;gap:10px"><label for="pp" class="tag">On your phone only? Link with a code</label><input id="pp" name="phone" inputmode="tel" value="971585155559" style="min-height:44px;border-radius:12px;border:1px solid var(--line);background:#111;color:#fff;padding:0 12px;font-size:16px"><button class="btn" type="submit">Get link code</button></form>` : ''}
 <form method="post" action="/personal/start"><button class="btn" type="submit">${s.status === 'connected' ? 'Reconnect' : 'Show QR code'}</button></form>
 ${s.status === 'connected' ? '<form method="post" action="/personal/unlink"><button class="btn" style="background:#2A2A2A;color:#fff" type="submit">Unlink this device</button></form>' : ''}
 <div class="card"><p class="tag" style="margin:0 0 6px">Connector for the Dioma app</p>${mcpUrl ? `<p style="margin:0;word-break:break-all"><code>${esc(mcpUrl)}</code></p><p class="muted" style="margin:8px 0 0">In claude.ai: Settings → Connectors → Add custom connector → name it <b>Dioma WhatsApp</b> and paste this URL. Keep it private.</p>` : '<p class="muted" style="margin:0">Set MCP_TOKEN (at least 24 characters) in Railway variables to get the link.</p>'}</div>

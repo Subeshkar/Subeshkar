@@ -131,7 +131,8 @@ const baseUrl = (req) => (process.env.BASE_URL || `${req.protocol}://${req.get('
 const mcpUrl = (req) => `${baseUrl(req)}/mcp/${mcpToken()}`;
 app.get('/personal', adminOnly, (req, res) => res.send(personalPage(personalStatus(), mcpUrl(req))));
 app.get('/personal/status', adminOnly, (_req, res) => { const s = personalStatus(); res.json({ ...s, qr: !!s.qr }); });
-app.post('/personal/start', adminOnly, async (_req, res) => { await startPersonal(); setTimeout(() => res.redirect('/personal'), 2500); });
+app.post('/personal/start', adminOnly, async (_req, res) => { await startPersonal({ pairPhone: '', restart: true }); setTimeout(() => res.redirect('/personal'), 3000); });
+app.post('/personal/pair', adminOnly, async (req, res) => { await startPersonal({ pairPhone: req.body.phone || '', restart: true }); setTimeout(() => res.redirect('/personal'), 5000); });
 app.post('/personal/unlink', adminOnly, async (_req, res) => { await stopPersonal(true); res.redirect('/personal'); });
 mountMcp(app);
 

@@ -25,7 +25,7 @@ CREATE INDEX IF NOT EXISTS wp_messages_jid_at ON wp_messages (jid, at);
 CREATE TABLE IF NOT EXISTS wp_contacts (jid TEXT PRIMARY KEY, name TEXT);
 `);
 
-const state = { status: 'off', qr: null, qrDataUrl: null, me: null, error: null, startedAt: null };
+const state = { status: 'off', qr: null, qrDataUrl: null, me: null, error: null, startedAt: null, pairPhone: null, pairCode: null };
 let sock = null;
 let starting = false;
 let retries = 0;
@@ -34,7 +34,7 @@ const log = pino({ level: process.env.WA_PERSONAL_LOG || 'warn' });
 
 export function personalStatus() {
   const counts = db.prepare('SELECT COUNT(*) AS chats, COALESCE(SUM(unread),0) AS unread FROM wp_chats').get();
-  return { status: state.status, me: state.me, error: state.error, qr: state.qrDataUrl, ...counts };
+  return { status: state.status, me: state.me, error: state.error, qr: state.qrDataUrl, pairCode: state.pairCode, ...counts };
 }
 
 function textOf(m) {
@@ -102,8 +102,11 @@ function saveMessage(m, live) {
   }
 }
 
-export async function startPersonal() {
+export async function startPersonal(opts = {}) {
+  if (opts.pairPhone !== undefined) { state.pairPhone = String(opts.pairPhone || '').replace(/\D/g, '') || null; state.pairCode = null; }
+  if (opts.restart && sock && state.status !== 'connected') { try { sock.end?.(); } catch { /* ignore */ } sock = null; }
   if (starting || (sock && state.status === 'connected')) return personalStatus();
+  if (sock) return personalStatus();
   starting = true;
   state.error = null;
   state.status = 'starting';
@@ -120,9 +123,18 @@ export async function startPersonal() {
       markOnlineOnConnect: false,
       shouldSyncHistoryMessage: () => true
     });
+    const self = sock;
     sock.ev.on('creds.update', saveCreds);
     sock.ev.on('connection.update', async (u) => {
-      if (u.qr) {
+      if (sock !== self) return; // an older socket that was replaced
+      if (u.qr && state.pairPhone && !auth.creds.registered && !state.pairCode) {
+        try {
+          const code = await sock.requestPairingCode(state.pairPhone);
+          state.pairCode = code ? `${code.slice(0, 4)}-${code.slice(4)}` : null;
+          state.status = 'pair';
+        } catch (e) { state.error = 'Could not get a pairing code: ' + e.message; }
+      }
+      if (u.qr && !state.pairPhone) {
         state.status = 'qr';
         state.qr = u.qr;
         state.qrDataUrl = await QRCode.toDataURL(u.qr, { margin: 1, width: 320 });
@@ -130,6 +142,7 @@ export async function startPersonal() {
       if (u.connection === 'open') {
         state.status = 'connected';
         state.qr = state.qrDataUrl = null;
+        state.pairCode = null; state.pairPhone = null;
         state.me = sock.user?.id?.split(':')[0]?.split('@')[0] || null;
         retries = 0;
         console.log('Personal WhatsApp linked', state.me);
