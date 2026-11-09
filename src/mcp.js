@@ -9,6 +9,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { SUPPORTED_PROTOCOL_VERSIONS, LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js';
 import * as P from './wa-personal.js';
 import * as B from './wa-business.js';
+import { newsToday, moneyToday } from './feeds.js';
 const { personalStatus, listChats, listMessages, sendPersonal, markChatRead } = P;
 
 const json = (data) => ({ content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: Array.isArray(data) ? { data } : data });
@@ -60,6 +61,8 @@ function buildServer() {
     annotations: { destructiveHint: false, openWorldHint: true }
   }, async ({ chat_id, text }) => json(await sendPersonal(chat_id, text)));
 
+  server.registerTool('news_today', { title: 'Tech and AI news today', description: 'Top AI / tech news from the last day, plus UAE tech and startup news. Each item has title, source, link and published time.', inputSchema: { topic: z.string().optional().describe('Optional search, e.g. "logistics AI"') }, annotations: { readOnlyHint: true } }, async ({ topic }) => json({ data: await newsToday(topic || '') }));
+  server.registerTool('money_today', { title: 'Funding and share prices today', description: 'Startup funding news from the last 2 days and delayed share prices for the 10 biggest companies.', inputSchema: {}, annotations: { readOnlyHint: true } }, async () => json(await moneyToday()));
   for (const [pre, M, label] of [['business', B, 'business']]) {
     server.registerTool(`${pre}_status`, { title: `${label} WhatsApp status`, description: `Whether the ${label} WhatsApp is linked, plus chat and unread counts.`, inputSchema: {}, annotations: { readOnlyHint: true } }, async () => { const s = M.personalStatus(); delete s.qr; return json(s); });
     server.registerTool(`${pre}_chats`, { title: `List ${label} WhatsApp chats`, description: `${label} WhatsApp chats, most recent first, with saved names, numbers, unread counts and the last message.`, inputSchema: { limit: z.number().int().min(1).max(200).optional(), unread_only: z.boolean().optional(), q: z.string().optional().describe('Search by name or number') }, annotations: { readOnlyHint: true } }, async ({ limit, unread_only, q }) => json({ data: M.listChats({ limit: limit || 40, unreadOnly: !!unread_only, q: q || '' }) }));
