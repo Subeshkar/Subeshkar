@@ -6,6 +6,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { SUPPORTED_PROTOCOL_VERSIONS, LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js';
 import { personalStatus, listChats, listMessages, sendPersonal, markChatRead } from './wa-personal.js';
 
 const json = (data) => ({ content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: Array.isArray(data) ? { data } : data });
@@ -81,6 +82,13 @@ export function mountMcp(app) {
     const token = mcpToken();
     if (!safeEqual(req.params.token, token)) return res.status(404).json({ error: 'not found' });
     if (req.method !== 'POST') return res.status(405).set('Allow', 'POST').json({ jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed' }, id: null });
+    // Clients newer than this SDK send a protocol version it doesn't list; answer with the latest we speak instead of 400.
+    const pv = req.get('mcp-protocol-version');
+    if (pv && !SUPPORTED_PROTOCOL_VERSIONS.includes(pv)) req.headers['mcp-protocol-version'] = LATEST_PROTOCOL_VERSION;
+    const acc = req.get('accept') || '';
+    if (!acc.includes('application/json') || !acc.includes('text/event-stream')) req.headers.accept = 'application/json, text/event-stream';
+    const origEnd = res.end.bind(res);
+    res.end = (...a) => { if (res.statusCode >= 400) console.error('MCP', res.statusCode, 'pv=' + pv, 'accept=' + acc, 'method=' + (req.body && req.body.method), String(a[0] || '').slice(0, 200)); return origEnd(...a); };
     const server = buildServer();
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
     res.on('close', () => { transport.close(); server.close(); });
