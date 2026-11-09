@@ -35,8 +35,8 @@ function buildServer() {
     annotations: { readOnlyHint: true }
   }, async ({ limit, unread_only, q }) => {
     // Older claude.ai connector lists only know the personal_* tools; feeds ride on this one until the connector is refreshed.
-    if (q === '__news__') return json({ data: await newsToday('') });
-    if (q === '__money__') return json(await moneyToday());
+    if (q && q.startsWith('__news__')) return json({ data: await newsToday(q.split(':')[1] || 'world') });
+    if (q && q.startsWith('__money__')) return json(await moneyToday(q.split(':')[1] || 'world'));
     return json({ data: listChats({ limit: limit || 40, unreadOnly: !!unread_only, q: q || '' }) });
   });
 
@@ -66,8 +66,8 @@ function buildServer() {
     annotations: { destructiveHint: false, openWorldHint: true }
   }, async ({ chat_id, text }) => json(await sendPersonal(chat_id, text)));
 
-  server.registerTool('news_today', { title: 'Tech and AI news today', description: 'Top AI / tech news from the last day, plus UAE tech and startup news. Each item has title, source, link and published time.', inputSchema: { topic: z.string().optional().describe('Optional search, e.g. "logistics AI"') }, annotations: { readOnlyHint: true } }, async ({ topic }) => json({ data: await newsToday(topic || '') }));
-  server.registerTool('money_today', { title: 'Funding and share prices today', description: 'Startup funding news from the last 2 days and delayed share prices for the 10 biggest companies.', inputSchema: {}, annotations: { readOnlyHint: true } }, async () => json(await moneyToday()));
+  server.registerTool('news_today', { title: 'Tech and AI news today', description: 'Top AI / tech news from the last day, plus UAE tech and startup news. Each item has title, source, link and published time.', inputSchema: { topic: z.string().optional().describe('Region: uae, gcc or world') }, annotations: { readOnlyHint: true } }, async ({ topic }) => json({ data: await newsToday(topic || 'world') }));
+  server.registerTool('money_today', { title: 'Funding and share prices today', description: 'Startup funding news from the last 2 days and delayed share prices for the 10 biggest companies.', inputSchema: { region: z.string().optional().describe('uae, gcc or world') }, annotations: { readOnlyHint: true } }, async ({ region }) => json(await moneyToday(region || 'world')));
   for (const [pre, M, label] of [['business', B, 'business']]) {
     server.registerTool(`${pre}_status`, { title: `${label} WhatsApp status`, description: `Whether the ${label} WhatsApp is linked, plus chat and unread counts.`, inputSchema: {}, annotations: { readOnlyHint: true } }, async () => { const s = M.personalStatus(); delete s.qr; return json(s); });
     server.registerTool(`${pre}_chats`, { title: `List ${label} WhatsApp chats`, description: `${label} WhatsApp chats, most recent first, with saved names, numbers, unread counts and the last message.`, inputSchema: { limit: z.number().int().min(1).max(200).optional(), unread_only: z.boolean().optional(), q: z.string().optional().describe('Search by name or number') }, annotations: { readOnlyHint: true } }, async ({ limit, unread_only, q }) => json({ data: M.listChats({ limit: limit || 40, unreadOnly: !!unread_only, q: q || '' }) }));

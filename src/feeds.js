@@ -34,43 +34,58 @@ async function rss(url, limit = 12) {
 
 const gnews = (q) => `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-AE&gl=AE&ceid=AE:en`;
 
-export async function newsToday(topic = '') {
-  const q = topic || '(artificial intelligence OR AI OR OpenAI OR Anthropic OR Nvidia OR big tech) when:1d';
-  return cached('news:' + q, async () => {
-    const [world, uae] = await Promise.all([
-      rss(gnews(q), 12),
-      rss(gnews('(AI OR technology OR startup OR logistics) (Dubai OR UAE) when:2d'), 6).catch(() => [])
-    ]);
+const REGION = {
+  uae: '(UAE OR Dubai OR "Abu Dhabi" OR Sharjah)',
+  gcc: '(Saudi OR Riyadh OR Qatar OR Doha OR Kuwait OR Bahrain OR Oman OR GCC)',
+  world: ''
+};
+
+export async function newsToday(region = 'world') {
+  region = REGION[region] !== undefined ? region : 'world';
+  const q = region === 'world'
+    ? '(artificial intelligence OR AI OR OpenAI OR Anthropic OR Nvidia OR big tech OR startups) when:1d'
+    : `(AI OR technology OR startup OR business OR logistics OR economy) ${REGION[region]} when:2d`;
+  return cached('news:' + region, async () => {
+    const items = await rss(gnews(q), 18);
     const seen = new Set();
-    return [...world, ...uae].filter((x) => x.title && !seen.has(x.title) && seen.add(x.title)).slice(0, 16);
+    return items.filter((x) => x.title && !seen.has(x.title) && seen.add(x.title)).slice(0, 14);
   });
 }
 
-const TOP10 = [
-  ['NVDA', 'Nvidia'], ['MSFT', 'Microsoft'], ['AAPL', 'Apple'], ['GOOGL', 'Alphabet'], ['AMZN', 'Amazon'],
-  ['META', 'Meta'], ['AVGO', 'Broadcom'], ['TSLA', 'Tesla'], ['BRK-B', 'Berkshire Hathaway'], ['TSM', 'TSMC']
-];
+const STOCKS = {
+  world: [['NVDA', 'Nvidia'], ['MSFT', 'Microsoft'], ['AAPL', 'Apple'], ['GOOGL', 'Alphabet'], ['AMZN', 'Amazon'], ['META', 'Meta'], ['AVGO', 'Broadcom'], ['TSLA', 'Tesla'], ['BRK-B', 'Berkshire Hathaway'], ['TSM', 'TSMC']],
+  uae: [['IHC.AD', 'International Holding Co'], ['ADNOCGAS.AD', 'ADNOC Gas'], ['FAB.AD', 'First Abu Dhabi Bank'], ['EAND.AD', 'e&'], ['EMIRATESNBD.AE', 'Emirates NBD'], ['EMAAR.AE', 'Emaar Properties'], ['DEWA.AE', 'DEWA'], ['ALDAR.AD', 'Aldar'], ['ADCB.AD', 'ADCB'], ['ALPHADHABI.AD', 'Alpha Dhabi']],
+  gcc: [['2222.SR', 'Saudi Aramco'], ['1120.SR', 'Al Rajhi Bank'], ['1180.SR', 'Saudi National Bank'], ['QNBK.QA', 'QNB'], ['IHC.AD', 'IHC (UAE)'], ['7010.SR', 'stc'], ['2082.SR', 'ACWA Power'], ['2010.SR', 'SABIC'], ['KFH.KW', 'Kuwait Finance House'], ['FAB.AD', 'FAB (UAE)']]
+};
 
-async function quotes() {
-  // Stooq gives free delayed quotes as CSV, no key needed.
-  const syms = TOP10.map(([s]) => s.toLowerCase().replace('-', '.') + '.us').join(',');
-  const res = await fetch(`https://stooq.com/q/l/?s=${syms}&f=sd2t2ohlcv&h&e=csv`, { headers: { 'User-Agent': 'Mozilla/5.0 DiomaBot/1.0' } });
-  if (!res.ok) throw new Error(`Quotes ${res.status}`);
-  const lines = (await res.text()).trim().split('\n').slice(1);
-  return lines.map((line) => {
-    const [sym, date, time, open, high, low, close] = line.split(',');
-    const t = TOP10.find(([s]) => s.toLowerCase().replace('-', '.') + '.us' === String(sym).toLowerCase());
-    const c = Number(close), o = Number(open);
-    return { symbol: t ? t[0] : sym, name: t ? t[1] : sym, price: isFinite(c) ? c : null, change_pct: isFinite(c) && isFinite(o) && o ? Math.round(((c - o) / o) * 10000) / 100 : null, date, time };
-  }).filter((x) => x.price !== null);
+async function quotes(region) {
+  const list = STOCKS[region] || STOCKS.world;
+  const one = async ([sym, name]) => {
+    try {
+      const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=1d&interval=1d`, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+      if (!res.ok) return null;
+      const m = (((await res.json()).chart || {}).result || [])[0]?.meta || {};
+      const price = m.regularMarketPrice, prev = m.chartPreviousClose ?? m.previousClose;
+      if (price == null) return null;
+      return { symbol: sym, name, price, currency: m.currency || 'USD', change_pct: prev ? Math.round(((price - prev) / prev) * 10000) / 100 : null, time: m.regularMarketTime ? new Date(m.regularMarketTime * 1000).toISOString() : null };
+    } catch { return null; }
+  };
+  return (await Promise.all(list.map(one))).filter(Boolean);
 }
 
-export async function moneyToday() {
-  return cached('money', async () => {
+const FUND = {
+  world: '(raises OR raised OR "funding round" OR "Series A" OR "Series B" OR "Series C" OR "seed round") startup when:2d',
+  uae: `(raises OR raised OR funding OR "Series A" OR "Series B" OR seed OR investment) startup ${REGION.uae} when:14d`,
+  gcc: `(raises OR raised OR funding OR "Series A" OR "Series B" OR seed OR investment) startup ${REGION.gcc} when:14d`
+};
+
+export async function moneyToday(region = 'world') {
+  region = FUND[region] ? region : 'world';
+  return cached('money:' + region, async () => {
     const [funding, stocks] = await Promise.all([
-      rss(gnews('(raises OR raised OR funding round OR Series A OR Series B OR Series C OR seed round) startup when:2d'), 14).catch(() => []),
-      quotes().catch((e) => ({ error: e.message }))
+      rss(gnews(FUND[region]), 14).catch(() => []),
+      quotes(region).catch(() => [])
     ]);
-    return { funding, stocks: Array.isArray(stocks) ? stocks : [], stocks_error: Array.isArray(stocks) ? null : stocks.error, note: 'Share prices are delayed and change during market hours (US).' };
+    return { region, funding, stocks, note: region === 'world' ? 'Delayed US prices; change vs previous close.' : 'Delayed local prices; change vs previous close.' };
   });
 }
