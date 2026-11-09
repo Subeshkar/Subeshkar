@@ -9,6 +9,7 @@ import { authUrl, readState, finishAuth } from './google.js';
 import { startScheduler } from './scheduler.js';
 import { landingPage, dashboardPage, messagePage, personalPage, loginPage } from './pages.js';
 import { startPersonal, stopPersonal, resumePersonal, personalStatus } from './wa-personal.js';
+import { startPersonal as startBusiness, stopPersonal as stopBusiness, resumePersonal as resumeBusiness, personalStatus as businessStatus } from './wa-business.js';
 import { mountMcp, mcpToken } from './mcp.js';
 
 const app = express();
@@ -157,7 +158,11 @@ app.post('/dashboard/brief', adminOnly, async (req, res) => {
 // ---------- Personal WhatsApp (QR link) ----------
 const baseUrl = (req) => (process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
 const mcpUrl = (req) => `${baseUrl(req)}/mcp/${mcpToken()}`;
-app.get('/personal', adminOnly, (req, res) => res.send(personalPage(personalStatus(), mcpUrl(req))));
+app.get('/personal', adminOnly, (req, res) => res.send(personalPage(personalStatus(), mcpUrl(req), { other: ['/business', 'Business WhatsApp'] })));
+app.get('/business', adminOnly, (req, res) => res.send(personalPage(businessStatus(), mcpUrl(req), { base: '/business', title: 'Business WhatsApp', phone: '', other: ['/personal', 'Personal WhatsApp'] })));
+app.post('/business/pair', adminOnly, async (req, res) => { await startBusiness({ pairPhone: req.body.phone || '', restart: true }); setTimeout(() => res.redirect('/business'), 6000); });
+app.post('/business/start', adminOnly, async (_req, res) => { await startBusiness({ pairPhone: '', restart: true }); setTimeout(() => res.redirect('/business'), 3000); });
+app.post('/business/unlink', adminOnly, async (_req, res) => { await stopBusiness(true); res.redirect('/business'); });
 app.get('/personal/status', adminOnly, (_req, res) => { const s = personalStatus(); res.json({ ...s, qr: !!s.qr }); });
 app.post('/personal/start', adminOnly, async (_req, res) => { await startPersonal({ pairPhone: '', restart: true }); setTimeout(() => res.redirect('/personal'), 3000); });
 app.post('/personal/pair', adminOnly, async (req, res) => { await startPersonal({ pairPhone: req.body.phone || '', restart: true }); setTimeout(() => res.redirect('/personal'), 5000); });
@@ -171,4 +176,5 @@ app.listen(port, () => {
   console.log(`Setup link (private): ${base}/setup/${mcpToken()}`);
   startScheduler();
   resumePersonal();
+  setTimeout(resumeBusiness, 4000);
 });

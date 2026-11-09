@@ -7,7 +7,9 @@ import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { SUPPORTED_PROTOCOL_VERSIONS, LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js';
-import { personalStatus, listChats, listMessages, sendPersonal, markChatRead } from './wa-personal.js';
+import * as P from './wa-personal.js';
+import * as B from './wa-business.js';
+const { personalStatus, listChats, listMessages, sendPersonal, markChatRead } = P;
 
 const json = (data) => ({ content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: Array.isArray(data) ? { data } : data });
 
@@ -58,6 +60,13 @@ function buildServer() {
     annotations: { destructiveHint: false, openWorldHint: true }
   }, async ({ chat_id, text }) => json(await sendPersonal(chat_id, text)));
 
+  for (const [pre, M, label] of [['business', B, 'business']]) {
+    server.registerTool(`${pre}_status`, { title: `${label} WhatsApp status`, description: `Whether the ${label} WhatsApp is linked, plus chat and unread counts.`, inputSchema: {}, annotations: { readOnlyHint: true } }, async () => { const s = M.personalStatus(); delete s.qr; return json(s); });
+    server.registerTool(`${pre}_chats`, { title: `List ${label} WhatsApp chats`, description: `${label} WhatsApp chats, most recent first, with saved names, numbers, unread counts and the last message.`, inputSchema: { limit: z.number().int().min(1).max(200).optional(), unread_only: z.boolean().optional(), q: z.string().optional().describe('Search by name or number') }, annotations: { readOnlyHint: true } }, async ({ limit, unread_only, q }) => json({ data: M.listChats({ limit: limit || 40, unreadOnly: !!unread_only, q: q || '' }) }));
+    server.registerTool(`${pre}_messages`, { title: `Read a ${label} WhatsApp chat`, description: `Messages in one ${label} WhatsApp chat, oldest to newest.`, inputSchema: { chat_id: z.string(), limit: z.number().int().min(1).max(200).optional() }, annotations: { readOnlyHint: true } }, async ({ chat_id, limit }) => json({ data: M.listMessages(chat_id, limit || 30) }));
+    server.registerTool(`${pre}_mark_read`, { title: `Mark ${label} chat read in Dioma`, description: 'Clears the unread badge for a chat inside Dioma.', inputSchema: { chat_id: z.string() } }, async ({ chat_id }) => { await M.markChatRead(chat_id); return json({ ok: true }); });
+    server.registerTool(`${pre}_send`, { title: `Send from ${label} WhatsApp`, description: `Sends a text message from the owner's ${label} WhatsApp. Only call after the owner approved the exact text.`, inputSchema: { chat_id: z.string(), text: z.string().min(1).max(4000) }, annotations: { destructiveHint: false, openWorldHint: true } }, async ({ chat_id, text }) => json(await M.sendPersonal(chat_id, text)));
+  }
   return server;
 }
 
