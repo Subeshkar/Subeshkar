@@ -23,7 +23,23 @@ CREATE TABLE IF NOT EXISTS wp_messages (
 );
 CREATE INDEX IF NOT EXISTS wp_messages_jid_at ON wp_messages (jid, at);
 CREATE TABLE IF NOT EXISTS wp_contacts (jid TEXT PRIMARY KEY, name TEXT);
+CREATE TABLE IF NOT EXISTS wp_lid (lid TEXT PRIMARY KEY, pn TEXT);
 `);
+for (const col of ['saved TEXT', 'notify TEXT']) { try { db.exec(`ALTER TABLE wp_contacts ADD COLUMN ${col}`); } catch { /* already there */ } }
+
+const digits = (jid) => String(jid || '').split('@')[0].split(':')[0].replace(/\D/g, '');
+function saveMap(lid, pn) {
+  if (!lid || !pn || !String(lid).endsWith('@lid')) return;
+  const p = String(pn).includes('@') ? String(pn).replace(/:\d+@/, '@') : `${digits(pn)}@s.whatsapp.net`;
+  db.prepare('INSERT INTO wp_lid (lid, pn) VALUES (?, ?) ON CONFLICT(lid) DO UPDATE SET pn = excluded.pn').run(String(lid).replace(/:\d+@/, '@'), p);
+}
+const pnFor = (jid) => (String(jid).endsWith('@lid') ? db.prepare('SELECT pn FROM wp_lid WHERE lid = ?').get(jid)?.pn || null : jid);
+export function displayName(jid, fallback) {
+  const pn = pnFor(jid);
+  const get = (j) => (j ? db.prepare('SELECT saved, notify, name FROM wp_contacts WHERE jid = ?').get(j) : null) || {};
+  const a = get(jid), b = get(pn);
+  return a.saved || b.saved || fallback || a.name || b.name || a.notify || b.notify || (pn && !String(pn).endsWith('@lid') ? '+' + digits(pn) : digits(jid));
+}
 
 const state = { status: 'off', qr: null, qrDataUrl: null, me: null, error: null, startedAt: null, pairPhone: null, pairCode: null };
 let sock = null;
@@ -65,10 +81,16 @@ const tsOf = (m) => {
 const contactName = (jid) => db.prepare('SELECT name FROM wp_contacts WHERE jid = ?').get(jid)?.name || null;
 
 function saveContact(c) {
-  const name = c.name || c.notify || c.verifiedName;
-  if (!c.id || !name) return;
-  db.prepare('INSERT INTO wp_contacts (jid, name) VALUES (?, ?) ON CONFLICT(jid) DO UPDATE SET name = excluded.name').run(c.id, name);
-  db.prepare('UPDATE wp_chats SET name = ? WHERE jid = ? AND (name IS NULL OR name = jid)').run(name, c.id);
+  if (!c || !c.id) return;
+  if (c.lid && c.phoneNumber) saveMap(c.lid, c.phoneNumber);
+  if (String(c.id).endsWith('@lid') && c.phoneNumber) saveMap(c.id, c.phoneNumber);
+  if (c.lid && String(c.id).endsWith('@s.whatsapp.net')) saveMap(c.lid, c.id);
+  const saved = c.name || null, notify = c.notify || c.verifiedName || null;
+  if (!saved && !notify) return;
+  for (const id of new Set([c.id, c.lid, c.phoneNumber].filter(Boolean))) {
+    db.prepare(`INSERT INTO wp_contacts (jid, saved, notify) VALUES (?, ?, ?)
+      ON CONFLICT(jid) DO UPDATE SET saved = COALESCE(excluded.saved, wp_contacts.saved), notify = COALESCE(excluded.notify, wp_contacts.notify)`).run(id, saved, notify);
+  }
 }
 
 function saveChat(c) {
@@ -155,6 +177,12 @@ export async function startPersonal(opts = {}) {
         state.me = sock.user?.id?.split(':')[0]?.split('@')[0] || null;
         retries = 0;
         console.log('Personal WhatsApp linked', state.me);
+        setTimeout(async () => {
+          const lids = db.prepare("SELECT jid FROM wp_chats WHERE jid LIKE '%@lid' AND jid NOT IN (SELECT lid FROM wp_lid) LIMIT 400").all();
+          let n = 0;
+          for (const { jid } of lids) { try { const pn = await self.signalRepository?.lidMapping?.getPNForLID(jid); if (pn) { saveMap(jid, pn); n++; } } catch { /* skip */ } }
+          if (lids.length) console.log(`Personal WhatsApp: matched ${n}/${lids.length} hidden numbers`);
+        }, 8000);
       }
       if (u.connection === 'close') {
         const code = u.lastDisconnect?.error?.output?.statusCode;
@@ -177,8 +205,9 @@ export async function startPersonal(opts = {}) {
         else state.status = 'off';
       }
     });
-    sock.ev.on('messaging-history.set', ({ chats = [], contacts = [], messages = [] }) => {
+    sock.ev.on('messaging-history.set', ({ chats = [], contacts = [], messages = [], lidPnMappings = [] }) => {
       const tx = db.transaction(() => {
+        lidPnMappings.forEach((m) => saveMap(m.lid, m.pn));
         contacts.forEach(saveContact);
         chats.forEach(saveChat);
         messages.forEach((m) => saveMessage(m, false));
@@ -186,6 +215,7 @@ export async function startPersonal(opts = {}) {
       tx();
     });
     sock.ev.on('contacts.upsert', (cs) => cs.forEach(saveContact));
+    sock.ev.on('lid-mapping.update', (m) => { try { saveMap(m.lid, m.pn); } catch { /* ignore */ } });
     sock.ev.on('contacts.update', (cs) => cs.forEach(saveContact));
     sock.ev.on('chats.upsert', (cs) => cs.forEach(saveChat));
     sock.ev.on('chats.update', (cs) => cs.forEach((c) => {
@@ -220,19 +250,23 @@ export function resumePersonal() {
 }
 
 export function listChats({ limit = 40, unreadOnly = false, q = '' } = {}) {
-  const where = ['c.last_at > 0'];
-  const args = {};
-  if (unreadOnly) where.push('c.unread > 0');
-  if (q) { where.push('(c.name LIKE @q OR k.name LIKE @q OR c.jid LIKE @q)'); args.q = `%${q}%`; }
-  return db.prepare(`SELECT c.jid AS id, COALESCE(c.name, k.name, substr(c.jid, 1, instr(c.jid, '@') - 1)) AS name, c.is_group, c.unread, c.last_text, c.last_from_me, c.last_at
-    FROM wp_chats c LEFT JOIN wp_contacts k ON k.jid = c.jid
-    WHERE ${where.join(' AND ')} ORDER BY c.last_at DESC LIMIT @limit`).all({ ...args, limit: Math.min(200, Math.max(1, limit)) })
-    .map((c) => ({ ...c, is_group: !!c.is_group, last_from_me: !!c.last_from_me, last_at: new Date(c.last_at).toISOString() }));
+  const rows = db.prepare(`SELECT jid, name, is_group, unread, last_text, last_from_me, last_at FROM wp_chats WHERE last_at > 0 ${unreadOnly ? 'AND unread > 0' : ''} ORDER BY last_at DESC`).all();
+  let out = rows.map((c) => {
+    const pn = c.is_group ? null : pnFor(c.jid);
+    const name = c.is_group ? (c.name || 'Group') : displayName(c.jid);
+    return { id: c.jid, name, phone: pn && !String(pn).endsWith('@lid') ? '+' + digits(pn) : null, is_group: !!c.is_group, unread: c.unread, last_text: c.last_text, last_from_me: !!c.last_from_me, last_at: new Date(c.last_at).toISOString() };
+  });
+  if (q) {
+    const ql = String(q).toLowerCase().trim(), qd = ql.replace(/\D/g, '');
+    out = out.filter((c) => String(c.name).toLowerCase().includes(ql) || (qd.length >= 4 && ((c.phone || '').replace(/\D/g, '').includes(qd) || digits(c.id).includes(qd))));
+  }
+  return out.slice(0, Math.min(200, Math.max(1, limit)));
 }
 
 export function listMessages(chatId, limit = 30) {
   const rows = db.prepare('SELECT id, from_me, sender_name, text, at FROM wp_messages WHERE jid = ? ORDER BY at DESC LIMIT ?').all(chatId, Math.min(200, Math.max(1, limit)));
-  return rows.reverse().map((m) => ({ id: m.id, from_me: !!m.from_me, sender: m.sender_name || (m.from_me ? 'You' : ''), text: m.text, at: new Date(m.at).toISOString() }));
+  const rows2 = db.prepare('SELECT sender FROM wp_messages WHERE jid = ? ORDER BY at DESC LIMIT ?').all(chatId, Math.min(200, Math.max(1, limit)));
+  return rows.reverse().map((m, i) => ({ id: m.id, from_me: !!m.from_me, sender: m.from_me ? 'You' : displayName((rows2[rows2.length - 1 - i] || {}).sender || chatId, null), text: m.text, at: new Date(m.at).toISOString() }));
 }
 
 export async function markChatRead(chatId) {
