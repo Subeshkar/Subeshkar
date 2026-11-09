@@ -113,8 +113,8 @@ function hasSession(req) {
 }
 function adminOnly(req, res, next) {
   const pass = process.env.ADMIN_PASSWORD;
-  if (!pass) return res.status(503).send(messagePage('Not set up', 'Add ADMIN_PASSWORD in Railway variables.', false));
   if (hasSession(req)) return next();
+  if (!pass) return res.status(401).send(messagePage('Use your setup link', 'Open the private setup link from the server logs.', false));
   const [scheme, encoded] = (req.get('authorization') || '').split(' ');
   if (scheme === 'Basic' && encoded) {
     const given = Buffer.from(encoded, 'base64').toString().split(':').slice(1).join(':');
@@ -123,6 +123,14 @@ function adminOnly(req, res, next) {
   if (req.method === 'GET') return res.status(401).send(loginPage(req.originalUrl, req.query.bad === '1'));
   res.status(401).send('Password needed.');
 }
+// Private setup link (printed in the server logs) that logs the owner in without typing the password.
+app.get('/setup/:token', (req, res) => {
+  const t = mcpToken();
+  if (String(req.params.token).length !== t.length || !crypto.timingSafeEqual(Buffer.from(String(req.params.token)), Buffer.from(t))) return res.status(404).send(messagePage('Link not valid', 'Ask for a new setup link.', false));
+  const exp = String(Date.now() + 30 * 24 * 3600 * 1000);
+  res.set('Set-Cookie', `dioma_admin=${encodeURIComponent(exp + '.' + sessionSig(exp))}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${30 * 24 * 3600}`);
+  res.redirect('/personal');
+});
 app.post('/login', (req, res) => {
   const next = String(req.body.next || '/personal');
   const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : '/personal';
@@ -159,6 +167,8 @@ mountMcp(app);
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`Dioma running on port ${port}`);
+  const base = (process.env.BASE_URL || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : `http://localhost:${port}`)).replace(/\/$/, '');
+  console.log(`Setup link (private): ${base}/setup/${mcpToken()}`);
   startScheduler();
   resumePersonal();
 });
