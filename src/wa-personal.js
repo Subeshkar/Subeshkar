@@ -112,13 +112,19 @@ export async function startPersonal(opts = {}) {
   state.status = 'starting';
   state.startedAt = Date.now();
   try {
+    // A fresh link request starts from a clean session, so half-finished attempts can't block it.
+    if (opts.restart) {
+      try { const c = JSON.parse(fs.readFileSync(path.join(authDir, 'creds.json'), 'utf8')); if (!c.registered) fs.rmSync(authDir, { recursive: true, force: true }); } catch { fs.rmSync(authDir, { recursive: true, force: true }); }
+      retries = 0;
+    }
     fs.mkdirSync(authDir, { recursive: true });
     const { state: auth, saveCreds } = await useMultiFileAuthState(authDir);
+    state.pairCode = null;
     let version;
     try { ({ version } = await fetchLatestBaileysVersion()); } catch { /* use the library default */ }
     sock = makeWASocket({
       auth, logger: log, version,
-      browser: Browsers.macOS('Desktop'),
+      browser: Browsers.macOS('Chrome'),
       syncFullHistory: true,
       markOnlineOnConnect: false,
       shouldSyncHistoryMessage: () => true
@@ -127,12 +133,15 @@ export async function startPersonal(opts = {}) {
     sock.ev.on('creds.update', saveCreds);
     sock.ev.on('connection.update', async (u) => {
       if (sock !== self) return; // an older socket that was replaced
-      if (u.qr && state.pairPhone && !auth.creds.registered && !state.pairCode) {
+      if (u.connection) console.log('Personal WhatsApp connection:', u.connection);
+      if (u.qr && state.pairPhone && !auth.creds.registered && !state.pairCode && !self._pairAsked) {
+        self._pairAsked = true;
         try {
-          const code = await sock.requestPairingCode(state.pairPhone);
+          const code = await self.requestPairingCode(state.pairPhone);
+          console.log('Personal WhatsApp pairing code issued');
           state.pairCode = code ? `${code.slice(0, 4)}-${code.slice(4)}` : null;
           state.status = 'pair';
-        } catch (e) { state.error = 'Could not get a pairing code: ' + e.message; }
+        } catch (e) { state.error = 'Could not get a pairing code: ' + e.message; console.error('Pairing code error', e); }
       }
       if (u.qr && !state.pairPhone) {
         state.status = 'qr';
@@ -149,7 +158,12 @@ export async function startPersonal(opts = {}) {
       }
       if (u.connection === 'close') {
         const code = u.lastDisconnect?.error?.output?.statusCode;
+        console.error('Personal WhatsApp closed', code, u.lastDisconnect?.error?.message);
         sock = null;
+        // While waiting for the owner to type a pairing code, don't loop: each new socket would invalidate the code.
+        if (!auth.creds.registered && state.pairCode && code !== 515) {
+          state.status = 'off'; state.error = `WhatsApp closed the link request (${code || 'no code'}). Tap Get link code again and type the new code within 1 minute.`; state.pairCode = null; return;
+        }
         if (code === DisconnectReason.loggedOut) {
           state.status = 'logged_out';
           state.error = 'WhatsApp logged this device out. Link again with a new QR code.';
