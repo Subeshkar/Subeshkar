@@ -13,6 +13,7 @@ import { newsToday, moneyToday, trendsToday } from './feeds.js';
 import { transcribe } from './transcribe.js';
 import { talkLink, takeCommand } from './talk.js';
 import { xStatus, xPost } from './xpost.js';
+import { liStatus, liPost } from './linkedin.js';
 import { igapiStatus, igapiInbox, igapiThread, igapiSend, igapiMyPosts, igapiComments, igapiReply } from './igapi.js';
 import { igStatus, igFeed, igComments, igComment, igInbox, igThread, igSend, igImage, igLastError } from './ig.js';
 import { zohoList, zohoRead, zohoLinked, zohoSetupLink, booksSummary, booksContact, crmSummary, booksRecordPayment, booksBalances, booksInvoiceTotals } from './zoho.js';
@@ -43,6 +44,7 @@ function buildServer() {
   }, async ({ limit, unread_only, q }) => {
     // Older claude.ai connector lists only know the personal_* tools; feeds ride on this one until the connector is refreshed.
     if (q === '__talk__') return json({ link: talkLink() });
+    if (q === '__listatus__') return json(liStatus());
     if (q && q.startsWith('__igapi__:')) { const k = q.split(':')[1]; try { if (k === 'status') return json(igapiStatus()); if (k === 'inbox') return json({ data: await igapiInbox() }); if (k === 'posts') return json({ data: await igapiMyPosts() }); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (q && q.startsWith('__ig__:')) {
       const [, kind, ...rest] = q.split(':'); const arg = rest.join(':');
@@ -107,6 +109,7 @@ function buildServer() {
       } catch (e) { return json({ error: String((e && e.message) || e).slice(0, 300) }); }
     }
     if (chat_id.startsWith('__igapi')) { const p = chat_id.split('|'); try { if (p[0] === '__igapithread__') return json({ data: await igapiThread(p[1]) }); if (p[0] === '__igapisend__') return json(await igapiSend(p[1], decodeURIComponent(p.slice(2).join('|')))); if (p[0] === '__igapicomments__') return json({ data: await igapiComments(p[1]) }); if (p[0] === '__igapireply__') return json(await igapiReply(p[1], decodeURIComponent(p.slice(2).join('|')))); } catch (e) { return json({ error: String(e.message || e) }); } }
+    if (chat_id.startsWith('__lipost__|')) { try { return json(await liPost(decodeURIComponent(chat_id.slice(11)))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__media__|')) { const [, jid, id] = chat_id.split('|'); return json(await P.getMedia(jid, id)); }
     if (chat_id.startsWith('__bmedia__|')) { const [, jid, id] = chat_id.split('|'); return json(await B.getMedia(jid, id)); }
     return json({ data: listMessages(chat_id, limit || 30) });
