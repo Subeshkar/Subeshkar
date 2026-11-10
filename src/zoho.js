@@ -102,7 +102,7 @@ export async function booksAddVat(invoice_id, org) {
   const tax = await vatTaxId(org);
   const j = await books('/invoices/' + invoice_id, {}, org); const v = j.invoice || {};
   const line_items = (v.line_items || []).map((li) => ({ line_item_id: li.line_item_id, item_id: li.item_id || undefined, name: li.name, description: li.description, rate: li.rate, quantity: li.quantity, tax_id: tax }));
-  const u = await books('/invoices/' + invoice_id, { method: 'PUT', body: JSON.stringify({ customer_id: v.customer_id, line_items }) }, org);
+  const u = await books('/invoices/' + invoice_id, { method: 'PUT', body: JSON.stringify({ customer_id: v.customer_id, line_items, reason: 'Added 5% UAE VAT' }) }, org);
   const w = u.invoice || {}; return { ok: true, number: w.invoice_number, total: w.total, tax_total: w.tax_total, status: w.status };
 }
 export async function booksCreateInvoice({ org, customer_id, items, date, notes, reference, vat }) {
