@@ -94,6 +94,7 @@ export async function moneyToday(region = 'world') {
 // Google Trends daily searches (AE) and X trending topics (trends24).
 export async function trendsToday() {
   return cached('trends', async () => {
+    // cache only a non-empty answer (see below)
     const out = { google: [], x: [] };
     try {
       const res = await fetch('https://trends.google.com/trending/rss?geo=AE', { headers: { 'User-Agent': 'Mozilla/5.0' } });
@@ -107,8 +108,9 @@ export async function trendsToday() {
     try {
       const res = await fetch('https://trends24.in/united-arab-emirates/', { headers: { 'User-Agent': 'Mozilla/5.0' } });
       const html = await res.text();
-      const first = (html.match(/<ol class="trend-card__list">([\s\S]*?)<\/ol>/) || [])[1] || '';
-      for (const m of first.matchAll(/<a [^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/g)) { out.x.push({ title: unescape(m[2]), link: m[1] }); if (out.x.length >= 20) break; }
+      const first = (html.match(/<ol[^>]*trend-card__list[^>]*>([\s\S]*?)<\/ol>/) || [])[1] || html;
+      const seen = new Set();
+      for (const m of first.matchAll(/<a [^>]*href="([^"]*(?:x|twitter)\.com\/search[^"]*)"[^>]*>([^<]+)<\/a>/g)) { const t = unescape(m[2]); if (seen.has(t)) continue; seen.add(t); out.x.push({ title: t, link: m[1] }); if (out.x.length >= 20) break; }
     } catch { /* source down */ }
     return out;
   });
