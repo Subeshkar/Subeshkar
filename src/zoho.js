@@ -6,25 +6,31 @@ import path from 'node:path';
 import express from 'express';
 import { mcpToken } from './mcp.js';
 
-const FILE = () => path.join(process.env.DATA_DIR || './data', 'zoho.json');
-const load = () => { try { return JSON.parse(fs.readFileSync(FILE(), 'utf8')); } catch { return {}; } };
-const store = (o) => { fs.mkdirSync(path.dirname(FILE()), { recursive: true }); fs.writeFileSync(FILE(), JSON.stringify(o), { mode: 0o600 }); };
-const SCOPES = 'ZohoMail.messages.READ,ZohoMail.accounts.READ,ZohoMail.folders.READ';
+// svc 'mail' (RedexGo mail, read) or 'books' (Zoho Books). Each has its own saved login.
+const FILE = (svc = 'mail') => path.join(process.env.DATA_DIR || './data', svc === 'books' ? 'zoho-books.json' : 'zoho.json');
+const load = (svc) => { try { return JSON.parse(fs.readFileSync(FILE(svc), 'utf8')); } catch { return {}; } };
+const store = (o, svc) => { fs.mkdirSync(path.dirname(FILE(svc)), { recursive: true }); fs.writeFileSync(FILE(svc), JSON.stringify(o), { mode: 0o600 }); };
+const SCOPE = { mail: 'ZohoMail.messages.READ,ZohoMail.accounts.READ,ZohoMail.folders.READ', books: 'ZohoBooks.fullaccess.all' };
+const SCOPES = SCOPE.mail;
 
 export const zohoToken = () => crypto.createHmac('sha256', mcpToken()).update('dioma-zoho').digest('hex').slice(0, 32);
 export const zohoSetupLink = () => `https://${process.env.RAILWAY_PUBLIC_DOMAIN || 'subeshkar-production.up.railway.app'}/zoho/${zohoToken()}`;
-export const zohoLinked = () => !!load().refresh_token;
+export const zohoLinked = (svc) => !!load(svc).refresh_token;
+export const booksSetupLink = () => zohoSetupLink() + '?svc=books';
 
-let access = null; // { token, exp }
-async function accessToken() {
-  const c = load(); if (!c.refresh_token) throw new Error('RedexGo mail is not connected yet.');
-  if (access && access.exp > Date.now() + 60000) return access.token;
+const accessBy = {}; // svc -> { token, exp }
+let access = null;
+async function accessToken(svc = 'mail') {
+  const c = load(svc); if (!c.refresh_token) throw new Error(svc === 'books' ? 'Zoho Books is not connected yet.' : 'RedexGo mail is not connected yet.');
+  if (svc === 'mail' && access && access.exp > Date.now() + 60000) return access.token;
+  if (svc !== 'mail' && accessBy[svc] && accessBy[svc].exp > Date.now() + 60000) return accessBy[svc].token;
   const u = new URL(`${c.accounts || 'https://accounts.zoho.com'}/oauth/v2/token`);
   u.search = new URLSearchParams({ refresh_token: c.refresh_token, client_id: c.client_id, client_secret: c.client_secret, grant_type: 'refresh_token' });
   const j = await (await fetch(u, { method: 'POST' })).json();
   if (!j.access_token) throw new Error('Zoho refused the saved login (' + (j.error || 'unknown') + '). Connect it again.');
-  access = { token: j.access_token, exp: Date.now() + (j.expires_in || 3600) * 1000 };
-  return access.token;
+  const v = { token: j.access_token, exp: Date.now() + (j.expires_in || 3600) * 1000 };
+  if (svc === 'mail') access = v; else accessBy[svc] = v;
+  return v.token;
 }
 async function api(p) {
   const c = load();
@@ -40,6 +46,35 @@ async function account() {
   const pick = (t) => (folders.find((f) => (f.folderType || '').toLowerCase() === t || (f.folderName || '').toLowerCase() === t) || {}).folderId;
   const n = { ...c, accountId: a.accountId, email: a.primaryEmailAddress || a.mailboxAddress, folders: { inbox: pick('inbox'), sent: pick('sent') } };
   store(n); return n;
+}
+
+// ---- Zoho Books ----
+async function books(p, opts = {}) {
+  const c = load('books');
+  let org = c.org;
+  if (!org) {
+    const r = await fetch(`${c.books || 'https://www.zohoapis.com/books/v3'}/organizations`, { headers: { Authorization: 'Zoho-oauthtoken ' + await accessToken('books') } });
+    const j = await r.json(); const o = (j.organizations || []).find((x) => x.is_default_org) || (j.organizations || [])[0];
+    if (!o) throw new Error('No Zoho Books organization found.');
+    org = o.organization_id; store({ ...c, org, org_name: o.name, currency: o.currency_code }, 'books');
+  }
+  const sep = p.includes('?') ? '&' : '?';
+  const res = await fetch(`${c.books || 'https://www.zohoapis.com/books/v3'}${p}${sep}organization_id=${org}`, { ...opts, headers: { Authorization: 'Zoho-oauthtoken ' + await accessToken('books'), 'Content-Type': 'application/json', ...(opts.headers || {}) } });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || (j.code && j.code !== 0)) throw new Error('Zoho Books: ' + (j.message || res.status));
+  return j;
+}
+export async function booksSummary() {
+  const c = load('books'); if (!c.refresh_token) return { linked: false, setup: booksSetupLink() };
+  const [over, unpaid] = await Promise.all([books('/invoices?status=overdue&per_page=50&sort_column=due_date'), books('/invoices?status=unpaid&per_page=100')]);
+  const pick = (i) => ({ id: i.invoice_id, number: i.invoice_number, customer: i.customer_name, customer_id: i.customer_id, total: i.total, balance: i.balance, currency: i.currency_code, date: i.date, due: i.due_date, days_overdue: i.due_date ? Math.max(0, Math.round((Date.now() - new Date(i.due_date).getTime()) / 864e5)) : 0, status: i.status, email: i.email || '' });
+  const o2 = load('books');
+  return { linked: true, org: o2.org_name, currency: o2.currency, overdue: (over.invoices || []).map(pick), unpaid: (unpaid.invoices || []).map(pick) };
+}
+export async function booksContact(id) {
+  const j = await books(`/contacts/${id}`);
+  const ct = j.contact || {};
+  return { name: ct.contact_name, company: ct.company_name, email: ct.email, phone: ct.mobile || ct.phone, persons: (ct.contact_persons || []).map((p) => ({ name: [p.first_name, p.last_name].filter(Boolean).join(' '), email: p.email, phone: p.mobile || p.phone })) };
 }
 
 // folder: action|unread|all|sent ; q: search text
@@ -65,33 +100,40 @@ const ok = (req, res, next) => {
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return res.status(404).send('Not found');
   next();
 };
-const page = (msg = '') => `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connect RedexGo mail</title>
+const page = (msg = '', svc = 'mail') => `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${svc === 'books' ? 'Connect Zoho Books' : 'Connect RedexGo mail'}</title>
 <style>body{margin:0;background:#f6f4ee;color:#16181d;font:16px/1.5 system-ui,sans-serif;padding:24px}main{max-width:560px;margin:auto}h1{font-size:22px}ol{padding-left:20px}li{margin:8px 0}code{background:#ece8dc;padding:2px 6px;border-radius:6px;word-break:break-all}label{display:block;font-weight:600;margin-top:14px}input{width:100%;box-sizing:border-box;padding:12px;border:1px solid #bbb;border-radius:10px;font-size:15px}button{margin-top:18px;background:#16181d;color:#fff;border:0;border-radius:12px;padding:14px 20px;font-size:16px;font-weight:600}.m{padding:12px;border-radius:10px;background:#fff3c4;margin:12px 0}</style></head><body><main>
-<h1>Connect RedexGo mail to Dioma</h1>${msg ? `<div class="m">${msg}</div>` : ''}
-<p>${zohoLinked() ? '✅ Connected. You can connect again below to replace it.' : 'One time, about 3 minutes.'}</p>
+<h1>${svc === 'books' ? 'Connect Zoho Books to Dioma' : 'Connect RedexGo mail to Dioma'}</h1>${msg ? `<div class="m">${msg}</div>` : ''}
+<p>${zohoLinked(svc) ? '✅ Connected. You can connect again below to replace it.' : 'One time, about 3 minutes.'}</p>
 <ol><li>Open <a href="https://api-console.zoho.com" target="_blank" rel="noopener">api-console.zoho.com</a> and sign in as info@redexgo.com.</li>
 <li>Tap <b>Add Client</b> → <b>Self Client</b> → Create → OK.</li>
-<li>In <b>Generate Code</b>, paste this scope:<br><code>${SCOPES}</code><br>Time duration: <b>10 minutes</b>, description: <b>Dioma</b> → Create → choose the redexgo portal if asked → copy the code.</li>
+<li>In <b>Generate Code</b>, paste this scope:<br><code>${SCOPE[svc]}</code><br>Time duration: <b>10 minutes</b>, description: <b>Dioma</b> → Create → choose the redexgo portal if asked → copy the code.</li>
 <li>Open the <b>Client Secret</b> tab and copy the Client ID and Client Secret.</li>
 <li>Paste all three below and tap Connect (within 10 minutes).</li></ol>
 <form method="post"><label>Client ID<input name="client_id" required autocomplete="off"></label><label>Client Secret<input name="client_secret" required autocomplete="off"></label><label>Code<input name="code" required autocomplete="off"></label><button>Connect</button></form>
 </main></body></html>`;
 
 export function mountZoho(app) {
-  app.get('/zoho/:t', ok, (_req, res) => res.set('Cache-Control', 'no-store').send(page()));
+  const svcOf = (req) => (req.query.svc === 'books' ? 'books' : 'mail');
+  app.get('/zoho/:t', ok, (req, res) => res.set('Cache-Control', 'no-store').send(page('', svcOf(req))));
   app.post('/zoho/:t', ok, express.urlencoded({ extended: false }), async (req, res) => {
     const { client_id, client_secret, code } = Object.fromEntries(Object.entries(req.body || {}).map(([k, v]) => [k, String(v || '').trim()]));
-    if (!client_id || !client_secret || !code) return res.send(page('Please fill in all three.'));
+    const svc = svcOf(req);
+    if (!client_id || !client_secret || !code) return res.send(page('Please fill in all three.', svc));
     try {
       const u = new URL('https://accounts.zoho.com/oauth/v2/token');
       u.search = new URLSearchParams({ code, client_id, client_secret, grant_type: 'authorization_code' });
       const j = await (await fetch(u, { method: 'POST' })).json();
-      if (!j.refresh_token) return res.send(page('Zoho said: ' + (j.error || 'no refresh token') + '. Make a new code (step 3) and try again quickly.'));
+      if (!j.refresh_token) return res.send(page('Zoho said: ' + (j.error || 'no refresh token') + '. Make a new code (step 3) and try again quickly.', svc));
+      if (svc === 'books') {
+        store({ client_id, client_secret, refresh_token: j.refresh_token, accounts: 'https://accounts.zoho.com', books: (j.api_domain || 'https://www.zohoapis.com') + '/books/v3' }, 'books'); accessBy.books = null;
+        const sm = await booksSummary();
+        return res.send(page(`✅ Connected to Zoho Books (${sm.org}). ${sm.unpaid.length} unpaid invoices, ${sm.overdue.length} overdue. You can close this page.`, 'books'));
+      }
       const api = j.api_domain && /zohoapis\.(\w+(\.\w+)?)$/.test(j.api_domain) ? j.api_domain.replace('www.zohoapis', 'mail.zoho') : 'https://mail.zoho.com';
       store({ client_id, client_secret, refresh_token: j.refresh_token, accounts: 'https://accounts.zoho.com', api });
       access = null;
       const list = await zohoList('all');
       res.send(page(`✅ Connected. Dioma can read RedexGo mail now (${list.length} recent emails found). You can close this page.`));
-    } catch (e) { res.send(page('Something went wrong: ' + String(e.message || e))); }
+    } catch (e) { res.send(page('Something went wrong: ' + String(e.message || e), svc)); }
   });
 }
