@@ -36,7 +36,8 @@ async function toPcm(buf) {
 async function viaLocal(buf) {
   if (!localPipe) {
     const { pipeline, env } = await import('@huggingface/transformers');
-    env.cacheDir = path.join(process.env.DATA_DIR || './data', 'models');
+    // Model files live on the container disk, not the small /data volume (it filled up at ~440 MB).
+    env.cacheDir = process.env.MODEL_DIR || '/tmp/dioma-models';
     localPipe = await pipeline('automatic-speech-recognition', process.env.WHISPER_MODEL || 'onnx-community/whisper-small', { dtype: 'q8' });
   }
   const audio = await toPcm(buf);

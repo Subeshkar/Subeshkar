@@ -18,6 +18,10 @@ import { mountIg } from './ig.js';
 import { mountIgApi } from './igapi.js';
 import { mountLinkedIn, mountLinkedInInbox } from './linkedin.js';
 import { mountMedia } from './media.js';
+import fsx from 'node:fs';
+import pathx from 'node:path';
+// Free the data volume: the speech model used to be cached there.
+try { fsx.rmSync(pathx.join(process.env.DATA_DIR || './data', 'models'), { recursive: true, force: true }); } catch {}
 
 const app = express();
 app.set('trust proxy', true);
