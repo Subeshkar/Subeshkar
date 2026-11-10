@@ -11,7 +11,7 @@ import * as P from './wa-personal.js';
 import * as B from './wa-business.js';
 import { newsToday, moneyToday, trendsToday, trendPosts } from './feeds.js';
 import { transcribe } from './transcribe.js';
-import { talkLink, takeCommand } from './talk.js';
+import { talkLink, takeCommand, takePulse } from './talk.js';
 import { xStatus, xPost, xLike, xReply, xFollow, xSearch } from './xpost.js';
 import { liStatus, liPost, liInbox, liInboxChunk, igDmSnap, igInboxSave } from './linkedin.js';
 import { igapiStatus, igapiInbox, igapiThread, igapiSend, igapiMyPosts, igapiComments, igapiReply } from './igapi.js';
@@ -74,6 +74,7 @@ function buildServer() {
     if (q && q.startsWith('__bookscontact__:')) { try { return json(await booksContact(q.split(':')[1])); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (q && q.startsWith('__zoho__:')) { const [, folder, ...rest] = q.split(':'); try { return json({ data: await zohoList(folder, rest.join(':')) }); } catch (e) { return json({ error: String(e.message || e), linked: zohoLinked() }); } }
     if (q && q.startsWith('__zohomsg__:')) { const [, f, m] = q.split(':'); try { return json(await zohoRead(f, m)); } catch (e) { return json({ error: String(e.message || e) }); } }
+    if (q && q.startsWith('__pulsein__')) return json({ items: takePulse(q.split(':')[1]), link: talkLink() + '?to=pulse' });
     if (q && q.startsWith('__talkcmd__')) return json(takeCommand(q.split(':')[1]) || {});
     if (q && q.startsWith('__news__')) return json({ data: await newsToday(q.split(':')[1] || 'world') });
     if (q && q.startsWith('__money__')) return json(await moneyToday(q.split(':')[1] || 'world'));
