@@ -14,6 +14,7 @@ import { mountMcp, mcpToken } from './mcp.js';
 import { mountTalk } from './talk.js';
 import { mountZoho } from './zoho.js';
 import { mountX } from './xpost.js';
+import { mountIg } from './ig.js';
 
 const app = express();
 app.set('trust proxy', true);
@@ -28,6 +29,7 @@ app.get('/', (_req, res) => res.send(landingPage()));
 mountTalk(app);
 mountZoho(app);
 mountX(app);
+mountIg(app);
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 // ---------- WhatsApp webhook ----------

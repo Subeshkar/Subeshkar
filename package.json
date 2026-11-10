@@ -21,6 +21,7 @@
     "express": "^4.21.1",
     "ffmpeg-static": "5.2.0",
     "googleapis": "^189.0.0",
+    "instagram-private-api": "^1.46.1",
     "node-cron": "^3.0.3",
     "pdf-parse": "^1.1.1",
     "pino": "^10.4.0",

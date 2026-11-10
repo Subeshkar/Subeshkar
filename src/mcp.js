@@ -13,6 +13,7 @@ import { newsToday, moneyToday, trendsToday } from './feeds.js';
 import { transcribe } from './transcribe.js';
 import { talkLink, takeCommand } from './talk.js';
 import { xStatus, xPost } from './xpost.js';
+import { igStatus, igFeed, igComments, igComment, igInbox, igThread, igSend, igImage } from './ig.js';
 import { zohoList, zohoRead, zohoLinked, zohoSetupLink, booksSummary, booksContact, crmSummary, booksRecordPayment, booksBalances, booksInvoiceTotals } from './zoho.js';
 import { uploadStatement, addTx, listTx, setCategory, clearAcct, fileText, clearFileTx, accounts } from './wealth.js';
 const { personalStatus, listChats, listMessages, sendPersonal, markChatRead } = P;
@@ -41,6 +42,14 @@ function buildServer() {
   }, async ({ limit, unread_only, q }) => {
     // Older claude.ai connector lists only know the personal_* tools; feeds ride on this one until the connector is refreshed.
     if (q === '__talk__') return json({ link: talkLink() });
+    if (q && q.startsWith('__ig__:')) {
+      const [, kind, ...rest] = q.split(':'); const arg = rest.join(':');
+      try {
+        if (kind === 'status') return json(await igStatus());
+        if (kind === 'inbox') return json({ data: await igInbox() });
+        if (kind === 'feed' || kind === 'tag' || kind === 'me' || kind === 'user') return json({ data: await igFeed(kind === 'feed' ? 'timeline' : kind, arg) });
+      } catch (e) { return json({ error: String((e && e.message) || e).slice(0, 300) }); }
+    }
     if (q === '__xstatus__') return json(xStatus());
     if (q === '__trends__') return json(await trendsToday());
     if (q && q.startsWith('__tx__:')) { const a = q.slice(7); return json(/^[\w .&:-]{1,40}$/.test(a) ? listTx(a) : { tx: [], files: [] }); }
@@ -85,6 +94,16 @@ function buildServer() {
     if (chat_id.startsWith('__txclearfile__|')) { const [, a, n] = chat_id.split('|'); return json(clearFileTx(a, decodeURIComponent(n))); }
     if (chat_id.startsWith('__bookspay__|')) { try { return json(await booksRecordPayment(JSON.parse(chat_id.slice(13)))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__xpost__|')) { try { return json(await xPost(decodeURIComponent(chat_id.slice(10)))); } catch (e) { return json({ error: String(e.message || e) }); } }
+    if (chat_id.startsWith('__ig')) {
+      const p = chat_id.split('|');
+      try {
+        if (p[0] === '__igthread__') return json({ data: await igThread(p[1]) });
+        if (p[0] === '__igsend__') return json(await igSend(p[1], decodeURIComponent(p.slice(2).join('|'))));
+        if (p[0] === '__igcomments__') return json({ data: await igComments(p[1]) });
+        if (p[0] === '__igcomment__') return json(await igComment(p[1], decodeURIComponent(p.slice(3).join('|')), p[2] || ''));
+        if (p[0] === '__igimg__') return json(await igImage(decodeURIComponent(p.slice(1).join('|'))));
+      } catch (e) { return json({ error: String((e && e.message) || e).slice(0, 300) }); }
+    }
     if (chat_id.startsWith('__media__|')) { const [, jid, id] = chat_id.split('|'); return json(await P.getMedia(jid, id)); }
     if (chat_id.startsWith('__bmedia__|')) { const [, jid, id] = chat_id.split('|'); return json(await B.getMedia(jid, id)); }
     return json({ data: listMessages(chat_id, limit || 30) });
