@@ -83,8 +83,9 @@ export async function booksOrgs() {
   const j = await r.json(); return { default: c.org, orgs: (j.organizations || []).map((o) => ({ id: o.organization_id, name: o.name, currency: o.currency_code, email: o.email, is_default: !!o.is_default_org })) };
 }
 export async function booksFindContacts(q, org) {
-  const j = await books('/contacts?contact_type=customer&search_text=' + encodeURIComponent(q), {}, org);
-  return { contacts: (j.contacts || []).slice(0, 10).map((c) => ({ id: c.contact_id, name: c.contact_name, company: c.company_name, email: c.email, phone: c.mobile || c.phone })) };
+  const enc2 = encodeURIComponent(q); const seen = new Set(); const all = [];
+  for (const f of ['contact_name_contains', 'company_name_contains', 'email_contains']) { try { const j = await books(`/contacts?${f}=${enc2}`, {}, org); for (const c of j.contacts || []) if (!seen.has(c.contact_id)) { seen.add(c.contact_id); all.push(c); } } catch {} }
+  return { contacts: all.slice(0, 10).map((c) => ({ id: c.contact_id, name: c.contact_name, company: c.company_name, email: c.email, phone: c.mobile || c.phone })) };
 }
 export async function booksCreateInvoice({ org, customer_id, items, date, notes, reference }) {
   const body = { customer_id, date: date || new Date().toISOString().slice(0, 10), reference_number: reference ? String(reference).slice(0, 50) : undefined, notes: notes || undefined,
