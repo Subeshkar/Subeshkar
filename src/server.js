@@ -16,7 +16,7 @@ import { mountZoho } from './zoho.js';
 import { mountX } from './xpost.js';
 import { mountIg } from './ig.js';
 import { mountIgApi } from './igapi.js';
-import { mountLinkedIn } from './linkedin.js';
+import { mountLinkedIn, mountLinkedInInbox } from './linkedin.js';
 
 const app = express();
 app.set('trust proxy', true);
@@ -34,6 +34,7 @@ mountX(app);
 mountIg(app);
 mountIgApi(app);
 mountLinkedIn(app);
+mountLinkedInInbox(app);
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 // ---------- WhatsApp webhook ----------

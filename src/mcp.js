@@ -13,7 +13,7 @@ import { newsToday, moneyToday, trendsToday } from './feeds.js';
 import { transcribe } from './transcribe.js';
 import { talkLink, takeCommand } from './talk.js';
 import { xStatus, xPost } from './xpost.js';
-import { liStatus, liPost } from './linkedin.js';
+import { liStatus, liPost, liInbox } from './linkedin.js';
 import { igapiStatus, igapiInbox, igapiThread, igapiSend, igapiMyPosts, igapiComments, igapiReply } from './igapi.js';
 import { igStatus, igFeed, igComments, igComment, igInbox, igThread, igSend, igImage, igLastError } from './ig.js';
 import { zohoList, zohoRead, zohoLinked, zohoSetupLink, booksSummary, booksContact, crmSummary, booksRecordPayment, booksBalances, booksInvoiceTotals } from './zoho.js';
@@ -45,6 +45,7 @@ function buildServer() {
     // Older claude.ai connector lists only know the personal_* tools; feeds ride on this one until the connector is refreshed.
     if (q === '__talk__') return json({ link: talkLink() });
     if (q === '__listatus__') return json(liStatus());
+    if (q === '__liinbox__') return json(liInbox());
     if (q && q.startsWith('__igapi__:')) { const k = q.split(':')[1]; try { if (k === 'status') return json(igapiStatus()); if (k === 'inbox') return json({ data: await igapiInbox() }); if (k === 'posts') return json({ data: await igapiMyPosts() }); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (q && q.startsWith('__ig__:')) {
       const [, kind, ...rest] = q.split(':'); const arg = rest.join(':');

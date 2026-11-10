@@ -66,3 +66,54 @@ export function mountLinkedIn(app) {
     } catch (e) { store({ ...load(), lastError: 'token: ' + String(e.message || e), lastTry: Date.now() }); res.send(page('Could not connect: ' + String(e.message || e))); }
   });
 }
+
+// ---- LinkedIn inbox snapshot (read from the owner's own browser, pushed here; Dioma shows + acts) ----
+const IFILE = () => path.join(process.env.DATA_DIR || './data', 'li-inbox.json');
+const RULES = [
+  ['personal', 'Job applications', /applied for|interested in .{0,60}(role|position)|applying for|my application/i],
+  ['personal', 'Wishes', /birthday|congrat|anniversar|\beid\b|ramadan|diwali|new year|wishing/i],
+  ['business', 'RedexGo · Team & co-founders', /join our|co-?founder|equity (sales|role)|looking for someone|we.?re hiring|join redex/i],
+  ['business', 'RedexGo · Investors', /invest|raise|raising|funding|pre-?seed|seed round|valuation|building redexgo|api-first|year transport contract|secured a \d|signed a \d|financ/i],
+  ['business', 'RedexGo · Clients & partners', /redex|logistic|cold.?chain|reefer|fleet|3pl|warehous|transport|freight|courier|last.?mile|truck|vehicle|driver|shipment|quotation|rfq|rate card|tender|deliver/i],
+  ['business', 'Other businesses', /tik ?tik|caf[eé] bite|koko|balie|restaurant|nexit/i],
+  ['jobs', 'Recruiters & offers', /role|position|opportunit|hiring|vacanc|recruit|candidate|interview|\bjob|career|headhunt|talent|\bcv\b|resume/i],
+  ['personal', 'Sales pitches to you', /we help|i run|our (services|agency|platform|solution)|book a (call|demo)|leads|agency|seo|website|software|outsourc|crypto|inmail/i],
+  ['personal', 'Meetings & calls', /meet|call|coffee|catch up|available|free |tomorrow|\d ?(pm|am)\b|monday|tuesday|wednesday|thursday|friday|saturday|sunday/i],
+  ['personal', 'Network chat', /./],
+];
+const MON = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+function liDate(t, now) {
+  const s = String(t || '').trim();
+  if (/^\d{1,2}:\d{2}\s?(am|pm)?$/i.test(s)) return now.toISOString().slice(0, 10);
+  const m = s.match(/^([A-Za-z]{3})\w*\s+(\d{1,2})(?:,\s*(\d{4}))?$/);
+  if (m && MON[m[1].toLowerCase()] !== undefined) { const y = m[3] ? +m[3] : now.getUTCFullYear(); const d = new Date(Date.UTC(y, MON[m[1].toLowerCase()], +m[2])); if (!m[3] && d > now) d.setUTCFullYear(y - 1); return d.toISOString().slice(0, 10); }
+  const wd = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].indexOf(s.slice(0, 3).toLowerCase());
+  if (wd >= 0) { const d = new Date(now); d.setUTCDate(d.getUTCDate() - ((now.getUTCDay() - wd + 7) % 7 || 7)); return d.toISOString().slice(0, 10); }
+  return '';
+}
+export function liClassify(rows, now = new Date()) {
+  return rows.map((r) => {
+    const n = String(r.n || r.name || '').slice(0, 80), s = String(r.s || r.snippet || '').slice(0, 300), t = String(r.t || r.when || '');
+    let [group, sub] = RULES.find(([, , re]) => re.test(s));
+    if (sub === 'Job applications') group = 'jobs';
+    const mine = /^You:/.test(s), attach = /sent an attachment$/i.test(s);
+    const quiet = ['Wishes', 'Sales pitches to you'].includes(sub);
+    return { name: n, when: t, date: liDate(t, now), text: s.replace(/^You:\s*/, '').replace(new RegExp('^' + n.split(' ')[0] + ':\\s*'), ''), mine, group, sub,
+      status: mine ? 'waiting' : quiet ? 'fyi' : 'reply', attach, key: n + '|' + s.slice(0, 40) };
+  });
+}
+export function liInbox() { try { return JSON.parse(fs.readFileSync(IFILE(), 'utf8')); } catch { return { updated: 0, rows: [] }; } }
+export function liInboxSave(rows) {
+  const out = { updated: Date.now(), rows: liClassify(rows) };
+  fs.mkdirSync(path.dirname(IFILE()), { recursive: true }); fs.writeFileSync(IFILE(), JSON.stringify(out), { mode: 0o600 });
+  return { ok: true, count: out.rows.length };
+}
+export function mountLinkedInInbox(app) {
+  const cors = (res) => res.set({ 'Access-Control-Allow-Origin': 'https://www.linkedin.com', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' });
+  app.options('/li-inbox/:t', (_req, res) => { cors(res); res.sendStatus(204); });
+  app.post('/li-inbox/:t', ok, express.text({ type: '*/*', limit: '5mb' }), (req, res) => {
+    cors(res);
+    try { const j = JSON.parse(req.body || '{}'); const rows = Array.isArray(j) ? j : j.rows; if (!Array.isArray(rows) || !rows.length) return res.status(400).json({ error: 'no rows' }); res.json(liInboxSave(rows)); }
+    catch (e) { res.status(400).json({ error: String(e.message || e) }); }
+  });
+}
