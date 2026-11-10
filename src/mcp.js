@@ -11,6 +11,7 @@ import * as P from './wa-personal.js';
 import * as B from './wa-business.js';
 import { newsToday, moneyToday } from './feeds.js';
 import { transcribe } from './transcribe.js';
+import { talkLink, takeCommand } from './talk.js';
 const { personalStatus, listChats, listMessages, sendPersonal, markChatRead } = P;
 
 const json = (data) => ({ content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: Array.isArray(data) ? { data } : data });
@@ -36,6 +37,8 @@ function buildServer() {
     annotations: { readOnlyHint: true }
   }, async ({ limit, unread_only, q }) => {
     // Older claude.ai connector lists only know the personal_* tools; feeds ride on this one until the connector is refreshed.
+    if (q === '__talk__') return json({ link: talkLink() });
+    if (q && q.startsWith('__talkcmd__')) return json(takeCommand(q.split(':')[1]) || {});
     if (q && q.startsWith('__news__')) return json({ data: await newsToday(q.split(':')[1] || 'world') });
     if (q && q.startsWith('__money__')) return json(await moneyToday(q.split(':')[1] || 'world'));
     return json({ data: listChats({ limit: limit || 40, unreadOnly: !!unread_only, q: q || '' }) });
