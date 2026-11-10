@@ -70,11 +70,12 @@ export function mountLinkedIn(app) {
 // ---- LinkedIn inbox snapshot (read from the owner's own browser, pushed here; Dioma shows + acts) ----
 const IFILE = () => path.join(process.env.DATA_DIR || './data', 'li-inbox.json');
 const RULES = [
-  ['personal', 'Job applications', /applied for|interested in .{0,60}(role|position)|applying for|my application/i],
+  ['jobs', 'Job applications', /^jobs •|applied for|interested in .{0,60}(role|position)|applying for|my application|exploring my next|actively looking|in process for|following up on the .{0,40}role/i],
+  ['personal', 'Ads & sponsored', /^(sponsored|inmail) •/i],
   ['personal', 'Wishes', /birthday|congrat|anniversar|\beid\b|ramadan|diwali|new year|wishing/i],
   ['business', 'RedexGo · Team & co-founders', /join our|co-?founder|equity (sales|role)|looking for someone|we.?re hiring|join redex/i],
   ['business', 'RedexGo · Investors', /invest|raise|raising|funding|pre-?seed|seed round|valuation|building redexgo|api-first|year transport contract|secured a \d|signed a \d|financ/i],
-  ['business', 'RedexGo · Clients & partners', /redex|logistic|cold.?chain|reefer|fleet|3pl|warehous|transport|freight|courier|last.?mile|truck|vehicle|driver|shipment|quotation|rfq|rate card|tender|deliver/i],
+  ['business', 'RedexGo · Clients & partners', /redex|referral|fleet|5-ton|logistic|cold.?chain|reefer|fleet|3pl|warehous|transport|freight|courier|last.?mile|truck|vehicle|driver|shipment|quotation|rfq|rate card|tender|deliver/i],
   ['business', 'Other businesses', /tik ?tik|caf[eé] bite|koko|balie|restaurant|nexit/i],
   ['jobs', 'Recruiters & offers', /role|position|opportunit|hiring|vacanc|recruit|candidate|interview|\bjob|career|headhunt|talent|\bcv\b|resume/i],
   ['personal', 'Sales pitches to you', /we help|i run|our (services|agency|platform|solution)|book a (call|demo)|leads|agency|seo|website|software|outsourc|crypto|inmail/i],
@@ -93,12 +94,13 @@ function liDate(t, now) {
 }
 export function liClassify(rows, now = new Date()) {
   return rows.map((r) => {
-    const n = String(r.n || r.name || '').slice(0, 80), s = String(r.s || r.snippet || '').slice(0, 300), t = String(r.t || r.when || '');
-    let [group, sub] = RULES.find(([, , re]) => re.test(s));
+    const n = String(r.n || r.name || '').slice(0, 80), raw = String(r.s || r.snippet || '').slice(0, 300), t = String(r.t || r.when || '');
+    const s = raw.replace(/^(jobs|inmail|sponsored) •\s*/i, '');
+    let [group, sub] = RULES.find(([, , re]) => re.test(raw));
     if (sub === 'Job applications') group = 'jobs';
     const mine = /^You:/.test(s), attach = /sent an attachment$/i.test(s);
-    const quiet = ['Wishes', 'Sales pitches to you'].includes(sub);
-    return { name: n, when: t, date: liDate(t, now), text: s.replace(/^You:\s*/, '').replace(new RegExp('^' + n.split(' ')[0] + ':\\s*'), ''), mine, group, sub,
+    const quiet = ['Wishes', 'Sales pitches to you', 'Ads & sponsored'].includes(sub) || /^(thanks|thank you|okay|ok|sure|good luck|best regards|👍)[.! ,a-z]{0,30}$/i.test(s.replace(/^You:\s*/, ''));
+    return { name: n, when: t, date: liDate(t, now), text: s.replace(/^You:\s*/, '').replace(new RegExp('^' + n.split(' ')[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ':\\s*'), ''), mine, group, sub,
       status: mine ? 'waiting' : quiet ? 'fyi' : 'reply', attach, key: n + '|' + s.slice(0, 40) };
   });
 }
