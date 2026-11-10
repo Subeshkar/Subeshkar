@@ -100,6 +100,21 @@ export async function crmSummary() {
     leads: (leads.data || []).map((l) => ({ id: l.id, name: l.Full_Name, company: l.Company, email: l.Email, phone: l.Mobile || l.Phone, status: l.Lead_Status, source: l.Lead_Source, created: l.Created_Time, updated: l.Modified_Time }))
   };
 }
+// All invoices ever (not void): how much was billed, paid and still open, by month and by client.
+export async function booksInvoiceTotals() {
+  const c = load('books'); if (!c.refresh_token) return { linked: false };
+  const all = [];
+  for (let page = 1; page <= 20; page++) {
+    const j = await books(`/invoices?per_page=200&page=${page}`);
+    all.push(...(j.invoices || []));
+    if (!j.page_context || !j.page_context.has_more_page) break;
+  }
+  const live = all.filter((i) => !/void|draft/i.test(i.status));
+  const sum = (l, k) => Math.round(l.reduce((a, i) => a + (Number(i[k]) || 0), 0) * 100) / 100;
+  const byMonth = {}, byClient = {};
+  for (const i of live) { const m = String(i.date).slice(0, 7); byMonth[m] = (byMonth[m] || 0) + Number(i.total || 0); byClient[i.customer_name] = (byClient[i.customer_name] || 0) + Number(i.total || 0); }
+  return { linked: true, count: live.length, drafts: all.filter((i) => /draft/i.test(i.status)).length, invoiced: sum(live, 'total'), open: sum(live, 'balance'), paid: Math.round((sum(live, 'total') - sum(live, 'balance')) * 100) / 100, from: live.map((i) => i.date).sort()[0], to: live.map((i) => i.date).sort().slice(-1)[0], byMonth: Object.entries(byMonth).sort(), byClient: Object.entries(byClient).sort((a, b) => b[1] - a[1]).slice(0, 15) };
+}
 // Balance sheet from the chart of accounts (with balances): deposits, fixed assets, loans, payables…
 export async function booksBalances() {
   const c = load('books'); if (!c.refresh_token) return { linked: false };
