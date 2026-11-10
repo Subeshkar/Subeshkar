@@ -49,9 +49,9 @@ async function account() {
 }
 
 // ---- Zoho Books ----
-async function books(p, opts = {}) {
+async function books(p, opts = {}, orgOverride) {
   const c = load('books');
-  let org = c.org;
+  let org = orgOverride || c.org;
   if (!org) {
     const r = await fetch(`${c.books || 'https://www.zohoapis.com/books/v3'}/organizations`, { headers: { Authorization: 'Zoho-oauthtoken ' + await accessToken('books') } });
     const j = await r.json(); const o = (j.organizations || []).find((x) => x.is_default_org) || (j.organizations || [])[0];
@@ -75,6 +75,29 @@ export async function booksSummary() {
 export async function booksRecordPayment({ customer_id, invoice_id, amount, date, reference }) {
   const j = await books('/customerpayments', { method: 'POST', body: JSON.stringify({ customer_id, payment_mode: 'banktransfer', amount: Number(amount), date, reference_number: reference ? String(reference).slice(0, 50) : undefined, invoices: [{ invoice_id, amount_applied: Number(amount) }] }) });
   return { ok: true, payment_id: j.payment && j.payment.payment_id };
+}
+// ---- Invoices from Dioma (create as draft, email only after the owner approves) ----
+export async function booksOrgs() {
+  const c = load('books');
+  const r = await fetch(`${c.books || 'https://www.zohoapis.com/books/v3'}/organizations`, { headers: { Authorization: 'Zoho-oauthtoken ' + await accessToken('books') } });
+  const j = await r.json(); return { default: c.org, orgs: (j.organizations || []).map((o) => ({ id: o.organization_id, name: o.name, currency: o.currency_code, email: o.email, is_default: !!o.is_default_org })) };
+}
+export async function booksFindContacts(q, org) {
+  const j = await books('/contacts?contact_type=customer&search_text=' + encodeURIComponent(q), {}, org);
+  return { contacts: (j.contacts || []).slice(0, 10).map((c) => ({ id: c.contact_id, name: c.contact_name, company: c.company_name, email: c.email, phone: c.mobile || c.phone })) };
+}
+export async function booksCreateInvoice({ org, customer_id, items, date, notes, reference }) {
+  const body = { customer_id, date: date || new Date().toISOString().slice(0, 10), reference_number: reference ? String(reference).slice(0, 50) : undefined, notes: notes || undefined,
+    line_items: (items || []).map((i) => ({ name: String(i.name || 'Transport service').slice(0, 100), description: i.description ? String(i.description).slice(0, 2000) : undefined, rate: Number(i.rate), quantity: Number(i.quantity || 1) })) };
+  const j = await books('/invoices', { method: 'POST', body: JSON.stringify(body) }, org);
+  const v = j.invoice || {};
+  return { ok: true, invoice_id: v.invoice_id, number: v.invoice_number, total: v.total, currency: v.currency_code, customer: v.customer_name, status: v.status };
+}
+export async function booksEmailInvoice({ org, invoice_id, to, cc, subject, body }) {
+  const payload = { send_from_org_email_id: true, to_mail_ids: [].concat(to || []).filter(Boolean), cc_mail_ids: [].concat(cc || []).filter(Boolean) };
+  if (subject) payload.subject = subject; if (body) payload.body = body;
+  await books(`/invoices/${invoice_id}/email`, { method: 'POST', body: JSON.stringify(payload) }, org);
+  return { ok: true };
 }
 // ---- Zoho CRM (same login as Books) ----
 async function crm(p) {

@@ -16,7 +16,7 @@ import { xStatus, xPost, xLike, xReply, xFollow, xSearch } from './xpost.js';
 import { liStatus, liPost, liInbox, liInboxChunk, igDmSnap, igInboxSave } from './linkedin.js';
 import { igapiStatus, igapiInbox, igapiThread, igapiSend, igapiMyPosts, igapiComments, igapiReply } from './igapi.js';
 import { igStatus, igFeed, igComments, igComment, igInbox, igThread, igSend, igImage, igLastError } from './ig.js';
-import { zohoList, zohoRead, zohoLinked, zohoSetupLink, booksSummary, booksContact, crmSummary, booksRecordPayment, booksBalances, booksInvoiceTotals } from './zoho.js';
+import { zohoList, zohoRead, zohoLinked, zohoSetupLink, booksSummary, booksContact, crmSummary, booksRecordPayment, booksBalances, booksInvoiceTotals, booksOrgs, booksFindContacts, booksCreateInvoice, booksEmailInvoice } from './zoho.js';
 import { uploadStatement, addTx, listTx, setCategory, clearAcct, fileText, clearFileTx, accounts } from './wealth.js';
 const { personalStatus, listChats, listMessages, sendPersonal, markChatRead } = P;
 
@@ -58,6 +58,8 @@ function buildServer() {
     }
     if (q === '__xstatus__') return json(xStatus());
     if (q === '__trends__') return json(await trendsToday());
+    if (q === '__booksorgs__') { try { return json(await booksOrgs()); } catch (e) { return json({ error: String(e.message || e) }); } }
+    if (q.startsWith('__bookscontacts__:')) { const [qq, org] = q.slice(18).split('@@'); try { return json(await booksFindContacts(qq, org || undefined)); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (q === '__trendposts__') { try { return json(await trendPosts()); } catch (e) { return json({ error: String(e.message || e), regions: [] }); } }
     if (q.startsWith('__xsearch__:')) { try { return json(await xSearch(q.slice(12))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (q && q.startsWith('__tx__:')) { const a = q.slice(7); return json(/^[\w .&:-]{1,40}$/.test(a) ? listTx(a) : { tx: [], files: [] }); }
@@ -101,6 +103,8 @@ function buildServer() {
     if (chat_id.startsWith('__txfiletext__|')) { const [, a, n] = chat_id.split('|'); return json(fileText(a, decodeURIComponent(n))); }
     if (chat_id.startsWith('__txclearfile__|')) { const [, a, n] = chat_id.split('|'); return json(clearFileTx(a, decodeURIComponent(n))); }
     if (chat_id.startsWith('__bookspay__|')) { try { return json(await booksRecordPayment(JSON.parse(chat_id.slice(13)))); } catch (e) { return json({ error: String(e.message || e) }); } }
+    if (chat_id.startsWith('__booksnewinv__|')) { try { return json(await booksCreateInvoice(JSON.parse(decodeURIComponent(chat_id.slice(16))))); } catch (e) { return json({ error: String(e.message || e) }); } }
+    if (chat_id.startsWith('__booksmailinv__|')) { try { return json(await booksEmailInvoice(JSON.parse(decodeURIComponent(chat_id.slice(17))))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__wastatus__|')) { try { return json(await P.postStatus(decodeURIComponent(chat_id.slice(13)))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__xact__|')) { const [, act, id, ...rest] = chat_id.split('|'); try { return json(act === 'like' ? await xLike(id) : act === 'follow' ? await xFollow(id) : act === 'reply' ? await xReply(id, decodeURIComponent(rest.join('|'))) : { error: 'unknown action' }); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__xpost__|')) { try { return json(await xPost(decodeURIComponent(chat_id.slice(10)))); } catch (e) { return json({ error: String(e.message || e) }); } }
