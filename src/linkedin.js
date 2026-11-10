@@ -127,3 +127,33 @@ export function mountLinkedInInbox(app) {
     catch (e) { res.status(400).json({ error: String(e.message || e) }); }
   });
 }
+
+// ---- Instagram DM snapshot (same idea; read from owner's own browser) ----
+const GFILE = () => path.join(process.env.DATA_DIR || './data', 'ig-inbox.json');
+const IG_RULES = [
+  ['business', 'Café (Nouf / Tik Tik / KOKO)', /caf[eé]|cafeteria|chef|restaurant|nouf|tik ?tik|koko|kitchen|food/i],
+  ['business', 'Balie', /balie|massage|slimming|spa\b|salon|beauty/i],
+  ['business', 'RedexGo', /redex|deliver|rider|logistic|courier|cold.?chain/i],
+  ['jobs', 'Jobs', /\bjob|\bcv\b|resume|hiring|vacanc|role|position/i],
+  ['personal', 'Shops & offers', /price|offer|lesson|appointment|consultation|million|rent|shipping|website|whatsapp|call \d|sale|order|book now|download/i],
+  ['personal', 'Friends & family', /./],
+];
+function relDate(t, now) {
+  const m = String(t).match(/^(\d+)([smhdwy])$/); if (!m) return '';
+  const ms = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, y: 31536e6 }[m[2]] * +m[1];
+  return new Date(now - ms).toISOString().slice(0, 10);
+}
+export function igDmSnap() { try { return JSON.parse(fs.readFileSync(GFILE(), 'utf8')); } catch { return { updated: 0, rows: [] }; } }
+export function igInboxSave(text) {
+  const now = Date.now(); const rows = [];
+  for (const line of String(text || '').split('\n')) {
+    const i = line.indexOf('|'), j = line.indexOf('|', i + 1); if (i <= 0 || j <= i) continue;
+    const name = line.slice(0, i).trim(), when = line.slice(i + 1, j).trim(), raw = line.slice(j + 1).trim();
+    const mine = /^You( sent|:)/.test(raw); const s = raw.replace(/^You:\s*/, '');
+    const [group, sub] = IG_RULES.find(([, , re]) => re.test(name + ' ' + s));
+    const quiet = sub === 'Shops & offers' || /^(reacted|message unavailable|this account can't)/i.test(s) || /^[^\w]{0,6}$/.test(s);
+    rows.push({ name, when, date: relDate(when, now), text: s || '(no text)', mine, group, sub, status: mine ? 'waiting' : quiet ? 'fyi' : 'reply', key: name + '|' + raw.slice(0, 40) });
+  }
+  const out = { updated: now, rows }; fs.mkdirSync(path.dirname(GFILE()), { recursive: true }); fs.writeFileSync(GFILE(), JSON.stringify(out), { mode: 0o600 });
+  return { ok: true, count: rows.length };
+}
