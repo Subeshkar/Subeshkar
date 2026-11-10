@@ -12,6 +12,7 @@ import * as B from './wa-business.js';
 import { newsToday, moneyToday } from './feeds.js';
 import { transcribe } from './transcribe.js';
 import { talkLink, takeCommand } from './talk.js';
+import { zohoList, zohoRead, zohoLinked, zohoSetupLink } from './zoho.js';
 const { personalStatus, listChats, listMessages, sendPersonal, markChatRead } = P;
 
 const json = (data) => ({ content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: Array.isArray(data) ? { data } : data });
@@ -38,6 +39,9 @@ function buildServer() {
   }, async ({ limit, unread_only, q }) => {
     // Older claude.ai connector lists only know the personal_* tools; feeds ride on this one until the connector is refreshed.
     if (q === '__talk__') return json({ link: talkLink() });
+    if (q === '__zohostatus__') return json({ linked: zohoLinked(), setup: zohoSetupLink() });
+    if (q && q.startsWith('__zoho__:')) { const [, folder, ...rest] = q.split(':'); try { return json({ data: await zohoList(folder, rest.join(':')) }); } catch (e) { return json({ error: String(e.message || e), linked: zohoLinked() }); } }
+    if (q && q.startsWith('__zohomsg__:')) { const [, f, m] = q.split(':'); try { return json(await zohoRead(f, m)); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (q && q.startsWith('__talkcmd__')) return json(takeCommand(q.split(':')[1]) || {});
     if (q && q.startsWith('__news__')) return json({ data: await newsToday(q.split(':')[1] || 'world') });
     if (q && q.startsWith('__money__')) return json(await moneyToday(q.split(':')[1] || 'world'));

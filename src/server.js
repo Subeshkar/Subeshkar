@@ -12,6 +12,7 @@ import { startPersonal, stopPersonal, resumePersonal, personalStatus } from './w
 import { startPersonal as startBusiness, stopPersonal as stopBusiness, resumePersonal as resumeBusiness, personalStatus as businessStatus } from './wa-business.js';
 import { mountMcp, mcpToken } from './mcp.js';
 import { mountTalk } from './talk.js';
+import { mountZoho } from './zoho.js';
 
 const app = express();
 app.set('trust proxy', true);
@@ -24,6 +25,7 @@ const isAllowed = (phone) => !allowed.length || allowed.includes(phone);
 // ---------- Public pages ----------
 app.get('/', (_req, res) => res.send(landingPage()));
 mountTalk(app);
+mountZoho(app);
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 // ---------- WhatsApp webhook ----------
