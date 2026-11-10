@@ -6,8 +6,9 @@ import path from 'node:path';
 import fs from 'node:fs';
 import pino from 'pino';
 import QRCode from 'qrcode';
-import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, Browsers, isJidGroup } from '@whiskeysockets/baileys';
+import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, Browsers, isJidGroup, downloadMediaMessage, BufferJSON } from '@whiskeysockets/baileys';
 import { db } from './db.js';
+import { transcribe } from './transcribe.js';
 
 const dir = process.env.DATA_DIR || './data';
 const authDir = path.join(dir, 'wa-personal-auth');
@@ -24,6 +25,7 @@ CREATE TABLE IF NOT EXISTS wp_messages (
 CREATE INDEX IF NOT EXISTS wp_messages_jid_at ON wp_messages (jid, at);
 CREATE TABLE IF NOT EXISTS wp_contacts (jid TEXT PRIMARY KEY, name TEXT);
 CREATE TABLE IF NOT EXISTS wp_lid (lid TEXT PRIMARY KEY, pn TEXT);
+CREATE TABLE IF NOT EXISTS wp_media (jid TEXT, id TEXT, kind TEXT, raw TEXT, status TEXT DEFAULT 'new', at INTEGER, PRIMARY KEY (jid, id));
 `);
 for (const col of ['saved TEXT', 'notify TEXT']) { try { db.exec(`ALTER TABLE wp_contacts ADD COLUMN ${col}`); } catch { /* already there */ } }
 
@@ -117,6 +119,13 @@ function saveMessage(m, live) {
   if (!chat) saveChat({ id: jid, name: isJidGroup(jid) ? null : (m.pushName && !fromMe ? m.pushName : null) });
   if (!chat || at >= chat.last_at) {
     db.prepare('UPDATE wp_chats SET last_text = ?, last_from_me = ?, last_at = ? WHERE jid = ?').run(text.slice(0, 300), fromMe, at, jid);
+  }
+  const inner = m.message.ephemeralMessage?.message || m.message.viewOnceMessage?.message || m.message;
+  if (inner.audioMessage && !fromMe && at > Date.now() - 14 * 864e5) {
+    try {
+      db.prepare('INSERT OR IGNORE INTO wp_media (jid, id, kind, raw, at) VALUES (?, ?, ?, ?, ?)').run(jid, m.key.id, 'audio', JSON.stringify(m, BufferJSON.replacer), at);
+      if (live) setTimeout(() => transcribeVoice(jid, m.key.id).catch(() => {}), 500);
+    } catch { /* ignore */ }
   }
   if (live) {
     if (fromMe) db.prepare('UPDATE wp_chats SET unread = 0 WHERE jid = ?').run(jid);
@@ -264,6 +273,7 @@ export function listChats({ limit = 40, unreadOnly = false, q = '' } = {}) {
 }
 
 export function listMessages(chatId, limit = 30) {
+  try { transcribePending(chatId, 3); } catch { /* ignore */ }
   const rows = db.prepare('SELECT id, from_me, sender_name, text, at FROM wp_messages WHERE jid = ? ORDER BY at DESC LIMIT ?').all(chatId, Math.min(200, Math.max(1, limit)));
   const rows2 = db.prepare('SELECT sender FROM wp_messages WHERE jid = ? ORDER BY at DESC LIMIT ?').all(chatId, Math.min(200, Math.max(1, limit)));
   return rows.reverse().map((m, i) => ({ id: m.id, from_me: !!m.from_me, sender: m.from_me ? 'You' : displayName((rows2[rows2.length - 1 - i] || {}).sender || chatId, null), text: m.text, at: new Date(m.at).toISOString() }));
@@ -271,6 +281,47 @@ export function listMessages(chatId, limit = 30) {
 
 export async function markChatRead(chatId) {
   db.prepare('UPDATE wp_chats SET unread = 0 WHERE jid = ?').run(chatId);
+}
+
+async function transcribeVoice(jid, id) {
+  const row = db.prepare("SELECT raw, status FROM wp_media WHERE jid = ? AND id = ?").get(jid, id);
+  if (!row || row.status === 'done' || row.status === 'working' || !sock) return;
+  db.prepare("UPDATE wp_media SET status = 'working' WHERE jid = ? AND id = ?").run(jid, id);
+  try {
+    const m = JSON.parse(row.raw, BufferJSON.reviver);
+    const buf = await downloadMediaMessage(m, 'buffer', {}, { logger: log, reuploadRequest: sock.updateMediaMessage });
+    const text = await transcribe(buf, 'audio/ogg');
+    const out = '🎤 ' + (text || '(no speech found)');
+    db.prepare('UPDATE wp_messages SET text = ? WHERE jid = ? AND id = ?').run(out.slice(0, 4000), jid, id);
+    const last = db.prepare('SELECT id FROM wp_messages WHERE jid = ? ORDER BY at DESC LIMIT 1').get(jid);
+    if (last && last.id === id) db.prepare('UPDATE wp_chats SET last_text = ? WHERE jid = ?').run(out.slice(0, 300), jid);
+    db.prepare("UPDATE wp_media SET status = 'done', raw = NULL WHERE jid = ? AND id = ?").run(jid, id);
+  } catch (e) {
+    console.error('Voice note transcription failed', e.message);
+    db.prepare("UPDATE wp_media SET status = 'failed' WHERE jid = ? AND id = ?").run(jid, id);
+  }
+}
+
+export function transcribePending(chatId, max = 3) {
+  const rows = db.prepare("SELECT id FROM wp_media WHERE jid = ? AND kind = 'audio' AND status = 'new' ORDER BY at DESC LIMIT ?").all(chatId, max);
+  for (const r of rows) transcribeVoice(chatId, r.id).catch(() => {});
+  return rows.length;
+}
+
+export async function sendMedia(chatId, { data, mimetype, filename, caption }) {
+  if (!sock || state.status !== 'connected') throw new Error('WhatsApp is not linked right now.');
+  const buf = Buffer.from(String(data || ''), 'base64');
+  if (!buf.length) throw new Error('The file is empty.');
+  if (buf.length > 16 * 1024 * 1024) throw new Error('The file is bigger than 16 MB.');
+  const jid = chatId.includes('@') ? chatId : `${chatId.replace(/\D/g, '')}@s.whatsapp.net`;
+  const mt = mimetype || 'application/octet-stream';
+  const content = mt.startsWith('image/') && !/svg/.test(mt) ? { image: buf, caption: caption || undefined, mimetype: mt }
+    : mt.startsWith('video/') ? { video: buf, caption: caption || undefined, mimetype: mt }
+    : mt.startsWith('audio/') ? { audio: buf, mimetype: mt }
+    : { document: buf, mimetype: mt, fileName: filename || 'file', caption: caption || undefined };
+  const sent = await sock.sendMessage(jid, content);
+  if (sent) saveMessage(sent, true);
+  return { ok: true, id: sent?.key?.id, chat_id: jid };
 }
 
 export async function sendPersonal(chatId, text) {

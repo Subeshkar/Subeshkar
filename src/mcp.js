@@ -66,6 +66,9 @@ function buildServer() {
     annotations: { destructiveHint: false, openWorldHint: true }
   }, async ({ chat_id, text }) => json(await sendPersonal(chat_id, text)));
 
+  for (const [pre, M, label] of [['personal', P, 'personal'], ['business', B, 'business']]) {
+    server.registerTool(`${pre}_send_media`, { title: `Send a photo or file from ${label} WhatsApp`, description: `Sends a photo, video, voice/audio or document (base64) from the owner's ${label} WhatsApp. Only call after the owner chose the file and approved sending.`, inputSchema: { chat_id: z.string(), data: z.string().describe('File content, base64'), mimetype: z.string(), filename: z.string().optional(), caption: z.string().max(1000).optional() }, annotations: { destructiveHint: false, openWorldHint: true } }, async (a) => json(await M.sendMedia(a.chat_id, a)));
+  }
   server.registerTool('news_today', { title: 'Tech and AI news today', description: 'Top AI / tech news from the last day, plus UAE tech and startup news. Each item has title, source, link and published time.', inputSchema: { topic: z.string().optional().describe('Region: uae, gcc or world') }, annotations: { readOnlyHint: true } }, async ({ topic }) => json({ data: await newsToday(topic || 'world') }));
   server.registerTool('money_today', { title: 'Funding and share prices today', description: 'Startup funding news from the last 2 days and delayed share prices for the 10 biggest companies.', inputSchema: { region: z.string().optional().describe('uae, gcc or world') }, annotations: { readOnlyHint: true } }, async ({ region }) => json(await moneyToday(region || 'world')));
   for (const [pre, M, label] of [['business', B, 'business']]) {
