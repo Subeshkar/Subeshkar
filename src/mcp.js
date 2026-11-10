@@ -16,7 +16,7 @@ import { xStatus, xPost, xLike, xReply, xFollow, xSearch } from './xpost.js';
 import { liStatus, liPost, liInbox, liInboxChunk, igDmSnap, igInboxSave } from './linkedin.js';
 import { igapiStatus, igapiInbox, igapiThread, igapiSend, igapiMyPosts, igapiComments, igapiReply } from './igapi.js';
 import { igStatus, igFeed, igComments, igComment, igInbox, igThread, igSend, igImage, igLastError } from './ig.js';
-import { zohoList, zohoRead, zohoLinked, zohoSetupLink, booksSummary, booksContact, crmSummary, booksRecordPayment, booksBalances, booksInvoiceTotals, booksOrgs, booksFindContacts, booksCreateInvoice, booksEmailInvoice } from './zoho.js';
+import { zohoList, zohoRead, zohoLinked, zohoSetupLink, booksSummary, booksContact, crmSummary, booksRecordPayment, booksBalances, booksInvoiceTotals, booksOrgs, booksFindContacts, booksCreateInvoice, booksEmailInvoice, booksGetInvoice } from './zoho.js';
 import { uploadStatement, addTx, listTx, setCategory, clearAcct, fileText, clearFileTx, accounts } from './wealth.js';
 const { personalStatus, listChats, listMessages, sendPersonal, markChatRead } = P;
 
@@ -58,6 +58,7 @@ function buildServer() {
     }
     if (q === '__xstatus__') return json(xStatus());
     if (q === '__trends__') return json(await trendsToday());
+    if (q.startsWith('__booksinvget__:')) { try { return json(await booksGetInvoice(q.slice(16))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (q === '__booksorgs__') { try { return json(await booksOrgs()); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (q.startsWith('__bookscontacts__:')) { const [qq, org] = q.slice(18).split('@@'); try { return json(await booksFindContacts(qq, org || undefined)); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (q === '__trendposts__') { try { return json(await trendPosts()); } catch (e) { return json({ error: String(e.message || e), regions: [] }); } }

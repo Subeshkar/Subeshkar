@@ -104,6 +104,12 @@ export async function booksEmailInvoice({ org, invoice_id, to, cc, subject, body
   await books(`/invoices/${invoice_id}/email`, { method: 'POST', body: JSON.stringify(payload) }, org);
   return { ok: true };
 }
+export async function booksGetInvoice(idOrNumber, org) {
+  let id = idOrNumber;
+  if (!/^\d{10,}$/.test(String(idOrNumber))) { const j = await books('/invoices?invoice_number=' + encodeURIComponent(idOrNumber), {}, org); id = ((j.invoices || [])[0] || {}).invoice_id; if (!id) throw new Error('Invoice ' + idOrNumber + ' not found'); }
+  const j = await books('/invoices/' + id, {}, org); const v = j.invoice || {};
+  return { invoice_id: v.invoice_id, number: v.invoice_number, status: v.status, customer: v.customer_name, customer_id: v.customer_id, total: v.total, currency: v.currency_code, date: v.date, is_emailed: !!v.is_emailed, last_sent: (v.mail_history || v.comments || []).slice(0, 3) };
+}
 // ---- Zoho CRM (same login as Books) ----
 async function crm(p) {
   const c = load('books');
