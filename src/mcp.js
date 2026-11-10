@@ -58,11 +58,11 @@ function buildServer() {
     }
     if (q === '__xstatus__') return json(xStatus());
     if (q === '__trends__') return json(await trendsToday());
-    if (q.startsWith('__booksinvget__:')) { try { return json(await booksGetInvoice(q.slice(16))); } catch (e) { return json({ error: String(e.message || e) }); } }
+    if ((q || '').startsWith('__booksinvget__:')) { try { return json(await booksGetInvoice(q.slice(16))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (q === '__booksorgs__') { try { return json(await booksOrgs()); } catch (e) { return json({ error: String(e.message || e) }); } }
-    if (q.startsWith('__bookscontacts__:')) { const [qq, org] = q.slice(18).split('@@'); try { return json(await booksFindContacts(qq, org || undefined)); } catch (e) { return json({ error: String(e.message || e) }); } }
+    if ((q || '').startsWith('__bookscontacts__:')) { const [qq, org] = q.slice(18).split('@@'); try { return json(await booksFindContacts(qq, org || undefined)); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (q === '__trendposts__') { try { return json(await trendPosts()); } catch (e) { return json({ error: String(e.message || e), regions: [] }); } }
-    if (q.startsWith('__xsearch__:')) { try { return json(await xSearch(q.slice(12))); } catch (e) { return json({ error: String(e.message || e) }); } }
+    if ((q || '').startsWith('__xsearch__:')) { try { return json(await xSearch(q.slice(12))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (q && (q || '').startsWith('__tx__:')) { const a = q.slice(7); return json(/^[\w .&:-]{1,40}$/.test(a) ? listTx(a) : { tx: [], files: [] }); }
     if (q === '__txaccts__') return json({ data: accounts() });
     if (q && (q || '').startsWith('__opps__')) { const d = Number(q.split(':')[1]) || 300; return json({ data: P.findOpportunities({ days: d }) }); }
