@@ -9,6 +9,8 @@ db.exec(`CREATE TABLE IF NOT EXISTS wealth_tx (
   amount REAL NOT NULL, balance REAL, category TEXT, party TEXT, file TEXT, added INTEGER,
   UNIQUE(acct, bank, date, amount, descr, balance));
 CREATE TABLE IF NOT EXISTS wealth_files (id INTEGER PRIMARY KEY AUTOINCREMENT, acct TEXT, name TEXT, at INTEGER, chars INTEGER);`);
+try { db.exec('ALTER TABLE wealth_files ADD COLUMN text TEXT'); } catch { /* already there */ }
+try { db.exec('ALTER TABLE wealth_files ADD COLUMN rows INTEGER'); } catch { /* already there */ }
 
 export async function statementText(buf, filename = '') {
   const f = filename.toLowerCase();
@@ -29,7 +31,10 @@ export async function uploadStatement(acct, name, b64) {
   if (!buf.length) throw new Error('Empty file');
   const text = (await statementText(buf, name)).replace(/\r/g, '').replace(/[ \t]+/g, ' ').replace(/\n{2,}/g, '\n').trim();
   if (text.length < 40) throw new Error('No text found. If it is a scanned PDF, download the statement again as PDF or Excel from your bank app.');
-  const id = db.prepare('INSERT INTO wealth_files (acct, name, at, chars) VALUES (?, ?, ?, ?)').run(acct, name, Date.now(), text.length).lastInsertRowid;
+  // same file uploaded again: replace it (and its transactions) instead of adding twice
+  for (const f of db.prepare('SELECT id FROM wealth_files WHERE acct = ? AND name = ?').all(acct, name)) db.prepare('DELETE FROM wealth_files WHERE id = ?').run(f.id);
+  db.prepare('DELETE FROM wealth_tx WHERE acct = ? AND file = ?').run(acct, name);
+  const id = db.prepare('INSERT INTO wealth_files (acct, name, at, chars, text) VALUES (?, ?, ?, ?, ?)').run(acct, name, Date.now(), text.length, text).lastInsertRowid;
   return { file_id: id, chars: text.length, text: text.slice(0, 600000) };
 }
 
@@ -47,8 +52,12 @@ export function addTx(acct, list, file) {
 
 export function listTx(acct) {
   const tx = db.prepare('SELECT id, bank, date, descr, amount, balance, category, party FROM wealth_tx WHERE acct = ? ORDER BY date DESC, id DESC LIMIT 6000').all(acct);
-  const files = db.prepare('SELECT name, at, chars FROM wealth_files WHERE acct = ? ORDER BY at DESC LIMIT 50').all(acct);
+  const files = db.prepare('SELECT name, at, chars FROM wealth_files WHERE acct = ? ORDER BY at DESC LIMIT 100').all(acct).map((f) => ({ ...f, rows: db.prepare('SELECT count(*) n FROM wealth_tx WHERE acct = ? AND file = ?').get(acct, f.name).n }));
   return { tx, files };
 }
 export function setCategory(id, category) { db.prepare('UPDATE wealth_tx SET category = ? WHERE id = ?').run(String(category).slice(0, 40), Number(id)); return { ok: true }; }
 export function clearAcct(acct) { db.prepare('DELETE FROM wealth_tx WHERE acct = ?').run(acct); db.prepare('DELETE FROM wealth_files WHERE acct = ?').run(acct); return { ok: true }; }
+
+export function fileText(acct, name) { const r = db.prepare('SELECT text FROM wealth_files WHERE acct = ? AND name = ? ORDER BY at DESC LIMIT 1').get(acct, name); return { text: r && r.text ? r.text : '' }; }
+export function clearFileTx(acct, name) { return { removed: db.prepare('DELETE FROM wealth_tx WHERE acct = ? AND file = ?').run(acct, name).changes }; }
+export function accounts() { return db.prepare('SELECT acct, count(*) n FROM wealth_tx GROUP BY acct').all(); }
