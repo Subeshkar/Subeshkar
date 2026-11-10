@@ -108,6 +108,14 @@ export function liInboxSave(rows) {
   fs.mkdirSync(path.dirname(IFILE()), { recursive: true }); fs.writeFileSync(IFILE(), JSON.stringify(out), { mode: 0o600 });
   return { ok: true, count: out.rows.length };
 }
+const PART = () => path.join(process.env.DATA_DIR || './data', 'li-inbox-part.json');
+// Chunked upload: lines "name|when|snippet". start=1 resets, done=1 classifies + saves.
+export function liInboxChunk(text, { start, done } = {}) {
+  let acc = []; if (!start) { try { acc = JSON.parse(fs.readFileSync(PART(), 'utf8')); } catch {} }
+  for (const line of String(text || '').split('\n')) { const i = line.indexOf('|'), j = line.indexOf('|', i + 1); if (i > 0 && j > i) acc.push({ n: line.slice(0, i), t: line.slice(i + 1, j), s: line.slice(j + 1) }); }
+  fs.mkdirSync(path.dirname(PART()), { recursive: true }); fs.writeFileSync(PART(), JSON.stringify(acc), { mode: 0o600 });
+  return done ? liInboxSave(acc) : { ok: true, received: acc.length };
+}
 export function mountLinkedInInbox(app) {
   const cors = (res) => res.set({ 'Access-Control-Allow-Origin': 'https://www.linkedin.com', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' });
   app.options('/li-inbox/:t', (_req, res) => { cors(res); res.sendStatus(204); });

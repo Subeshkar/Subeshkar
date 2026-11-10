@@ -13,7 +13,7 @@ import { newsToday, moneyToday, trendsToday } from './feeds.js';
 import { transcribe } from './transcribe.js';
 import { talkLink, takeCommand } from './talk.js';
 import { xStatus, xPost } from './xpost.js';
-import { liStatus, liPost, liInbox } from './linkedin.js';
+import { liStatus, liPost, liInbox, liInboxChunk } from './linkedin.js';
 import { igapiStatus, igapiInbox, igapiThread, igapiSend, igapiMyPosts, igapiComments, igapiReply } from './igapi.js';
 import { igStatus, igFeed, igComments, igComment, igInbox, igThread, igSend, igImage, igLastError } from './ig.js';
 import { zohoList, zohoRead, zohoLinked, zohoSetupLink, booksSummary, booksContact, crmSummary, booksRecordPayment, booksBalances, booksInvoiceTotals } from './zoho.js';
@@ -110,6 +110,7 @@ function buildServer() {
       } catch (e) { return json({ error: String((e && e.message) || e).slice(0, 300) }); }
     }
     if (chat_id.startsWith('__igapi')) { const p = chat_id.split('|'); try { if (p[0] === '__igapithread__') return json({ data: await igapiThread(p[1]) }); if (p[0] === '__igapisend__') return json(await igapiSend(p[1], decodeURIComponent(p.slice(2).join('|')))); if (p[0] === '__igapicomments__') return json({ data: await igapiComments(p[1]) }); if (p[0] === '__igapireply__') return json(await igapiReply(p[1], decodeURIComponent(p.slice(2).join('|')))); } catch (e) { return json({ error: String(e.message || e) }); } }
+    if (chat_id.startsWith('__liinboxchunk__|')) { const [, flags, ...rest] = chat_id.split('|'); try { return json(liInboxChunk(decodeURIComponent(rest.join('|')), { start: flags.includes('s'), done: flags.includes('d') })); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__lipost__|')) { try { return json(await liPost(decodeURIComponent(chat_id.slice(11)))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__media__|')) { const [, jid, id] = chat_id.split('|'); return json(await P.getMedia(jid, id)); }
     if (chat_id.startsWith('__bmedia__|')) { const [, jid, id] = chat_id.split('|'); return json(await B.getMedia(jid, id)); }
