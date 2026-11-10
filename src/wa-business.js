@@ -357,6 +357,17 @@ export async function sendMedia(chatId, { data, mimetype, filename, caption }) {
   return { ok: true, id: sent?.key?.id, chat_id: jid };
 }
 
+// Post a text status (story) to WhatsApp, visible to the contacts Subesh chats with.
+export async function postStatus(text, mediaPath, mime) {
+  if (!sock || state.status !== 'connected') throw new Error('Business WhatsApp is not linked right now.');
+  if (!text?.trim() && !mediaPath) throw new Error('Status text is empty.');
+  const jids = db.prepare('SELECT jid FROM wb_chats WHERE is_group = 0 AND last_at > 0').all().map((r) => { const pn = pnFor(r.jid); const d = digits(pn && !String(pn).endsWith('@lid') ? pn : r.jid); return /@s\.whatsapp\.net$/.test(r.jid) ? r.jid : (pn && !String(pn).endsWith('@lid') ? d + '@s.whatsapp.net' : null); }).filter(Boolean);
+  if (sock.user?.id) jids.push(sock.user.id.replace(/:\d+@/, '@'));
+  const content = mediaPath ? (String(mime).startsWith('video/') ? { video: fs.readFileSync(mediaPath), caption: (text || '').trim() || undefined } : { image: fs.readFileSync(mediaPath), caption: (text || '').trim() || undefined }) : { text: text.trim() };
+  const sent = await sock.sendMessage('status@broadcast', content, { backgroundColor: '#16181D', font: 1, statusJidList: [...new Set(jids)] });
+  return { ok: true, id: sent?.key?.id, viewers: jids.length };
+}
+
 export async function sendPersonal(chatId, text) {
   if (!sock || state.status !== 'connected') throw new Error('Business WhatsApp is not linked right now.');
   if (!chatId || !text?.trim()) throw new Error('chat_id and text are needed.');
