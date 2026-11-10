@@ -115,3 +115,44 @@ export async function trendsToday() {
     return out;
   });
 }
+
+// Trending POSTS by region (UAE → GCC → World): news posts behind each Google trend + X trending tags.
+const REGIONS = {
+  uae: { tag: 'UAE', geos: ['AE'], t24: ['united-arab-emirates'] },
+  gcc: { tag: 'GCC', geos: ['SA', 'KW', 'QA', 'BH', 'OM'], t24: ['saudi-arabia', 'kuwait', 'qatar', 'bahrain', 'oman'] },
+  world: { tag: 'World', geos: ['US', 'GB', 'IN'], t24: [''] },
+};
+async function googleTrendPosts(geo) {
+  const res = await fetch('https://trends.google.com/trending/rss?geo=' + geo, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+  const xml = await res.text(); const out = [];
+  for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
+    const it = m[1]; const get = (s, tag) => unescape((s.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`)) || [])[1]);
+    const topic = get(it, 'title'), traffic = get(it, 'ht:approx_traffic');
+    const news = [...it.matchAll(/<ht:news_item>([\s\S]*?)<\/ht:news_item>/g)].map((n) => ({ title: get(n[1], 'ht:news_item_title'), url: get(n[1], 'ht:news_item_url'), image: get(n[1], 'ht:news_item_picture'), source: get(n[1], 'ht:news_item_source') }));
+    const n0 = news[0] || {};
+    out.push({ topic, traffic, title: n0.title || topic, url: n0.url || 'https://www.google.com/search?q=' + encodeURIComponent(topic), image: n0.image || get(it, 'ht:picture'), source: n0.source || 'Google Trends', geo });
+    if (out.length >= 10) break;
+  }
+  return out;
+}
+async function xTags(slug) {
+  const res = await fetch('https://trends24.in/' + (slug ? slug + '/' : ''), { headers: { 'User-Agent': 'Mozilla/5.0' } });
+  const html = await res.text(); const first = (html.match(/<ol[^>]*trend-card__list[^>]*>([\s\S]*?)<\/ol>/) || [])[1] || html; const out = []; const seen = new Set();
+  for (const m of first.matchAll(/<a [^>]*href="([^"]*(?:x|twitter)\.com\/search[^"]*)"[^>]*>([^<]+)<\/a>/g)) { const t = unescape(m[2]); if (seen.has(t)) continue; seen.add(t); out.push({ tag: t, url: m[1] }); if (out.length >= 10) break; }
+  return out;
+}
+export async function trendPosts() {
+  return cached('trendposts', async () => {
+    const out = { regions: [] };
+    for (const [id, r] of Object.entries(REGIONS)) {
+      const posts = []; const seen = new Set();
+      const lists = await Promise.all(r.geos.map((g) => googleTrendPosts(g).catch(() => [])));
+      for (let i = 0; i < 10; i++) for (const l of lists) { const p = l[i]; if (p && !seen.has(p.topic.toLowerCase())) { seen.add(p.topic.toLowerCase()); posts.push({ ...p, region: r.tag }); } }
+      const tl = await Promise.all(r.t24.map((s) => xTags(s).catch(() => [])));
+      const tags = []; const ts = new Set(); for (let i = 0; i < 10; i++) for (const l of tl) { const t = l[i]; if (t && !ts.has(t.tag)) { ts.add(t.tag); tags.push(t); } }
+      out.regions.push({ id, tag: r.tag, posts: posts.slice(0, 12), xtags: tags.slice(0, 12) });
+    }
+    if (!out.regions.some((x) => x.posts.length || x.xtags.length)) throw new Error('Trending sources did not answer, try again shortly');
+    return out;
+  });
+}

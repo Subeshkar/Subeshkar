@@ -55,3 +55,27 @@ export function mountX(app) {
     catch (e) { res.send(page('Could not connect: ' + String(e.message || e))); }
   });
 }
+
+// Act on X posts from Dioma (each call uses X credits).
+async function myId(c) { if (c.user_id) return c.user_id; const m = await me(c); c.user_id = m.id; store(c); return m.id; }
+async function xCall(method, url, body) {
+  const c = load(); if (!c.access_token) throw new Error('X is not connected yet.');
+  const r = await fetch(url, { method, headers: { Authorization: authHeader(c, method, url), 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error((j.detail || j.title || 'X said ' + r.status) + (r.status === 402 ? ' (add credits at console.x.com)' : ''));
+  return j;
+}
+export async function xLike(tweetId) { const c = load(); const id = await myId(c); await xCall('POST', `https://api.twitter.com/2/users/${id}/likes`, { tweet_id: String(tweetId) }); return { ok: true }; }
+export async function xReply(tweetId, text) { const j = await xCall('POST', 'https://api.twitter.com/2/tweets', { text: String(text).slice(0, 280), reply: { in_reply_to_tweet_id: String(tweetId) } }); return { ok: true, id: j.data && j.data.id }; }
+export async function xFollow(userId) { const c = load(); const id = await myId(c); await xCall('POST', `https://api.twitter.com/2/users/${id}/following`, { target_user_id: String(userId) }); return { ok: true }; }
+export async function xSearch(q) {
+  const c = load(); if (!c.access_token) throw new Error('X is not connected yet.');
+  const base = 'https://api.twitter.com/2/tweets/search/recent';
+  const params = { query: q + ' -is:retweet', max_results: '10', sort_order: 'relevancy', 'tweet.fields': 'public_metrics,created_at', expansions: 'author_id', 'user.fields': 'username,name,profile_image_url' };
+  const url = base + '?' + Object.entries(params).map(([k, v]) => `${enc(k)}=${enc(v)}`).join('&');
+  const r = await fetch(url, { headers: { Authorization: authHeader(c, 'GET', base, params) } });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error((j.detail || j.title || 'X said ' + r.status) + (r.status === 402 ? ' (add credits at console.x.com)' : ''));
+  const users = Object.fromEntries(((j.includes || {}).users || []).map((u) => [u.id, u]));
+  return { posts: (j.data || []).map((t) => { const u = users[t.author_id] || {}; return { id: t.id, text: t.text, at: t.created_at, likes: (t.public_metrics || {}).like_count || 0, replies: (t.public_metrics || {}).reply_count || 0, user_id: t.author_id, user: u.username || '', name: u.name || '', avatar: u.profile_image_url || '', url: `https://x.com/${u.username || 'i'}/status/${t.id}` }; }) };
+}

@@ -9,10 +9,10 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { SUPPORTED_PROTOCOL_VERSIONS, LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js';
 import * as P from './wa-personal.js';
 import * as B from './wa-business.js';
-import { newsToday, moneyToday, trendsToday } from './feeds.js';
+import { newsToday, moneyToday, trendsToday, trendPosts } from './feeds.js';
 import { transcribe } from './transcribe.js';
 import { talkLink, takeCommand } from './talk.js';
-import { xStatus, xPost } from './xpost.js';
+import { xStatus, xPost, xLike, xReply, xFollow, xSearch } from './xpost.js';
 import { liStatus, liPost, liInbox, liInboxChunk, igDmSnap, igInboxSave } from './linkedin.js';
 import { igapiStatus, igapiInbox, igapiThread, igapiSend, igapiMyPosts, igapiComments, igapiReply } from './igapi.js';
 import { igStatus, igFeed, igComments, igComment, igInbox, igThread, igSend, igImage, igLastError } from './ig.js';
@@ -58,6 +58,8 @@ function buildServer() {
     }
     if (q === '__xstatus__') return json(xStatus());
     if (q === '__trends__') return json(await trendsToday());
+    if (q === '__trendposts__') { try { return json(await trendPosts()); } catch (e) { return json({ error: String(e.message || e), regions: [] }); } }
+    if (q.startsWith('__xsearch__:')) { try { return json(await xSearch(q.slice(12))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (q && q.startsWith('__tx__:')) { const a = q.slice(7); return json(/^[\w .&:-]{1,40}$/.test(a) ? listTx(a) : { tx: [], files: [] }); }
     if (q === '__txaccts__') return json({ data: accounts() });
     if (q && q.startsWith('__opps__')) { const d = Number(q.split(':')[1]) || 300; return json({ data: P.findOpportunities({ days: d }) }); }
@@ -99,6 +101,7 @@ function buildServer() {
     if (chat_id.startsWith('__txfiletext__|')) { const [, a, n] = chat_id.split('|'); return json(fileText(a, decodeURIComponent(n))); }
     if (chat_id.startsWith('__txclearfile__|')) { const [, a, n] = chat_id.split('|'); return json(clearFileTx(a, decodeURIComponent(n))); }
     if (chat_id.startsWith('__bookspay__|')) { try { return json(await booksRecordPayment(JSON.parse(chat_id.slice(13)))); } catch (e) { return json({ error: String(e.message || e) }); } }
+    if (chat_id.startsWith('__xact__|')) { const [, act, id, ...rest] = chat_id.split('|'); try { return json(act === 'like' ? await xLike(id) : act === 'follow' ? await xFollow(id) : act === 'reply' ? await xReply(id, decodeURIComponent(rest.join('|'))) : { error: 'unknown action' }); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__xpost__|')) { try { return json(await xPost(decodeURIComponent(chat_id.slice(10)))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__ig')) {
       const p = chat_id.split('|');
