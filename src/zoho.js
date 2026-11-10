@@ -91,15 +91,32 @@ export async function booksFindContacts(q, org) {
   }
   return { contacts: all.slice(0, 10).map((c) => ({ id: c.contact_id, name: c.contact_name, company: c.company_name, email: c.email, phone: c.mobile || c.phone })) };
 }
-export async function booksCreateInvoice({ org, customer_id, items, date, notes, reference }) {
+// UAE VAT 5% — always applied to Dioma invoices unless vat === false.
+async function vatTaxId(org) {
+  const j = await books('/settings/taxes', {}, org);
+  const t = (j.taxes || []).find((x) => Number(x.tax_percentage) === 5 && !x.is_tax_group) || (j.taxes || []).find((x) => Number(x.tax_percentage) === 5);
+  if (!t) throw new Error('No 5% VAT tax found in Zoho Books');
+  return t.tax_id;
+}
+export async function booksAddVat(invoice_id, org) {
+  const tax = await vatTaxId(org);
+  const j = await books('/invoices/' + invoice_id, {}, org); const v = j.invoice || {};
+  const line_items = (v.line_items || []).map((li) => ({ line_item_id: li.line_item_id, item_id: li.item_id || undefined, name: li.name, description: li.description, rate: li.rate, quantity: li.quantity, tax_id: tax }));
+  const u = await books('/invoices/' + invoice_id, { method: 'PUT', body: JSON.stringify({ customer_id: v.customer_id, line_items }) }, org);
+  const w = u.invoice || {}; return { ok: true, number: w.invoice_number, total: w.total, tax_total: w.tax_total, status: w.status };
+}
+export async function booksCreateInvoice({ org, customer_id, items, date, notes, reference, vat }) {
   const body = { customer_id, date: date || new Date().toISOString().slice(0, 10), reference_number: reference ? String(reference).slice(0, 50) : undefined, notes: notes || undefined,
     line_items: (items || []).map((i) => ({ name: String(i.name || 'Transport service').slice(0, 100), description: i.description ? String(i.description).slice(0, 2000) : undefined, rate: Number(i.rate), quantity: Number(i.quantity || 1) })) };
+  if (vat !== false) { const tax = await vatTaxId(org); body.line_items.forEach((li) => { li.tax_id = tax; }); }
   const j = await books('/invoices', { method: 'POST', body: JSON.stringify(body) }, org);
   const v = j.invoice || {};
-  return { ok: true, invoice_id: v.invoice_id, number: v.invoice_number, total: v.total, currency: v.currency_code, customer: v.customer_name, status: v.status };
+  return { ok: true, invoice_id: v.invoice_id, number: v.invoice_number, sub_total: v.sub_total, tax_total: v.tax_total, total: v.total, currency: v.currency_code, customer: v.customer_name, status: v.status };
 }
 export async function booksEmailInvoice({ org, invoice_id, to, cc, subject, body }) {
-  const payload = { send_from_org_email_id: true, to_mail_ids: [].concat(to || []).filter(Boolean), cc_mail_ids: [].concat(cc || []).filter(Boolean) };
+  // Sent by Zoho Books from info@redexgo.com with the invoice PDF attached; info@ is always CC'd so it lands in the RedexGo mailbox too.
+  const ccs = [...new Set([].concat(cc || []).filter(Boolean).concat(['info@redexgo.com']).map((x) => String(x).trim()))];
+  const payload = { send_from_org_email_id: true, send_attachment: true, to_mail_ids: [].concat(to || []).filter(Boolean), cc_mail_ids: ccs };
   if (subject) payload.subject = subject; if (body) payload.body = body;
   await books(`/invoices/${invoice_id}/email`, { method: 'POST', body: JSON.stringify(payload) }, org);
   return { ok: true };
