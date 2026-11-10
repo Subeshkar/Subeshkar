@@ -10,6 +10,7 @@ import { SUPPORTED_PROTOCOL_VERSIONS, LATEST_PROTOCOL_VERSION } from '@modelcont
 import * as P from './wa-personal.js';
 import * as B from './wa-business.js';
 import { newsToday, moneyToday } from './feeds.js';
+import { transcribe } from './transcribe.js';
 const { personalStatus, listChats, listMessages, sendPersonal, markChatRead } = P;
 
 const json = (data) => ({ content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: Array.isArray(data) ? { data } : data });
@@ -50,6 +51,12 @@ function buildServer() {
     annotations: { readOnlyHint: true }
   }, async ({ chat_id, limit }) => {
     // '__media__|<chat>|<message id>' returns that file (base64) until the connector tool list is refreshed.
+    // '__stt__|<mimetype>|<base64 audio>' turns a recording into text (voice commands for the Dioma AI).
+    if (chat_id.startsWith('__stt__|')) {
+      const i = chat_id.indexOf('|', 8); const mime = chat_id.slice(8, i); const buf = Buffer.from(chat_id.slice(i + 1), 'base64');
+      if (!buf.length || buf.length > 12 * 1024 * 1024) return json({ error: 'Recording is empty or too long.' });
+      try { return json({ text: await transcribe(buf, mime) }); } catch (e) { return json({ error: String(e.message || e) }); }
+    }
     if (chat_id.startsWith('__media__|')) { const [, jid, id] = chat_id.split('|'); return json(await P.getMedia(jid, id)); }
     if (chat_id.startsWith('__bmedia__|')) { const [, jid, id] = chat_id.split('|'); return json(await B.getMedia(jid, id)); }
     return json({ data: listMessages(chat_id, limit || 30) });

@@ -14,7 +14,7 @@ import { mountMcp, mcpToken } from './mcp.js';
 
 const app = express();
 app.set('trust proxy', true);
-app.use(express.json({ verify: (req, _res, buf) => { req.rawBody = buf; } }));
+app.use(express.json({ limit: '25mb', verify: (req, _res, buf) => { req.rawBody = buf; } }));
 app.use(express.urlencoded({ extended: false }));
 
 const allowed = (process.env.ALLOWED_NUMBERS || '').split(',').map((s) => s.trim().replace(/^\+/, '')).filter(Boolean);
