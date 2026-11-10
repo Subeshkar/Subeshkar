@@ -47,8 +47,8 @@ function buildServer() {
     if (q === '__listatus__') return json(liStatus());
     if (q === '__liinbox__') return json(liInbox());
     if (q === '__iginbox__') return json(igDmSnap());
-    if (q && q.startsWith('__igapi__:')) { const k = q.split(':')[1]; try { if (k === 'status') return json(igapiStatus()); if (k === 'inbox') return json({ data: await igapiInbox() }); if (k === 'posts') return json({ data: await igapiMyPosts() }); } catch (e) { return json({ error: String(e.message || e) }); } }
-    if (q && q.startsWith('__ig__:')) {
+    if (q && (q || '').startsWith('__igapi__:')) { const k = q.split(':')[1]; try { if (k === 'status') return json(igapiStatus()); if (k === 'inbox') return json({ data: await igapiInbox() }); if (k === 'posts') return json({ data: await igapiMyPosts() }); } catch (e) { return json({ error: String(e.message || e) }); } }
+    if (q && (q || '').startsWith('__ig__:')) {
       const [, kind, ...rest] = q.split(':'); const arg = rest.join(':');
       try {
         if (kind === 'status') return json({ ...(await igStatus()), last_error: igLastError() });
@@ -63,21 +63,21 @@ function buildServer() {
     if (q.startsWith('__bookscontacts__:')) { const [qq, org] = q.slice(18).split('@@'); try { return json(await booksFindContacts(qq, org || undefined)); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (q === '__trendposts__') { try { return json(await trendPosts()); } catch (e) { return json({ error: String(e.message || e), regions: [] }); } }
     if (q.startsWith('__xsearch__:')) { try { return json(await xSearch(q.slice(12))); } catch (e) { return json({ error: String(e.message || e) }); } }
-    if (q && q.startsWith('__tx__:')) { const a = q.slice(7); return json(/^[\w .&:-]{1,40}$/.test(a) ? listTx(a) : { tx: [], files: [] }); }
+    if (q && (q || '').startsWith('__tx__:')) { const a = q.slice(7); return json(/^[\w .&:-]{1,40}$/.test(a) ? listTx(a) : { tx: [], files: [] }); }
     if (q === '__txaccts__') return json({ data: accounts() });
-    if (q && q.startsWith('__opps__')) { const d = Number(q.split(':')[1]) || 300; return json({ data: P.findOpportunities({ days: d }) }); }
+    if (q && (q || '').startsWith('__opps__')) { const d = Number(q.split(':')[1]) || 300; return json({ data: P.findOpportunities({ days: d }) }); }
     if (q === '__zohostatus__') return json({ linked: zohoLinked(), setup: zohoSetupLink() });
     if (q === '__booksinv__') { try { return json(await booksInvoiceTotals()); } catch (e) { return json({ linked: true, error: String(e.message || e) }); } }
     if (q === '__booksbal__') { try { return json(await booksBalances()); } catch (e) { return json({ linked: true, error: String(e.message || e) }); } }
     if (q === '__crm__') { try { return json(await crmSummary()); } catch (e) { return json({ linked: true, error: String(e.message || e) }); } }
     if (q === '__books__') { try { return json(await booksSummary()); } catch (e) { return json({ linked: true, error: String(e.message || e) }); } }
-    if (q && q.startsWith('__bookscontact__:')) { try { return json(await booksContact(q.split(':')[1])); } catch (e) { return json({ error: String(e.message || e) }); } }
-    if (q && q.startsWith('__zoho__:')) { const [, folder, ...rest] = q.split(':'); try { return json({ data: await zohoList(folder, rest.join(':')) }); } catch (e) { return json({ error: String(e.message || e), linked: zohoLinked() }); } }
-    if (q && q.startsWith('__zohomsg__:')) { const [, f, m] = q.split(':'); try { return json(await zohoRead(f, m)); } catch (e) { return json({ error: String(e.message || e) }); } }
-    if (q && q.startsWith('__pulsein__')) return json({ items: takePulse(q.split(':')[1]), link: talkLink() + '?to=pulse' });
-    if (q && q.startsWith('__talkcmd__')) return json(takeCommand(q.split(':')[1]) || {});
-    if (q && q.startsWith('__news__')) return json({ data: await newsToday(q.split(':')[1] || 'world') });
-    if (q && q.startsWith('__money__')) return json(await moneyToday(q.split(':')[1] || 'world'));
+    if (q && (q || '').startsWith('__bookscontact__:')) { try { return json(await booksContact(q.split(':')[1])); } catch (e) { return json({ error: String(e.message || e) }); } }
+    if (q && (q || '').startsWith('__zoho__:')) { const [, folder, ...rest] = q.split(':'); try { return json({ data: await zohoList(folder, rest.join(':')) }); } catch (e) { return json({ error: String(e.message || e), linked: zohoLinked() }); } }
+    if (q && (q || '').startsWith('__zohomsg__:')) { const [, f, m] = q.split(':'); try { return json(await zohoRead(f, m)); } catch (e) { return json({ error: String(e.message || e) }); } }
+    if (q && (q || '').startsWith('__pulsein__')) return json({ items: takePulse(q.split(':')[1]), link: talkLink() + '?to=pulse' });
+    if (q && (q || '').startsWith('__talkcmd__')) return json(takeCommand(q.split(':')[1]) || {});
+    if (q && (q || '').startsWith('__news__')) return json({ data: await newsToday(q.split(':')[1] || 'world') });
+    if (q && (q || '').startsWith('__money__')) return json(await moneyToday(q.split(':')[1] || 'world'));
     return json({ data: listChats({ limit: limit || 40, unreadOnly: !!unread_only, q: q || '' }) });
   });
 
