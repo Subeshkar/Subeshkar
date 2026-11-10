@@ -66,10 +66,15 @@ async function books(p, opts = {}) {
 }
 export async function booksSummary() {
   const c = load('books'); if (!c.refresh_token) return { linked: false, setup: booksSetupLink() };
-  const [over, unpaid] = await Promise.all([books('/invoices?status=overdue&per_page=50&sort_column=due_date'), books('/invoices?status=unpaid&per_page=100')]);
+  const [over, unpaid, bills] = await Promise.all([books('/invoices?status=overdue&per_page=50&sort_column=due_date'), books('/invoices?status=unpaid&per_page=100'), books('/bills?status=unpaid&per_page=100').catch(() => ({ bills: [] }))]);
   const pick = (i) => ({ id: i.invoice_id, number: i.invoice_number, customer: i.customer_name, customer_id: i.customer_id, total: i.total, balance: i.balance, currency: i.currency_code, date: i.date, due: i.due_date, days_overdue: i.due_date ? Math.max(0, Math.round((Date.now() - new Date(i.due_date).getTime()) / 864e5)) : 0, status: i.status, email: i.email || '' });
   const o2 = load('books');
-  return { linked: true, org: o2.org_name, currency: o2.currency, overdue: (over.invoices || []).map(pick), unpaid: (unpaid.invoices || []).map(pick) };
+  return { linked: true, org: o2.org_name, currency: o2.currency, overdue: (over.invoices || []).map(pick), unpaid: (unpaid.invoices || []).map(pick), bills: (bills.bills || []).map((b) => ({ id: b.bill_id, number: b.bill_number, vendor: b.vendor_name, total: b.total, balance: b.balance, date: b.date, due: b.due_date, status: b.status })) };
+}
+// Record a customer payment against an invoice (only after the owner taps Record in Dioma).
+export async function booksRecordPayment({ customer_id, invoice_id, amount, date, reference }) {
+  const j = await books('/customerpayments', { method: 'POST', body: JSON.stringify({ customer_id, payment_mode: 'banktransfer', amount: Number(amount), date, reference_number: reference ? String(reference).slice(0, 50) : undefined, invoices: [{ invoice_id, amount_applied: Number(amount) }] }) });
+  return { ok: true, payment_id: j.payment && j.payment.payment_id };
 }
 // ---- Zoho CRM (same login as Books) ----
 async function crm(p) {

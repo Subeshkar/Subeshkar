@@ -12,7 +12,8 @@ import * as B from './wa-business.js';
 import { newsToday, moneyToday } from './feeds.js';
 import { transcribe } from './transcribe.js';
 import { talkLink, takeCommand } from './talk.js';
-import { zohoList, zohoRead, zohoLinked, zohoSetupLink, booksSummary, booksContact, crmSummary } from './zoho.js';
+import { zohoList, zohoRead, zohoLinked, zohoSetupLink, booksSummary, booksContact, crmSummary, booksRecordPayment } from './zoho.js';
+import { uploadStatement, addTx, listTx, setCategory, clearAcct } from './wealth.js';
 const { personalStatus, listChats, listMessages, sendPersonal, markChatRead } = P;
 
 const json = (data) => ({ content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: Array.isArray(data) ? { data } : data });
@@ -39,6 +40,7 @@ function buildServer() {
   }, async ({ limit, unread_only, q }) => {
     // Older claude.ai connector lists only know the personal_* tools; feeds ride on this one until the connector is refreshed.
     if (q === '__talk__') return json({ link: talkLink() });
+    if (q && q.startsWith('__tx__:')) return json(listTx(q.split(':')[1] === 'business' ? 'business' : 'personal'));
     if (q && q.startsWith('__opps__')) { const d = Number(q.split(':')[1]) || 300; return json({ data: P.findOpportunities({ days: d }) }); }
     if (q === '__zohostatus__') return json({ linked: zohoLinked(), setup: zohoSetupLink() });
     if (q === '__crm__') { try { return json(await crmSummary()); } catch (e) { return json({ linked: true, error: String(e.message || e) }); } }
@@ -68,6 +70,12 @@ function buildServer() {
       if (!buf.length || buf.length > 12 * 1024 * 1024) return json({ error: 'Recording is empty or too long.' });
       try { return json({ text: await transcribe(buf, mime) }); } catch (e) { return json({ error: String(e.message || e) }); }
     }
+    // Wealth (bank statements) and Zoho Books payments ride on this tool until the connector list is refreshed.
+    if (chat_id.startsWith('__stmt__|')) { const [, acct, name, b64] = chat_id.split('|'); try { return json(await uploadStatement(acct, decodeURIComponent(name), b64)); } catch (e) { return json({ error: String(e.message || e) }); } }
+    if (chat_id.startsWith('__txadd__|')) { const p = chat_id.split('|'); try { return json(addTx(p[1], JSON.parse(p.slice(3).join('|')), decodeURIComponent(p[2] || ''))); } catch (e) { return json({ error: String(e.message || e) }); } }
+    if (chat_id.startsWith('__txcat__|')) { const [, id, cat] = chat_id.split('|'); return json(setCategory(id, decodeURIComponent(cat))); }
+    if (chat_id.startsWith('__txclear__|')) { return json(clearAcct(chat_id.split('|')[1])); }
+    if (chat_id.startsWith('__bookspay__|')) { try { return json(await booksRecordPayment(JSON.parse(chat_id.slice(13)))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__media__|')) { const [, jid, id] = chat_id.split('|'); return json(await P.getMedia(jid, id)); }
     if (chat_id.startsWith('__bmedia__|')) { const [, jid, id] = chat_id.split('|'); return json(await B.getMedia(jid, id)); }
     return json({ data: listMessages(chat_id, limit || 30) });
