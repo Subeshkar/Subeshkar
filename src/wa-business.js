@@ -365,3 +365,27 @@ export async function sendPersonal(chatId, text) {
   if (sent) saveMessage(sent, true);
   return { ok: true, id: sent?.key?.id, chat_id: jid };
 }
+
+// Opportunity follow-ups: messages Subesh sent about business, partnerships, quotations or jobs
+// (last `days` days) where the other side never answered after it, or the talk went quiet.
+const OPP = /(opportunit|partner|collaborat|proposal|quotation|quote|rate card|rates|services|logistics|cold ?chain|fleet|truck|redex|meeting|call|demo|introduc|interested|offer|position|vacanc|job|role|hiring|cv|resume|apply|applied|application|interview|consult|invest|deal|contract|tender|rfq|pricing)/i;
+export function findOpportunities({ days = 300, limit = 120 } = {}) {
+  const since = Date.now() - days * 864e5;
+  const mine = db.prepare("SELECT jid, text, at FROM wb_messages WHERE from_me = 1 AND at > ? AND jid NOT LIKE '%@g.us' AND jid NOT LIKE '%@newsletter' AND jid NOT LIKE '%broadcast%' AND length(text) > 40 ORDER BY at DESC").all(since);
+  const byJid = new Map();
+  for (const m of mine) { if (!OPP.test(m.text || '') || byJid.has(m.jid)) continue; byJid.set(m.jid, m); }
+  const out = [];
+  for (const [jid, m] of byJid) {
+    const after = db.prepare('SELECT count(*) n FROM wb_messages WHERE jid = ? AND from_me = 0 AND at > ?').get(jid, m.at).n;
+    const last = db.prepare('SELECT from_me, text, at FROM wb_messages WHERE jid = ? ORDER BY at DESC LIMIT 1').get(jid);
+    const quiet = Date.now() - last.at;
+    // no answer after his message, or the chat has been quiet for 7+ days with him waiting
+    if (after > 0 && !(last.from_me && quiet > 7 * 864e5) && quiet < 21 * 864e5) continue;
+    if (quiet < 2 * 864e5) continue; // too fresh to chase
+    const ctx = db.prepare('SELECT from_me, text, at FROM wb_messages WHERE jid = ? ORDER BY at DESC LIMIT 8').all(jid).reverse();
+    const ch = db.prepare('SELECT name FROM wb_chats WHERE jid = ?').get(jid) || {};
+    out.push({ chat_id: jid, name: displayName(jid, ch.name), phone: (/^\d+@s\.whatsapp\.net$/.test(jid) ? '+' + jid.split('@')[0] : null), my_message: String(m.text).slice(0, 600), my_at: new Date(m.at).toISOString(), replied_after: after, quiet_days: Math.round(quiet / 864e5), context: ctx.map((x) => ({ me: !!x.from_me, text: String(x.text || '').slice(0, 300), at: new Date(x.at).toISOString() })) });
+    if (out.length >= limit) break;
+  }
+  return out;
+}

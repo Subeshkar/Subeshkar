@@ -39,6 +39,7 @@ function buildServer() {
   }, async ({ limit, unread_only, q }) => {
     // Older claude.ai connector lists only know the personal_* tools; feeds ride on this one until the connector is refreshed.
     if (q === '__talk__') return json({ link: talkLink() });
+    if (q && q.startsWith('__opps__')) { const d = Number(q.split(':')[1]) || 300; return json({ data: P.findOpportunities({ days: d }) }); }
     if (q === '__zohostatus__') return json({ linked: zohoLinked(), setup: zohoSetupLink() });
     if (q === '__books__') { try { return json(await booksSummary()); } catch (e) { return json({ linked: true, error: String(e.message || e) }); } }
     if (q && q.startsWith('__bookscontact__:')) { try { return json(await booksContact(q.split(':')[1])); } catch (e) { return json({ error: String(e.message || e) }); } }
