@@ -11,7 +11,8 @@ const require = createRequire(import.meta.url);
 const { IgApiClient, IgCheckpointError, IgLoginTwoFactorRequiredError } = require('instagram-private-api');
 
 const FILE = () => path.join(process.env.DATA_DIR || './data', 'ig-session.json');
-let ig = null, me = null, pending = null; // pending: { kind: '2fa'|'checkpoint', username, info }
+let ig = null, me = null, pending = null, lastErr = null;
+export const igLastError = () => lastErr; // pending: { kind: '2fa'|'checkpoint', username, info }
 export const igToken = () => crypto.createHmac('sha256', mcpToken()).update('dioma-ig').digest('hex').slice(0, 32);
 export const igSetupLink = () => `https://${process.env.RAILWAY_PUBLIC_DOMAIN || 'subeshkar-production.up.railway.app'}/ig/${igToken()}`;
 
@@ -64,7 +65,10 @@ const page = (msg = '') => `<!doctype html><html><head><meta charset="utf-8"><me
 ${pending ? `<form method="post"><input type="hidden" name="step" value="code"><label>${pending.kind === '2fa' ? 'Code from your authenticator / SMS (two-factor)' : 'Security code Instagram sent you (SMS or email)'}<input name="code" inputmode="numeric" autocomplete="one-time-code" required></label><button>Confirm</button></form>
 <p class="w">If Instagram shows "Was this you?" in the app, tap <b>This was me</b>, then confirm here.</p>`
 : `<form method="post"><label>Instagram username<input name="username" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><button>Connect</button></form>
-<p class="w">Unofficial login (like WhatsApp Web). Instagram may ask you to confirm it was you; open the Instagram app and approve.</p>`}
+<p class="w">Unofficial login (like WhatsApp Web). Instagram may ask you to confirm it was you; open the Instagram app and approve.</p>
+<h2 style="font-size:18px;margin-top:28px">Connect with your browser session (if the password login fails)</h2>
+<ol class="w"><li>On a computer, open <b>instagram.com</b> in Chrome, logged in as the account you want.</li><li>Press <b>F12</b> (or right-click → Inspect) → tab <b>Application</b> → <b>Cookies</b> → <b>https://www.instagram.com</b>.</li><li>Copy the <b>Value</b> of <b>sessionid</b> and paste it below.</li></ol>
+<form method="post"><input type="hidden" name="step" value="session"><label>sessionid<input name="sessionid" required autocomplete="off"></label><button>Connect with session</button></form>`}
 </main></body></html>`;
 
 export function mountIg(app) {
@@ -72,6 +76,15 @@ export function mountIg(app) {
   app.post('/ig/:t', ok, express.urlencoded({ extended: false }), async (req, res) => {
     const b = req.body || {};
     try {
+      if (b.step === 'session') {
+        const sid = decodeURIComponent(String(b.sessionid || '').trim()); if (!sid) return res.send(page('Paste the sessionid value.'));
+        const uid = (sid.match(/^(\d+)/) || [])[1] || '';
+        const c = client('dioma-' + (uid || 'user'));
+        const jar = c.state.cookieJar;
+        for (const [k, v] of [['sessionid', sid], ['ds_user_id', uid]]) if (v) await jar.setCookie(`${k}=${v}; Domain=.instagram.com; Path=/; Secure; HttpOnly`, 'https://i.instagram.com/');
+        me = await c.account.currentUser(); ig = c; pending = null; await saveSession(c);
+        return res.send(page(`✅ Connected as @${me.username}. Close this page and open Social → Instagram in Dioma.`));
+      }
       if (b.step === 'code' && pending) {
         const c = pending.client; const code = String(b.code || '').trim();
         if (pending.kind === '2fa') {
@@ -90,6 +103,11 @@ export function mountIg(app) {
         if (e instanceof IgCheckpointError) { c.state.checkpoint = e.response.body; try { await c.challenge.auto(true); } catch { /* code may still come */ } pending = { kind: 'checkpoint', username, client: c }; return res.send(page('Instagram sent you a security code (SMS or email). Enter it below. If the app asks "Was this you?", tap This was me.')); }
         throw e;
       }
-    } catch (e) { pending = null; res.send(page('Instagram said: ' + String((e && e.message) || e).slice(0, 200) + '. Wait a few minutes and try again; approve the login in the Instagram app if it asks.')); }
+    } catch (e) {
+      pending = null; lastErr = { at: new Date().toISOString(), name: e && e.name, msg: String((e && e.message) || e).slice(0, 300), body: e && e.response && e.response.body ? JSON.stringify(e.response.body).slice(0, 500) : '' };
+      console.error('IG login failed', lastErr);
+      const bad = /bad_password|password you entered is incorrect/i.test(lastErr.msg + lastErr.body);
+      res.send(page(bad ? 'Instagram says the password is wrong. This often happens when Instagram does not trust a login from a cloud server even with the right password. Use “Connect with your browser session” below instead.' : 'Instagram said: ' + lastErr.msg + '. Approve the login in the Instagram app if it asks, wait a few minutes, or use “Connect with your browser session” below.'));
+    }
   });
 }

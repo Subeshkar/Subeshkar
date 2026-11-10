@@ -13,7 +13,7 @@ import { newsToday, moneyToday, trendsToday } from './feeds.js';
 import { transcribe } from './transcribe.js';
 import { talkLink, takeCommand } from './talk.js';
 import { xStatus, xPost } from './xpost.js';
-import { igStatus, igFeed, igComments, igComment, igInbox, igThread, igSend, igImage } from './ig.js';
+import { igStatus, igFeed, igComments, igComment, igInbox, igThread, igSend, igImage, igLastError } from './ig.js';
 import { zohoList, zohoRead, zohoLinked, zohoSetupLink, booksSummary, booksContact, crmSummary, booksRecordPayment, booksBalances, booksInvoiceTotals } from './zoho.js';
 import { uploadStatement, addTx, listTx, setCategory, clearAcct, fileText, clearFileTx, accounts } from './wealth.js';
 const { personalStatus, listChats, listMessages, sendPersonal, markChatRead } = P;
@@ -45,7 +45,7 @@ function buildServer() {
     if (q && q.startsWith('__ig__:')) {
       const [, kind, ...rest] = q.split(':'); const arg = rest.join(':');
       try {
-        if (kind === 'status') return json(await igStatus());
+        if (kind === 'status') return json({ ...(await igStatus()), last_error: igLastError() });
         if (kind === 'inbox') return json({ data: await igInbox() });
         if (kind === 'feed' || kind === 'tag' || kind === 'me' || kind === 'user') return json({ data: await igFeed(kind === 'feed' ? 'timeline' : kind, arg) });
       } catch (e) { return json({ error: String((e && e.message) || e).slice(0, 300) }); }
