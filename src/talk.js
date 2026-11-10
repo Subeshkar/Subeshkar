@@ -19,6 +19,7 @@ const ok = (req, res, next) => {
 
 const page = () => `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Talk to Dioma</title><style>
+[hidden]{display:none!important}
 :root{--bg:#0f1115;--fg:#f3f1ea;--mut:#9a9890;--acc:#e8c547;--card:#1a1d24}
 @media (prefers-color-scheme: light){:root{--bg:#f6f4ee;--fg:#16181d;--mut:#6b6a64;--acc:#b8901a;--card:#fff}}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;text-align:center}
