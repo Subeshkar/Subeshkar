@@ -15,10 +15,24 @@ export const liSetupLink = () => `${HOST()}/li/${liToken()}`;
 const REDIRECT = () => `${HOST()}/li-callback`;
 export const liStatus = () => { const c = load(); return { linked: !!(c.access_token && c.expires > Date.now()), user: c.name || '', expires: c.expires || 0, appSaved: !!c.client_id, clientId: c.client_id || '', lastError: c.lastError || '', lastTry: c.lastTry || 0, setup: liSetupLink() }; };
 
-export async function liPost(text) {
+// Post on the personal profile; with mediaPath the photo is uploaded to LinkedIn and posted as an image post.
+export async function liPost(text, mediaPath) {
   const c = load(); if (!c.access_token || c.expires < Date.now()) throw new Error('LinkedIn is not connected (or the 60-day login expired). Connect again.');
-  const r = await fetch('https://api.linkedin.com/v2/ugcPosts', { method: 'POST', headers: { Authorization: 'Bearer ' + c.access_token, 'Content-Type': 'application/json', 'X-Restli-Protocol-Version': '2.0.0' },
-    body: JSON.stringify({ author: 'urn:li:person:' + c.sub, lifecycleState: 'PUBLISHED', specificContent: { 'com.linkedin.ugc.ShareContent': { shareCommentary: { text: String(text).slice(0, 3000) }, shareMediaCategory: 'NONE' } }, visibility: { 'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC' } }) });
+  const H = { Authorization: 'Bearer ' + c.access_token, 'Content-Type': 'application/json', 'X-Restli-Protocol-Version': '2.0.0' };
+  let media = null;
+  if (mediaPath) {
+    const reg = await fetch('https://api.linkedin.com/v2/assets?action=registerUpload', { method: 'POST', headers: H, body: JSON.stringify({ registerUploadRequest: { recipes: ['urn:li:digitalmediaRecipe:feedshare-image'], owner: 'urn:li:person:' + c.sub, serviceRelationships: [{ relationshipType: 'OWNER', identifier: 'urn:li:userGeneratedContent' }] } }) });
+    const rj = await reg.json().catch(() => ({}));
+    if (!reg.ok) throw new Error('LinkedIn photo: ' + (rj.message || reg.status));
+    const up = rj.value.uploadMechanism['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'].uploadUrl;
+    const put = await fetch(up, { method: 'PUT', headers: { Authorization: 'Bearer ' + c.access_token }, body: fs.readFileSync(mediaPath) });
+    if (!put.ok) throw new Error('LinkedIn photo upload failed (' + put.status + ')');
+    media = rj.value.asset;
+  }
+  const share = { shareCommentary: { text: String(text).slice(0, 3000) }, shareMediaCategory: media ? 'IMAGE' : 'NONE' };
+  if (media) share.media = [{ status: 'READY', media }];
+  const r = await fetch('https://api.linkedin.com/v2/ugcPosts', { method: 'POST', headers: H,
+    body: JSON.stringify({ author: 'urn:li:person:' + c.sub, lifecycleState: 'PUBLISHED', specificContent: { 'com.linkedin.ugc.ShareContent': share }, visibility: { 'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC' } }) });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error('LinkedIn: ' + (j.message || r.status));
   const id = r.headers.get('x-restli-id') || j.id || '';
