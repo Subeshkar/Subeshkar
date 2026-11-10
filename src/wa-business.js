@@ -69,6 +69,14 @@ function textOf(m) {
     || (inner.stickerMessage && 'Sticker')
     || (inner.locationMessage && '📍 Location')
     || (inner.contactMessage && `👤 ${inner.contactMessage.displayName || 'Contact'}`)
+    || (inner.eventMessage && `📅 Event invite: ${inner.eventMessage.name || ''}${inner.eventMessage.startTime ? ' · ' + new Date(Number(inner.eventMessage.startTime) * 1000).toLocaleString('en-GB', { timeZone: 'Asia/Dubai', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}${inner.eventMessage.location?.name ? ' · ' + inner.eventMessage.location.name : ''}`)
+    || ((inner.pollCreationMessage || inner.pollCreationMessageV2 || inner.pollCreationMessageV3) && `📊 Poll: ${(inner.pollCreationMessage || inner.pollCreationMessageV2 || inner.pollCreationMessageV3).name || ''}`)
+    || (inner.liveLocationMessage && '📍 Live location')
+    || (inner.contactsArrayMessage && `👥 ${inner.contactsArrayMessage.contacts?.length || ''} contacts`)
+    || (inner.ptvMessage && '🎥 Video note')
+    || inner.templateMessage?.hydratedTemplate?.hydratedContentText
+    || inner.interactiveMessage?.body?.text
+    || (inner.reactionMessage && null)
     || inner.buttonsResponseMessage?.selectedDisplayText
     || inner.listResponseMessage?.title
     || null;
