@@ -89,3 +89,27 @@ export async function moneyToday(region = 'world') {
     return { region, funding, stocks, note: region === 'world' ? 'Delayed US prices; change vs previous close.' : 'Delayed local prices; change vs previous close.' };
   });
 }
+
+// What is trending in the UAE right now, from public sources (works without any login):
+// Google Trends daily searches (AE) and X trending topics (trends24).
+export async function trendsToday() {
+  return cached('trends', async () => {
+    const out = { google: [], x: [] };
+    try {
+      const res = await fetch('https://trends.google.com/trending/rss?geo=AE', { headers: { 'User-Agent': 'Mozilla/5.0' } });
+      const xml = await res.text();
+      for (const m of xml.matchAll(/<item>([\s\S]*?)<\/item>/g)) {
+        const get = (tag) => unescape((m[1].match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`)) || [])[1]);
+        out.google.push({ title: get('title'), traffic: get('ht:approx_traffic'), news: get('ht:news_item_title'), link: get('ht:news_item_url') });
+        if (out.google.length >= 20) break;
+      }
+    } catch { /* source down */ }
+    try {
+      const res = await fetch('https://trends24.in/united-arab-emirates/', { headers: { 'User-Agent': 'Mozilla/5.0' } });
+      const html = await res.text();
+      const first = (html.match(/<ol class="trend-card__list">([\s\S]*?)<\/ol>/) || [])[1] || '';
+      for (const m of first.matchAll(/<a [^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/g)) { out.x.push({ title: unescape(m[2]), link: m[1] }); if (out.x.length >= 20) break; }
+    } catch { /* source down */ }
+    return out;
+  });
+}
