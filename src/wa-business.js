@@ -136,6 +136,10 @@ function saveMessage(m, live) {
       db.prepare('INSERT OR IGNORE INTO wb_media (jid, id, kind, raw, at, status) VALUES (?, ?, ?, ?, ?, ?)').run(jid, m.key.id, kind, JSON.stringify(m, BufferJSON.replacer), at, 'file');
     } catch { /* ignore */ }
   }
+  if (inner.audioMessage && fromMe && at > Date.now() - 14 * 864e5) {
+    // your own voice notes: keep them so they play in Dioma (no transcript needed)
+    try { db.prepare('INSERT OR IGNORE INTO wb_media (jid, id, kind, raw, at, status) VALUES (?, ?, ?, ?, ?, ?)').run(jid, m.key.id, 'audio', JSON.stringify(m, BufferJSON.replacer), at, 'file'); } catch { /* ignore */ }
+  }
   if (inner.audioMessage && !fromMe && at > Date.now() - 14 * 864e5) {
     try {
       db.prepare('INSERT OR IGNORE INTO wb_media (jid, id, kind, raw, at) VALUES (?, ?, ?, ?, ?)').run(jid, m.key.id, 'audio', JSON.stringify(m, BufferJSON.replacer), at);
