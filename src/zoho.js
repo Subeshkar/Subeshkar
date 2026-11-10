@@ -50,7 +50,8 @@ export async function zohoList(folder = 'all', q = '') {
   let rows;
   if (q) rows = await api(`/accounts/${a.accountId}/messages/search?` + new URLSearchParams({ searchKey: `entire:${q}`, limit: '40' }));
   else rows = await api(`/accounts/${a.accountId}/messages/view?` + qs);
-  return (rows || []).map((m) => ({ id: m.messageId, folderId: m.folderId, threadId: m.threadId || m.messageId, subject: m.subject || '(no subject)', from: m.sender ? `${m.sender} <${m.fromAddress}>` : m.fromAddress, fromEmail: m.fromAddress, to: m.toAddress, date: m.receivedTime ? new Date(Number(m.receivedTime)).toISOString() : '', snippet: String(m.summary || '').slice(0, 300), unread: m.status === '0' || m.status === 0 }));
+  const de = (x) => String(x || '').replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');
+  return (rows || []).map((m) => ({ ...m, subject: de(m.subject), summary: de(m.summary), sender: de(m.sender), toAddress: de(m.toAddress) })).map((m) => ({ id: m.messageId, folderId: m.folderId, threadId: m.threadId || m.messageId, subject: m.subject || '(no subject)', from: m.sender && m.sender !== m.fromAddress ? `${m.sender} <${m.fromAddress}>` : m.fromAddress, fromEmail: m.fromAddress, to: m.toAddress, date: m.receivedTime ? new Date(Number(m.receivedTime)).toISOString() : '', snippet: String(m.summary || '').slice(0, 300), unread: m.status === '0' || m.status === 0 }));
 }
 export async function zohoRead(folderId, messageId) {
   const a = await account();
