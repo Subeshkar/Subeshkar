@@ -291,7 +291,7 @@ export function listMessages(chatId, limit = 30) {
   try { transcribePending(chatId, 3); } catch { /* ignore */ }
   const rows = db.prepare('SELECT id, from_me, sender_name, text, at FROM wb_messages WHERE jid = ? ORDER BY at DESC LIMIT ?').all(chatId, Math.min(200, Math.max(1, limit)));
   const rows2 = db.prepare('SELECT sender FROM wb_messages WHERE jid = ? ORDER BY at DESC LIMIT ?').all(chatId, Math.min(200, Math.max(1, limit)));
-  const med = new Map(db.prepare("SELECT id, kind FROM wb_media WHERE jid = ? AND raw IS NOT NULL AND kind != 'audio'").all(chatId).map((r) => [r.id, r.kind]));
+  const med = new Map(db.prepare("SELECT id, kind FROM wb_media WHERE jid = ? AND raw IS NOT NULL").all(chatId).map((r) => [r.id, r.kind]));
   return rows.reverse().map((m, i) => ({ id: m.id, from_me: !!m.from_me, sender: m.from_me ? 'You' : displayName((rows2[rows2.length - 1 - i] || {}).sender || chatId, null), text: m.text, at: new Date(m.at).toISOString(), media: med.get(m.id) || null }));
 }
 
@@ -307,11 +307,11 @@ async function transcribeVoice(jid, id) {
     const m = JSON.parse(row.raw, BufferJSON.reviver);
     const buf = await downloadMediaMessage(m, 'buffer', {}, { logger: log, reuploadRequest: sock.updateMediaMessage });
     const text = await transcribe(buf, 'audio/ogg');
-    const out = '🎤 ' + (text || '(no speech found)');
+    const out = '🎤 ' + (text || '(no clear speech; tap Play to listen)');
     db.prepare('UPDATE wb_messages SET text = ? WHERE jid = ? AND id = ?').run(out.slice(0, 4000), jid, id);
     const last = db.prepare('SELECT id FROM wb_messages WHERE jid = ? ORDER BY at DESC LIMIT 1').get(jid);
     if (last && last.id === id) db.prepare('UPDATE wb_chats SET last_text = ? WHERE jid = ?').run(out.slice(0, 300), jid);
-    db.prepare("UPDATE wb_media SET status = 'done', raw = NULL WHERE jid = ? AND id = ?").run(jid, id);
+    db.prepare("UPDATE wb_media SET status = 'done' WHERE jid = ? AND id = ?").run(jid, id);
   } catch (e) {
     console.error('Voice note transcription failed', e.message);
     db.prepare("UPDATE wb_media SET status = 'failed' WHERE jid = ? AND id = ?").run(jid, id);
