@@ -100,6 +100,13 @@ export async function crmSummary() {
     leads: (leads.data || []).map((l) => ({ id: l.id, name: l.Full_Name, company: l.Company, email: l.Email, phone: l.Mobile || l.Phone, status: l.Lead_Status, source: l.Lead_Source, created: l.Created_Time, updated: l.Modified_Time }))
   };
 }
+// Balance sheet from the chart of accounts (with balances): deposits, fixed assets, loans, payables…
+export async function booksBalances() {
+  const c = load('books'); if (!c.refresh_token) return { linked: false };
+  const j = await books('/chartofaccounts?showbalance=true&per_page=500');
+  const acc = (j.chartofaccounts || []).filter((a) => a.is_active !== false).map((a) => ({ name: a.account_name, type: a.account_type, balance: Number(a.current_balance ?? a.balance ?? 0) })).filter((a) => a.balance);
+  return { linked: true, org: c.org_name, currency: c.currency, accounts: acc };
+}
 export async function booksContact(id) {
   const j = await books(`/contacts/${id}`);
   const ct = j.contact || {};
