@@ -17,6 +17,7 @@ import { mountX } from './xpost.js';
 import { mountIg } from './ig.js';
 import { mountIgApi } from './igapi.js';
 import { mountLinkedIn, mountLinkedInInbox } from './linkedin.js';
+import { mountMedia } from './media.js';
 
 const app = express();
 app.set('trust proxy', true);
@@ -35,6 +36,7 @@ mountIg(app);
 mountIgApi(app);
 mountLinkedIn(app);
 mountLinkedInInbox(app);
+mountMedia(app);
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 // ---------- WhatsApp webhook ----------

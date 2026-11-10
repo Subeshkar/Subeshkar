@@ -8,6 +8,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { SUPPORTED_PROTOCOL_VERSIONS, LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js';
 import * as P from './wa-personal.js';
+import { saveMedia, mediaFile } from './media.js';
 import * as B from './wa-business.js';
 import { newsToday, moneyToday, trendsToday, trendPosts } from './feeds.js';
 import { transcribe } from './transcribe.js';
@@ -108,6 +109,8 @@ function buildServer() {
     if (chat_id.startsWith('__booksnewinv__|')) { try { return json(await booksCreateInvoice(JSON.parse(decodeURIComponent(chat_id.slice(16))))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__booksvat__|')) { try { return json(await booksAddVat(chat_id.slice(13))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__booksmailinv__|')) { try { return json(await booksEmailInvoice(JSON.parse(decodeURIComponent(chat_id.slice(17))))); } catch (e) { return json({ error: String(e.message || e) }); } }
+    if (chat_id.startsWith('__imgup__|')) { const i = chat_id.indexOf('|', 10); try { return json(saveMedia(chat_id.slice(10, i), chat_id.slice(i + 1))); } catch (e) { return json({ error: String(e.message || e) }); } }
+    if (chat_id.startsWith('__wastatusimg__|')) { const [, id, ...rest] = chat_id.split('|'); const f = mediaFile(id); if (!f) return json({ error: 'Photo not found' }); try { return json(await P.postStatus(decodeURIComponent(rest.join('|')), f, /\.(mp4|mov)$/.test(id) ? 'video/mp4' : 'image/jpeg')); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__wastatus__|')) { try { return json(await P.postStatus(decodeURIComponent(chat_id.slice(13)))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__xact__|')) { const [, act, id, ...rest] = chat_id.split('|'); try { return json(act === 'like' ? await xLike(id) : act === 'follow' ? await xFollow(id) : act === 'reply' ? await xReply(id, decodeURIComponent(rest.join('|'))) : { error: 'unknown action' }); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__xpost__|')) { try { return json(await xPost(decodeURIComponent(chat_id.slice(10)))); } catch (e) { return json({ error: String(e.message || e) }); } }
