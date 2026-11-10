@@ -83,8 +83,12 @@ export async function booksOrgs() {
   const j = await r.json(); return { default: c.org, orgs: (j.organizations || []).map((o) => ({ id: o.organization_id, name: o.name, currency: o.currency_code, email: o.email, is_default: !!o.is_default_org })) };
 }
 export async function booksFindContacts(q, org) {
-  const enc2 = encodeURIComponent(q); const seen = new Set(); const all = [];
-  for (const f of ['contact_name_contains', 'company_name_contains', 'email_contains']) { try { const j = await books(`/contacts?${f}=${enc2}`, {}, org); for (const c of j.contacts || []) if (!seen.has(c.contact_id)) { seen.add(c.contact_id); all.push(c); } } catch {} }
+  const ql = String(q || '').toLowerCase().trim(); const all = [];
+  for (let page = 1; page <= 5; page++) {
+    const j = await books(`/contacts?per_page=200&page=${page}`, {}, org);
+    for (const c of j.contacts || []) if ([c.contact_name, c.company_name, c.email, c.first_name, c.last_name].some((x) => String(x || '').toLowerCase().includes(ql))) all.push(c);
+    if (!(j.page_context && j.page_context.has_more_page)) break;
+  }
   return { contacts: all.slice(0, 10).map((c) => ({ id: c.contact_id, name: c.contact_name, company: c.company_name, email: c.email, phone: c.mobile || c.phone })) };
 }
 export async function booksCreateInvoice({ org, customer_id, items, date, notes, reference }) {
