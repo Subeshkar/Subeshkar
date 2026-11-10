@@ -10,7 +10,7 @@ import { mcpToken } from './mcp.js';
 const FILE = (svc = 'mail') => path.join(process.env.DATA_DIR || './data', svc === 'books' ? 'zoho-books.json' : 'zoho.json');
 const load = (svc) => { try { return JSON.parse(fs.readFileSync(FILE(svc), 'utf8')); } catch { return {}; } };
 const store = (o, svc) => { fs.mkdirSync(path.dirname(FILE(svc)), { recursive: true }); fs.writeFileSync(FILE(svc), JSON.stringify(o), { mode: 0o600 }); };
-const SCOPE = { mail: 'ZohoMail.messages.READ,ZohoMail.accounts.READ,ZohoMail.folders.READ', books: 'ZohoBooks.fullaccess.all' };
+const SCOPE = { mail: 'ZohoMail.messages.READ,ZohoMail.accounts.READ,ZohoMail.folders.READ', books: 'ZohoBooks.fullaccess.all,ZohoCRM.modules.ALL,ZohoCRM.settings.READ,ZohoCRM.users.READ' };
 const SCOPES = SCOPE.mail;
 
 export const zohoToken = () => crypto.createHmac('sha256', mcpToken()).update('dioma-zoho').digest('hex').slice(0, 32);
@@ -71,6 +71,30 @@ export async function booksSummary() {
   const o2 = load('books');
   return { linked: true, org: o2.org_name, currency: o2.currency, overdue: (over.invoices || []).map(pick), unpaid: (unpaid.invoices || []).map(pick) };
 }
+// ---- Zoho CRM (same login as Books) ----
+async function crm(p) {
+  const c = load('books');
+  const base = (c.books || 'https://www.zohoapis.com/books/v3').replace(/\/books\/v3$/, '') + '/crm/v6';
+  const res = await fetch(base + p, { headers: { Authorization: 'Zoho-oauthtoken ' + await accessToken('books') } });
+  if (res.status === 204) return { data: [] };
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error('Zoho CRM: ' + (j.message || j.code || res.status));
+  return j;
+}
+export async function crmSummary() {
+  const c = load('books'); if (!c.refresh_token) return { linked: false, setup: booksSetupLink() };
+  const [deals, leads] = await Promise.all([
+    crm('/Deals?fields=Deal_Name,Stage,Amount,Closing_Date,Account_Name,Contact_Name,Modified_Time,Next_Step&per_page=60&sort_by=Modified_Time&sort_order=desc').catch((e) => ({ error: String(e.message) })),
+    crm('/Leads?fields=Full_Name,Company,Email,Phone,Mobile,Lead_Status,Lead_Source,Created_Time,Modified_Time&per_page=40&sort_by=Modified_Time&sort_order=desc').catch((e) => ({ error: String(e.message) }))
+  ]);
+  const nm = (x) => (x && typeof x === 'object' ? x.name : x) || '';
+  return {
+    linked: true,
+    error: deals.error && leads.error ? deals.error : undefined,
+    deals: (deals.data || []).map((d) => ({ id: d.id, name: d.Deal_Name, stage: d.Stage, amount: d.Amount, close: d.Closing_Date, account: nm(d.Account_Name), contact: nm(d.Contact_Name), next: d.Next_Step || '', updated: d.Modified_Time })),
+    leads: (leads.data || []).map((l) => ({ id: l.id, name: l.Full_Name, company: l.Company, email: l.Email, phone: l.Mobile || l.Phone, status: l.Lead_Status, source: l.Lead_Source, created: l.Created_Time, updated: l.Modified_Time }))
+  };
+}
 export async function booksContact(id) {
   const j = await books(`/contacts/${id}`);
   const ct = j.contact || {};
@@ -100,9 +124,9 @@ const ok = (req, res, next) => {
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return res.status(404).send('Not found');
   next();
 };
-const page = (msg = '', svc = 'mail') => `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${svc === 'books' ? 'Connect Zoho Books' : 'Connect RedexGo mail'}</title>
+const page = (msg = '', svc = 'mail') => `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${svc === 'books' ? 'Connect Zoho Books and CRM' : 'Connect RedexGo mail'}</title>
 <style>body{margin:0;background:#f6f4ee;color:#16181d;font:16px/1.5 system-ui,sans-serif;padding:24px}main{max-width:560px;margin:auto}h1{font-size:22px}ol{padding-left:20px}li{margin:8px 0}code{background:#ece8dc;padding:2px 6px;border-radius:6px;word-break:break-all}label{display:block;font-weight:600;margin-top:14px}input{width:100%;box-sizing:border-box;padding:12px;border:1px solid #bbb;border-radius:10px;font-size:15px}button{margin-top:18px;background:#16181d;color:#fff;border:0;border-radius:12px;padding:14px 20px;font-size:16px;font-weight:600}.m{padding:12px;border-radius:10px;background:#fff3c4;margin:12px 0}</style></head><body><main>
-<h1>${svc === 'books' ? 'Connect Zoho Books to Dioma' : 'Connect RedexGo mail to Dioma'}</h1>${msg ? `<div class="m">${msg}</div>` : ''}
+<h1>${svc === 'books' ? 'Connect Zoho Books + Zoho CRM to Dioma' : 'Connect RedexGo mail to Dioma'}</h1>${msg ? `<div class="m">${msg}</div>` : ''}
 <p>${zohoLinked(svc) ? '✅ Connected. You can connect again below to replace it.' : 'One time, about 3 minutes.'}</p>
 <ol><li>Open <a href="https://api-console.zoho.com" target="_blank" rel="noopener">api-console.zoho.com</a> and sign in as info@redexgo.com.</li>
 <li>Tap <b>Add Client</b> → <b>Self Client</b> → Create → OK.</li>
@@ -127,7 +151,8 @@ export function mountZoho(app) {
       if (svc === 'books') {
         store({ client_id, client_secret, refresh_token: j.refresh_token, accounts: 'https://accounts.zoho.com', books: (j.api_domain || 'https://www.zohoapis.com') + '/books/v3' }, 'books'); accessBy.books = null;
         const sm = await booksSummary();
-        return res.send(page(`✅ Connected to Zoho Books (${sm.org}). ${sm.unpaid.length} unpaid invoices, ${sm.overdue.length} overdue. You can close this page.`, 'books'));
+        const cr = await crmSummary().catch(() => ({ deals: [], leads: [] }));
+        return res.send(page(`✅ Connected to Zoho Books (${sm.org}): ${sm.unpaid.length} unpaid invoices, ${sm.overdue.length} overdue. Zoho CRM: ${(cr.deals || []).length} deals, ${(cr.leads || []).length} leads. You can close this page.`, 'books'));
       }
       const api = j.api_domain && /zohoapis\.(\w+(\.\w+)?)$/.test(j.api_domain) ? j.api_domain.replace('www.zohoapis', 'mail.zoho') : 'https://mail.zoho.com';
       store({ client_id, client_secret, refresh_token: j.refresh_token, accounts: 'https://accounts.zoho.com', api });

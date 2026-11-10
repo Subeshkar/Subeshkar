@@ -12,7 +12,7 @@ import * as B from './wa-business.js';
 import { newsToday, moneyToday } from './feeds.js';
 import { transcribe } from './transcribe.js';
 import { talkLink, takeCommand } from './talk.js';
-import { zohoList, zohoRead, zohoLinked, zohoSetupLink, booksSummary, booksContact } from './zoho.js';
+import { zohoList, zohoRead, zohoLinked, zohoSetupLink, booksSummary, booksContact, crmSummary } from './zoho.js';
 const { personalStatus, listChats, listMessages, sendPersonal, markChatRead } = P;
 
 const json = (data) => ({ content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: Array.isArray(data) ? { data } : data });
@@ -41,6 +41,7 @@ function buildServer() {
     if (q === '__talk__') return json({ link: talkLink() });
     if (q && q.startsWith('__opps__')) { const d = Number(q.split(':')[1]) || 300; return json({ data: P.findOpportunities({ days: d }) }); }
     if (q === '__zohostatus__') return json({ linked: zohoLinked(), setup: zohoSetupLink() });
+    if (q === '__crm__') { try { return json(await crmSummary()); } catch (e) { return json({ linked: true, error: String(e.message || e) }); } }
     if (q === '__books__') { try { return json(await booksSummary()); } catch (e) { return json({ linked: true, error: String(e.message || e) }); } }
     if (q && q.startsWith('__bookscontact__:')) { try { return json(await booksContact(q.split(':')[1])); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (q && q.startsWith('__zoho__:')) { const [, folder, ...rest] = q.split(':'); try { return json({ data: await zohoList(folder, rest.join(':')) }); } catch (e) { return json({ error: String(e.message || e), linked: zohoLinked() }); } }
