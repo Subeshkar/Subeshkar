@@ -65,7 +65,7 @@ export function mountTalk(app) {
     } catch (e) { res.json({ error: String(e.message || e) }); }
   });
   app.post('/talk/:t/send', ok, (req, res) => {
-    const text = String((req.body || {}).text || '').trim().slice(0, 2000);
+    const text = String((req.body || {}).text || '').trim().slice(0, 20000);
     if (text && (req.body || {}).to === 'pulse') { pulseQ.push({ text, place: String((req.body || {}).place || '').slice(0, 80), at: Date.now() }); while (pulseQ.length > 50) pulseQ.shift(); }
     else if (text) last = { text, at: Date.now() };
     res.json({ ok: !!text });
