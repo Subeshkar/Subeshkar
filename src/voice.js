@@ -139,11 +139,11 @@ mic.onclick=async()=>{
    const b64=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(String(fr.result).split(',')[1]);fr.readAsDataURL(b)});ask({audio:b64,mime:type})};
   rec.start();mic.classList.add('rec');st.textContent='Listening… tap again to stop';
  }catch(e){st.textContent='Allow the microphone for this page (browser settings).'}};
-try{navigator.serviceWorker&&navigator.serviceWorker.register('/voice/'+T+'/sw.js',{scope:'/voice/'+T})}catch(e){}
+try{navigator.serviceWorker&&navigator.serviceWorker.register('/voice/'+T+'/sw.js',{scope:'/voice/'+T+'/'})}catch(e){}
 </script></body></html>`;
 
 export function mountVoice(app) {
-  app.get('/voice/:t/manifest.json', ok, (req, res) => res.json({ name: 'Dioma', short_name: 'Dioma', start_url: `/voice/${req.params.t}`, scope: `/voice/${req.params.t}`, display: 'standalone', background_color: '#111214', theme_color: '#111214', icons: [{ src: `/voice/${req.params.t}/icon-192.png`, sizes: '192x192', type: 'image/png' }, { src: `/voice/${req.params.t}/icon-512.png`, sizes: '512x512', type: 'image/png', purpose: 'any maskable' }] }));
+  app.get('/voice/:t/manifest.json', ok, (req, res) => res.json({ name: 'Dioma', short_name: 'Dioma', start_url: `/voice/${req.params.t}/`, scope: `/voice/${req.params.t}/`, display: 'standalone', background_color: '#111214', theme_color: '#111214', icons: [{ src: `/voice/${req.params.t}/icon-192.png`, sizes: '192x192', type: 'image/png' }, { src: `/voice/${req.params.t}/icon-512.png`, sizes: '512x512', type: 'image/png', purpose: 'any maskable' }] }));
   app.get('/voice/:t/icon-:n.png', ok, (req, res) => res.set({ 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=604800' }).send(Buffer.from(req.params.n === '512' ? ICON512 : ICON192, 'base64')));
   app.get('/voice/:t/sw.js', ok, (_req, res) => res.set('Content-Type', 'text/javascript').send("self.addEventListener('install',()=>self.skipWaiting());self.addEventListener('fetch',()=>{});"));
   app.get('/voice/:t', ok, (req, res) => res.set('Cache-Control', 'no-store').send(page(req.params.t)));
