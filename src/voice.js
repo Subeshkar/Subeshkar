@@ -13,6 +13,7 @@ import { zohoList, zohoRead, booksFindContacts, booksCreateInvoice, booksEmailIn
 import { xPost, xLike, xFollow, xSearch, xReply } from './xpost.js';
 import { liPost } from './linkedin.js';
 import { trendPosts, newsToday } from './feeds.js';
+import { ICON192, ICON512 } from './voice-icons.js';
 
 const anthropic = new Anthropic();
 const MODEL = () => process.env.CLAUDE_MODEL || 'claude-sonnet-5-5';
@@ -94,7 +95,7 @@ async function agent(history, auto) {
 
 const page = (t) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Dioma"><meta name="theme-color" content="#111214">
-<title>Dioma Voice</title><style>
+<title>Dioma Voice</title><link rel="manifest" href="/voice/${t}/manifest.json"><link rel="apple-touch-icon" href="/voice/${t}/icon-192.png"><link rel="icon" href="/voice/${t}/icon-192.png"><style>
 :root{--bg:#111214;--card:#1b1c20;--fg:#f4f2ea;--mut:#9a988f;--y:#ffd84d;--ink:#16130a;--red:#e5484d}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.45 system-ui,-apple-system,sans-serif;min-height:100dvh;display:flex;flex-direction:column;padding:max(14px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(14px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
 header{display:flex;justify-content:space-between;align-items:center;gap:10px}h1{font-size:20px;margin:0;letter-spacing:.04em}
@@ -138,9 +139,13 @@ mic.onclick=async()=>{
    const b64=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(String(fr.result).split(',')[1]);fr.readAsDataURL(b)});ask({audio:b64,mime:type})};
   rec.start();mic.classList.add('rec');st.textContent='Listening… tap again to stop';
  }catch(e){st.textContent='Allow the microphone for this page (browser settings).'}};
+try{navigator.serviceWorker&&navigator.serviceWorker.register('/voice/'+T+'/sw.js',{scope:'/voice/'+T})}catch(e){}
 </script></body></html>`;
 
 export function mountVoice(app) {
+  app.get('/voice/:t/manifest.json', ok, (req, res) => res.json({ name: 'Dioma', short_name: 'Dioma', start_url: `/voice/${req.params.t}`, scope: `/voice/${req.params.t}`, display: 'standalone', background_color: '#111214', theme_color: '#111214', icons: [{ src: `/voice/${req.params.t}/icon-192.png`, sizes: '192x192', type: 'image/png' }, { src: `/voice/${req.params.t}/icon-512.png`, sizes: '512x512', type: 'image/png', purpose: 'any maskable' }] }));
+  app.get('/voice/:t/icon-:n.png', ok, (req, res) => res.set({ 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=604800' }).send(Buffer.from(req.params.n === '512' ? ICON512 : ICON192, 'base64')));
+  app.get('/voice/:t/sw.js', ok, (_req, res) => res.set('Content-Type', 'text/javascript').send("self.addEventListener('install',()=>self.skipWaiting());self.addEventListener('fetch',()=>{});"));
   app.get('/voice/:t', ok, (req, res) => res.set('Cache-Control', 'no-store').send(page(req.params.t)));
   app.post('/voice/:t/ask', ok, express.json({ limit: '25mb' }), async (req, res) => {
     try {
