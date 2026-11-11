@@ -9,6 +9,7 @@ let last = null; // { text, at }
 
 export const talkToken = () => crypto.createHmac('sha256', mcpToken()).update('dioma-talk').digest('hex').slice(0, 32);
 export const talkLink = () => `https://${process.env.RAILWAY_PUBLIC_DOMAIN || 'subeshkar-production.up.railway.app'}/talk/${talkToken()}`;
+export const pushCommand = (text) => { last = { text: String(text).slice(0, 2000), at: Date.now() }; return last; };
 export const takeCommand = (since) => (last && last.at > Number(since || 0) ? last : null);
 // Pulse: live recordings saved straight into the day log (Dioma picks them up).
 const pulseQ = [];

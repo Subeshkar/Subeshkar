@@ -6,7 +6,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import express from 'express';
 import crypto from 'node:crypto';
 import { transcribe } from './transcribe.js';
-import { talkToken } from './talk.js';
+import { talkToken, pushCommand } from './talk.js';
 import * as P from './wa-personal.js';
 import * as B from './wa-business.js';
 import { zohoList, zohoRead, booksFindContacts, booksCreateInvoice, booksEmailInvoice, booksGetInvoice, booksSummary } from './zoho.js';
@@ -148,6 +148,8 @@ export function mountVoice(app) {
       let heard = String(b.text || '').trim();
       if (!heard && b.audio) heard = String(await transcribe(Buffer.from(b.audio, 'base64'), b.mime || 'audio/webm') || '').trim();
       if (!heard) return res.json({ error: 'I did not catch that. Tap the mic and try again.' });
+      // Without a server AI key, hand the request to Dioma (its AI runs on Subesh's Claude plan) — it picks it up within seconds.
+      if (!process.env.ANTHROPIC_API_KEY) { pushCommand(heard); return res.json({ heard, reply: 'Got it. Dioma is doing it now — open Dioma to see it and approve.', done: ['sent to Dioma'] }); }
       const hist = Array.isArray(b.history) ? b.history : [];
       const { reply, done } = await agent([...hist, { role: 'user', content: heard }], !!b.auto);
       res.json({ heard, reply: reply || 'Done.', done });
