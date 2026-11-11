@@ -60,6 +60,7 @@ function buildServer() {
     if (q === '__xstatus__') return json(xStatus());
     if (q === '__trends__') return json(await trendsToday());
     if ((q || '').startsWith('__booksinvget__:')) { try { return json(await booksGetInvoice(q.slice(16))); } catch (e) { return json({ error: String(e.message || e) }); } }
+    if (q === '__voicelink__') { const { voiceLink } = await import('./voice.js'); return json({ link: voiceLink() }); }
     if (q === '__diskinfo__') { try { const fs2 = await import('node:fs'); const path2 = await import('node:path'); const { execSync } = await import('node:child_process'); const d = process.env.DATA_DIR || './data';
       const du = (p) => { try { return Number(execSync(`du -sk "${p}" 2>/dev/null | cut -f1`).toString().trim()) || 0; } catch { return -1; } };
       const items = fs2.readdirSync(d).map((n) => ({ n, kb: du(path2.join(d, n)) })).sort((a, b) => b.kb - a.kb);

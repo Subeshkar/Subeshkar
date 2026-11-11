@@ -18,6 +18,7 @@ import { mountIg } from './ig.js';
 import { mountIgApi } from './igapi.js';
 import { mountLinkedIn, mountLinkedInInbox } from './linkedin.js';
 import { mountMedia } from './media.js';
+import { mountVoice } from './voice.js';
 import fsx from 'node:fs';
 import pathx from 'node:path';
 // Free the data volume: the speech model used to be cached there.
@@ -41,6 +42,7 @@ mountIgApi(app);
 mountLinkedIn(app);
 mountLinkedInInbox(app);
 mountMedia(app);
+mountVoice(app);
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 // ---------- WhatsApp webhook ----------
