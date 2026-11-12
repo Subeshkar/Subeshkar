@@ -18,7 +18,7 @@ import { xStatus, xPost, xLike, xReply, xFollow, xSearch } from './xpost.js';
 import { liStatus, liPost, liInbox, liInboxChunk, igDmSnap, igInboxSave } from './linkedin.js';
 import { igapiStatus, igapiInbox, igapiThread, igapiSend, igapiMyPosts, igapiComments, igapiReply } from './igapi.js';
 import { igStatus, igFeed, igComments, igComment, igInbox, igThread, igSend, igImage, igLastError } from './ig.js';
-import { zohoList, zohoRead, zohoLinked, zohoSetupLink, booksSummary, booksContact, crmSummary, booksRecordPayment, booksBalances, booksInvoiceTotals, booksOrgs, booksFindContacts, booksCreateInvoice, booksEmailInvoice, booksGetInvoice, booksAddVat } from './zoho.js';
+import { zohoList, zohoRead, zohoLinked, zohoSetupLink, booksSummary, booksContact, crmSummary, booksRecordPayment, booksBalances, booksInvoiceTotals, booksOrgs, booksFindContacts, booksCreateInvoice, booksEmailInvoice, booksGetInvoice, booksAddVat, zcalEvents, calSetupLink } from './zoho.js';
 import { uploadStatement, addTx, listTx, setCategory, clearAcct, fileText, clearFileTx, accounts } from './wealth.js';
 const { personalStatus, listChats, listMessages, sendPersonal, markChatRead } = P;
 
@@ -68,6 +68,7 @@ function buildServer() {
       const items = fs2.readdirSync(d).map((n) => ({ n, kb: du(path2.join(d, n)) })).sort((a, b) => b.kb - a.kb);
       let df = ''; try { df = execSync(`df -k "${d}" | tail -1`).toString().trim(); } catch {}
       return json({ dir: d, df, items }); } catch (e) { return json({ error: String(e.message || e) }); } }
+    if ((q || '').startsWith('__zcal__:')) { const [st, en] = q.slice(9).split('|'); try { return json(await zcalEvents(st, en)); } catch (e) { return json({ linked: true, error: String(e.message || e), setup: calSetupLink() }); } }
     if (q === '__booksorgs__') { try { return json(await booksOrgs()); } catch (e) { return json({ error: String(e.message || e) }); } }
     if ((q || '').startsWith('__bookscontacts__:')) { const [qq, org] = q.slice(18).split('@@'); try { return json(await booksFindContacts(qq, org || undefined)); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (q === '__trendposts__') { try { return json(await trendPosts()); } catch (e) { return json({ error: String(e.message || e), regions: [] }); } }

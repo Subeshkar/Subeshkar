@@ -7,16 +7,41 @@ import express from 'express';
 import { mcpToken } from './mcp.js';
 
 // svc 'mail' (RedexGo mail, read) or 'books' (Zoho Books). Each has its own saved login.
-const FILE = (svc = 'mail') => path.join(process.env.DATA_DIR || './data', svc === 'books' ? 'zoho-books.json' : 'zoho.json');
+const FILE = (svc = 'mail') => path.join(process.env.DATA_DIR || './data', svc === 'books' ? 'zoho-books.json' : svc === 'cal' ? 'zoho-cal.json' : 'zoho.json');
 const load = (svc) => { try { return JSON.parse(fs.readFileSync(FILE(svc), 'utf8')); } catch { return {}; } };
 const store = (o, svc) => { fs.mkdirSync(path.dirname(FILE(svc)), { recursive: true }); fs.writeFileSync(FILE(svc), JSON.stringify(o), { mode: 0o600 }); };
-const SCOPE = { mail: 'ZohoMail.messages.READ,ZohoMail.accounts.READ,ZohoMail.folders.READ', books: 'ZohoBooks.fullaccess.all,ZohoCRM.modules.ALL,ZohoCRM.settings.READ,ZohoCRM.users.READ' };
+const SCOPE = { mail: 'ZohoMail.messages.READ,ZohoMail.accounts.READ,ZohoMail.folders.READ', books: 'ZohoBooks.fullaccess.all,ZohoCRM.modules.ALL,ZohoCRM.settings.READ,ZohoCRM.users.READ', cal: 'ZohoCalendar.calendar.READ,ZohoCalendar.event.READ' };
 const SCOPES = SCOPE.mail;
 
 export const zohoToken = () => crypto.createHmac('sha256', mcpToken()).update('dioma-zoho').digest('hex').slice(0, 32);
 export const zohoSetupLink = () => `https://${process.env.RAILWAY_PUBLIC_DOMAIN || 'subeshkar-production.up.railway.app'}/zoho/${zohoToken()}`;
 export const zohoLinked = (svc) => !!load(svc).refresh_token;
 export const booksSetupLink = () => zohoSetupLink() + '?svc=books';
+export const calSetupLink = () => zohoSetupLink() + '?svc=cal';
+
+// ---- Zoho Calendar (business calendar, read only) ----
+const zcalTime = (v) => { const m = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z|[+-]\d{4})?)?$/.exec(String(v || '')); if (!m) return ''; if (!m[4]) return `${m[1]}-${m[2]}-${m[3]}`; const tz = !m[7] ? '+04:00' : m[7] === 'Z' ? 'Z' : m[7].slice(0, 3) + ':' + m[7].slice(3); return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}${tz}`; };
+const zfmt = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+async function zcal(p) {
+  const c = load('cal');
+  const res = await fetch(`${c.cal || 'https://calendar.zoho.com/api/v1'}${p}`, { headers: { Authorization: 'Zoho-oauthtoken ' + await accessToken('cal') } });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || j.error) throw new Error('Zoho Calendar: ' + ((j.error && (j.error.message || j.error.description || JSON.stringify(j.error))) || res.status));
+  return j;
+}
+export async function zcalEvents(startIso, endIso) {
+  if (!load('cal').refresh_token) return { linked: false, setup: calSetupLink() };
+  const cals = ((await zcal('/calendars')).calendars || []).filter((x) => x.status !== false);
+  const range = JSON.stringify({ start: zfmt(new Date(startIso)), end: zfmt(new Date(endIso)) });
+  const out = [];
+  for (const k of cals.slice(0, 6)) {
+    try {
+      const j = await zcal(`/calendars/${encodeURIComponent(k.uid)}/events?` + new URLSearchParams({ range }));
+      for (const e of j.events || []) { const d = e.dateandtime || {}; out.push({ id: e.uid, title: e.title || '(no title)', start: zcalTime(d.start), end: zcalTime(d.end), allDay: !!e.isallday, location: e.location || '', calendar: k.name || 'Zoho', attendees: (e.attendees || []).length }); }
+    } catch {}
+  }
+  return { linked: true, events: out.sort((a, b) => String(a.start).localeCompare(String(b.start))) };
+}
 
 const accessBy = {}; // svc -> { token, exp }
 let access = null;
@@ -202,9 +227,9 @@ const ok = (req, res, next) => {
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return res.status(404).send('Not found');
   next();
 };
-const page = (msg = '', svc = 'mail') => `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${svc === 'books' ? 'Connect Zoho Books and CRM' : 'Connect RedexGo mail'}</title>
+const page = (msg = '', svc = 'mail') => `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${svc === 'books' ? 'Connect Zoho Books and CRM' : svc === 'cal' ? 'Connect RedexGo calendar' : 'Connect RedexGo mail'}</title>
 <style>body{margin:0;background:#f6f4ee;color:#16181d;font:16px/1.5 system-ui,sans-serif;padding:24px}main{max-width:560px;margin:auto}h1{font-size:22px}ol{padding-left:20px}li{margin:8px 0}code{background:#ece8dc;padding:2px 6px;border-radius:6px;word-break:break-all}label{display:block;font-weight:600;margin-top:14px}input{width:100%;box-sizing:border-box;padding:12px;border:1px solid #bbb;border-radius:10px;font-size:15px}button{margin-top:18px;background:#16181d;color:#fff;border:0;border-radius:12px;padding:14px 20px;font-size:16px;font-weight:600}.m{padding:12px;border-radius:10px;background:#fff3c4;margin:12px 0}</style></head><body><main>
-<h1>${svc === 'books' ? 'Connect Zoho Books + Zoho CRM to Dioma' : 'Connect RedexGo mail to Dioma'}</h1>${msg ? `<div class="m">${msg}</div>` : ''}
+<h1>${svc === 'books' ? 'Connect Zoho Books + Zoho CRM to Dioma' : svc === 'cal' ? 'Connect your Zoho (RedexGo) calendar to Dioma' : 'Connect RedexGo mail to Dioma'}</h1>${msg ? `<div class="m">${msg}</div>` : ''}
 <p>${zohoLinked(svc) ? '✅ Connected. You can connect again below to replace it.' : 'One time, about 3 minutes.'}</p>
 <ol><li>Open <a href="https://api-console.zoho.com" target="_blank" rel="noopener">api-console.zoho.com</a> and sign in as info@redexgo.com.</li>
 <li>Tap <b>Add Client</b> → <b>Self Client</b> → Create → OK.</li>
@@ -215,7 +240,7 @@ const page = (msg = '', svc = 'mail') => `<!doctype html><html><head><meta chars
 </main></body></html>`;
 
 export function mountZoho(app) {
-  const svcOf = (req) => (req.query.svc === 'books' ? 'books' : 'mail');
+  const svcOf = (req) => (req.query.svc === 'books' ? 'books' : req.query.svc === 'cal' ? 'cal' : 'mail');
   app.get('/zoho/:t', ok, (req, res) => res.set('Cache-Control', 'no-store').send(page('', svcOf(req))));
   app.post('/zoho/:t', ok, express.urlencoded({ extended: false }), async (req, res) => {
     const { client_id, client_secret, code } = Object.fromEntries(Object.entries(req.body || {}).map(([k, v]) => [k, String(v || '').trim()]));
@@ -231,6 +256,13 @@ export function mountZoho(app) {
         const sm = await booksSummary();
         const cr = await crmSummary().catch(() => ({ deals: [], leads: [] }));
         return res.send(page(`✅ Connected to Zoho Books (${sm.org}): ${sm.unpaid.length} unpaid invoices, ${sm.overdue.length} overdue. Zoho CRM: ${(cr.deals || []).length} deals, ${(cr.leads || []).length} leads. You can close this page.`, 'books'));
+      }
+      if (svc === 'cal') {
+        const dc = j.api_domain && /zohoapis\.([\w.]+)$/.exec(j.api_domain);
+        store({ client_id, client_secret, refresh_token: j.refresh_token, accounts: 'https://accounts.zoho.com', cal: `https://calendar.zoho.${dc ? dc[1] : 'com'}/api/v1` }, 'cal'); accessBy.cal = null;
+        const s0 = new Date(); s0.setHours(0, 0, 0, 0); const e0 = new Date(s0.getTime() + 2 * 864e5);
+        const r = await zcalEvents(s0.toISOString(), e0.toISOString());
+        return res.send(page(`✅ Connected to your Zoho (RedexGo) calendar: ${(r.events || []).length} events today and tomorrow. You can close this page.`, 'cal'));
       }
       const api = j.api_domain && /zohoapis\.(\w+(\.\w+)?)$/.test(j.api_domain) ? j.api_domain.replace('www.zohoapis', 'mail.zoho') : 'https://mail.zoho.com';
       store({ client_id, client_secret, refresh_token: j.refresh_token, accounts: 'https://accounts.zoho.com', api });
