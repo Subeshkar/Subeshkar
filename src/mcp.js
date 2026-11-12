@@ -9,6 +9,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { SUPPORTED_PROTOCOL_VERSIONS, LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js';
 import * as P from './wa-personal.js';
 import { saveMedia, mediaFile } from './media.js';
+import { fileSave, fileList, fileGet, fileData, fileDelete, fileRename } from './files.js';
 import * as B from './wa-business.js';
 import { newsToday, moneyToday, trendsToday, trendPosts } from './feeds.js';
 import { transcribe } from './transcribe.js';
@@ -61,6 +62,7 @@ function buildServer() {
     if (q === '__trends__') return json(await trendsToday());
     if ((q || '').startsWith('__booksinvget__:')) { try { return json(await booksGetInvoice(q.slice(16))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (q === '__voicelink__') { const { voiceLink } = await import('./voice.js'); return json({ link: voiceLink() }); }
+    if ((q || '').startsWith('__files__')) { try { return json({ files: fileList(q.slice(10)) }); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (q === '__diskinfo__') { try { const fs2 = await import('node:fs'); const path2 = await import('node:path'); const { execSync } = await import('node:child_process'); const d = process.env.DATA_DIR || './data';
       const du = (p) => { try { return Number(execSync(`du -sk "${p}" 2>/dev/null | cut -f1`).toString().trim()) || 0; } catch { return -1; } };
       const items = fs2.readdirSync(d).map((n) => ({ n, kb: du(path2.join(d, n)) })).sort((a, b) => b.kb - a.kb);
@@ -115,6 +117,10 @@ function buildServer() {
     if (chat_id.startsWith('__booksnewinv__|')) { try { return json(await booksCreateInvoice(JSON.parse(decodeURIComponent(chat_id.slice(16))))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__booksvat__|')) { try { return json(await booksAddVat(chat_id.slice(13))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__booksmailinv__|')) { try { return json(await booksEmailInvoice(JSON.parse(decodeURIComponent(chat_id.slice(17))))); } catch (e) { return json({ error: String(e.message || e) }); } }
+    if (chat_id.startsWith('__fileup__|')) { const [, name, mime, folder, b64] = chat_id.split('|'); try { return json(fileSave(decodeURIComponent(name), mime, b64, decodeURIComponent(folder || ''))); } catch (e) { return json({ error: String(e.message || e) }); } }
+    if (chat_id.startsWith('__filedel__|')) return json(fileDelete(chat_id.slice(12)));
+    if (chat_id.startsWith('__fileren__|')) { const [, id, name, folder] = chat_id.split('|'); try { return json(fileRename(id, decodeURIComponent(name || ''), decodeURIComponent(folder || ''))); } catch (e) { return json({ error: String(e.message || e) }); } }
+    if (chat_id.startsWith('__filesend__|')) { const [, acct, chat, fid, ...cap] = chat_id.split('|'); const f = fileGet(fid); if (!f) return json({ error: 'File not found' }); try { return json(await (acct === 'business' ? B : P).sendMedia(chat, { data: fileData(f).toString('base64'), mimetype: f.mime, filename: f.name, caption: decodeURIComponent(cap.join('|')) || undefined })); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__imgup__|')) { const i = chat_id.indexOf('|', 10); try { return json(saveMedia(chat_id.slice(10, i), chat_id.slice(i + 1))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__wastatusimg__|')) { const [, id, ...rest] = chat_id.split('|'); const f = mediaFile(id); if (!f) return json({ error: 'Photo not found' }); try { return json(await (rest[0] === 'business' ? (rest.shift(), B) : P).postStatus(decodeURIComponent(rest.join('|')), f, /\.(mp4|mov)$/.test(id) ? 'video/mp4' : 'image/jpeg')); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__wastatusb__|')) { try { return json(await B.postStatus(decodeURIComponent(chat_id.slice(14)))); } catch (e) { return json({ error: String(e.message || e) }); } }
