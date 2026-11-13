@@ -10,7 +10,7 @@ import { mcpToken } from './mcp.js';
 const FILE = (svc = 'mail') => path.join(process.env.DATA_DIR || './data', svc === 'books' ? 'zoho-books.json' : svc === 'cal' ? 'zoho-cal.json' : 'zoho.json');
 const load = (svc) => { try { return JSON.parse(fs.readFileSync(FILE(svc), 'utf8')); } catch { return {}; } };
 const store = (o, svc) => { fs.mkdirSync(path.dirname(FILE(svc)), { recursive: true }); fs.writeFileSync(FILE(svc), JSON.stringify(o), { mode: 0o600 }); };
-const SCOPE = { mail: 'ZohoMail.messages.READ,ZohoMail.accounts.READ,ZohoMail.folders.READ', books: 'ZohoBooks.fullaccess.all,ZohoCRM.modules.ALL,ZohoCRM.settings.READ,ZohoCRM.users.READ', cal: 'ZohoCalendar.calendar.READ,ZohoCalendar.event.READ' };
+const SCOPE = { mail: 'ZohoMail.messages.READ,ZohoMail.accounts.READ,ZohoMail.folders.READ', books: 'ZohoBooks.fullaccess.all,ZohoCRM.modules.ALL,ZohoCRM.settings.READ,ZohoCRM.users.READ', cal: 'ZohoCalendar.calendar.READ,ZohoCalendar.event.ALL' };
 const SCOPES = SCOPE.mail;
 
 export const zohoToken = () => crypto.createHmac('sha256', mcpToken()).update('dioma-zoho').digest('hex').slice(0, 32);
@@ -22,12 +22,22 @@ export const calSetupLink = () => zohoSetupLink() + '?svc=cal';
 // ---- Zoho Calendar (business calendar, read only) ----
 const zcalTime = (v) => { const m = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z|[+-]\d{4})?)?$/.exec(String(v || '')); if (!m) return ''; if (!m[4]) return `${m[1]}-${m[2]}-${m[3]}`; const tz = !m[7] ? '+04:00' : m[7] === 'Z' ? 'Z' : m[7].slice(0, 3) + ':' + m[7].slice(3); return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}${tz}`; };
 const zfmt = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-async function zcal(p) {
+async function zcal(p, method = 'GET') {
   const c = load('cal');
-  const res = await fetch(`${c.cal || 'https://calendar.zoho.com/api/v1'}${p}`, { headers: { Authorization: 'Zoho-oauthtoken ' + await accessToken('cal') } });
+  const res = await fetch(`${c.cal || 'https://calendar.zoho.com/api/v1'}${p}`, { method, headers: { Authorization: 'Zoho-oauthtoken ' + await accessToken('cal') } });
   const j = await res.json().catch(() => ({}));
   if (!res.ok || j.error) throw new Error('Zoho Calendar: ' + ((j.error && (j.error.message || j.error.description || JSON.stringify(j.error))) || res.status));
   return j;
+}
+// New business meeting on the default Zoho calendar; Zoho emails the invite to attendees.
+export async function zcalCreate({ title, start, end, location, description, attendees }) {
+  if (!load('cal').refresh_token) throw new Error('Connect the Zoho (RedexGo) calendar first: ' + calSetupLink());
+  const cals = (await zcal('/calendars')).calendars || [];
+  const k = cals.find((x) => x.isdefault) || cals[0]; if (!k) throw new Error('No Zoho calendar found');
+  const ev = { title, dateandtime: { timezone: 'Asia/Dubai', start: zfmt(new Date(start)), end: zfmt(new Date(end)) }, location: location || '', description: description || '', attendees: (attendees || []).filter((e) => /@/.test(e)).map((email) => ({ email, permission: 1, attendance: 1 })) };
+  const j = await zcal(`/calendars/${encodeURIComponent(k.uid)}/events?` + new URLSearchParams({ eventdata: JSON.stringify(ev) }), 'POST');
+  const e = (j.events || [])[0] || {};
+  return { ok: true, id: e.uid, calendar: k.name, invited: ev.attendees.length };
 }
 export async function zcalEvents(startIso, endIso) {
   if (!load('cal').refresh_token) return { linked: false, setup: calSetupLink() };
@@ -65,11 +75,11 @@ async function api(p) {
   return j.data;
 }
 async function account() {
-  const c = load(); if (c.accountId && c.folders) return c;
+  const c = load(); if (c.accountId && c.folders && c.folders.drafts !== undefined) return c;
   const accts = await api('/accounts'); const a = accts[0];
   const folders = await api(`/accounts/${a.accountId}/folders`);
   const pick = (t) => (folders.find((f) => (f.folderType || '').toLowerCase() === t || (f.folderName || '').toLowerCase() === t) || {}).folderId;
-  const n = { ...c, accountId: a.accountId, email: a.primaryEmailAddress || a.mailboxAddress, folders: { inbox: pick('inbox'), sent: pick('sent') } };
+  const n = { ...c, accountId: a.accountId, email: a.primaryEmailAddress || a.mailboxAddress, folders: { inbox: pick('inbox'), sent: pick('sent'), drafts: pick('drafts') || null } };
   store(n); return n;
 }
 
@@ -207,9 +217,10 @@ export async function booksContact(id) {
 // folder: action|unread|all|sent ; q: search text
 export async function zohoList(folder = 'all', q = '') {
   const a = await account();
-  const qs = new URLSearchParams({ limit: '40', folderId: folder === 'sent' ? a.folders.sent : a.folders.inbox });
+  const qs = new URLSearchParams({ limit: '40', folderId: folder === 'sent' ? a.folders.sent : folder === 'drafts' ? (a.folders.drafts || a.folders.inbox) : a.folders.inbox });
   if (folder === 'unread') qs.set('status', 'unread');
   let rows;
+  if (folder === 'drafts' && !a.folders.drafts) return [];
   if (q) rows = await api(`/accounts/${a.accountId}/messages/search?` + new URLSearchParams({ searchKey: `entire:${q}`, limit: '40' }));
   else rows = await api(`/accounts/${a.accountId}/messages/view?` + qs);
   const de = (x) => String(x || '').replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');
