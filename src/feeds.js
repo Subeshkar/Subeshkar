@@ -141,7 +141,32 @@ async function xTags(slug) {
   for (const m of first.matchAll(/<a [^>]*href="([^"]*(?:x|twitter)\.com\/search[^"]*)"[^>]*>([^<]+)<\/a>/g)) { const t = unescape(m[2]); if (seen.has(t)) continue; seen.add(t); out.push({ tag: t, url: m[1] }); if (out.length >= 10) break; }
   return out;
 }
-export async function trendPosts() {
+// LinkedIn = business/professional news; Instagram = lifestyle/entertainment/viral; X & Facebook = Google Trends + X tags.
+const NETQ = {
+  linkedin: {
+    uae: [gnews('(business OR startup OR logistics OR "supply chain" OR hiring OR "artificial intelligence" OR investment) UAE when:2d')],
+    gcc: [gnews('(business OR startup OR logistics OR investment OR hiring OR "Vision 2030") (Saudi OR GCC OR Qatar OR Kuwait OR Oman OR Bahrain) when:2d')],
+    world: ['https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=en-US&gl=US&ceid=US:en', 'https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=en-US&gl=US&ceid=US:en'],
+  },
+  instagram: {
+    uae: [gnews('Dubai OR "Abu Dhabi" (lifestyle OR food OR fashion OR travel OR event OR concert OR viral OR restaurant) when:2d')],
+    gcc: [gnews('(Riyadh OR Jeddah OR Doha OR Kuwait OR Muscat) (event OR concert OR lifestyle OR viral OR festival OR food) when:2d')],
+    world: ['https://news.google.com/rss/headlines/section/topic/ENTERTAINMENT?hl=en-US&gl=US&ceid=US:en'],
+  },
+};
+async function netTrend(net) {
+  const Q = NETQ[net]; const out = { net, regions: [] };
+  for (const [id, r] of Object.entries(REGIONS)) {
+    const lists = await Promise.all(Q[id].map((u) => rss(u, 14).catch(() => [])));
+    const posts = []; const seen = new Set();
+    for (let i = 0; i < 14; i++) for (const l of lists) { const it = l[i]; if (!it || !it.title) continue; const k = it.title.toLowerCase().slice(0, 60); if (seen.has(k)) continue; seen.add(k); posts.push({ topic: it.title.split(/[:|–-]/)[0].trim().slice(0, 60), traffic: '', title: it.title, url: it.link, image: '', source: it.source || 'News', region: r.tag }); }
+    out.regions.push({ id, tag: r.tag, posts: posts.slice(0, 12), xtags: [] });
+  }
+  if (!out.regions.some((x) => x.posts.length)) throw new Error('Trending sources did not answer, try again shortly');
+  return out;
+}
+export async function trendPosts(net = '') {
+  if (NETQ[net]) return cached('trendposts:' + net, () => netTrend(net));
   return cached('trendposts', async () => {
     const out = { regions: [] };
     for (const [id, r] of Object.entries(REGIONS)) {
