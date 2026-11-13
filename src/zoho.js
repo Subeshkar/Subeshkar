@@ -239,17 +239,20 @@ const page = (msg = '', svc = 'mail') => `<!doctype html><html><head><meta chars
 <form method="post"><label>Client ID<input name="client_id" required autocomplete="off"></label><label>Client Secret<input name="client_secret" required autocomplete="off"></label><label>Code<input name="code" required autocomplete="off"></label><button>Connect</button></form>
 </main></body></html>`;
 
+export let zohoLastTry = {};
 export function mountZoho(app) {
   const svcOf = (req) => (req.query.svc === 'books' ? 'books' : req.query.svc === 'cal' ? 'cal' : 'mail');
   app.get('/zoho/:t', ok, (req, res) => res.set('Cache-Control', 'no-store').send(page('', svcOf(req))));
   app.post('/zoho/:t', ok, express.urlencoded({ extended: false }), async (req, res) => {
     const { client_id, client_secret, code } = Object.fromEntries(Object.entries(req.body || {}).map(([k, v]) => [k, String(v || '').trim()]));
     const svc = svcOf(req);
+    zohoLastTry = { at: new Date().toISOString(), svc, step: 'submitted' };
     if (!client_id || !client_secret || !code) return res.send(page('Please fill in all three.', svc));
     try {
       const u = new URL('https://accounts.zoho.com/oauth/v2/token');
       u.search = new URLSearchParams({ code, client_id, client_secret, grant_type: 'authorization_code' });
       const j = await (await fetch(u, { method: 'POST' })).json();
+      zohoLastTry.step = j.refresh_token ? 'token ok' : 'zoho refused: ' + (j.error || 'no refresh token');
       if (!j.refresh_token) return res.send(page('Zoho said: ' + (j.error || 'no refresh token') + '. Make a new code (step 3) and try again quickly.', svc));
       if (svc === 'books') {
         store({ client_id, client_secret, refresh_token: j.refresh_token, accounts: 'https://accounts.zoho.com', books: (j.api_domain || 'https://www.zohoapis.com') + '/books/v3' }, 'books'); accessBy.books = null;
@@ -269,6 +272,6 @@ export function mountZoho(app) {
       access = null;
       const list = await zohoList('all');
       res.send(page(`✅ Connected. Dioma can read RedexGo mail now (${list.length} recent emails found). You can close this page.`));
-    } catch (e) { res.send(page('Something went wrong: ' + String(e.message || e), svc)); }
+    } catch (e) { zohoLastTry.step = 'error: ' + String(e.message || e); res.send(page('Something went wrong: ' + String(e.message || e), svc)); }
   });
 }
