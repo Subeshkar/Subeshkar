@@ -454,6 +454,24 @@ section{position:relative}
 .fit .bp b{font-weight:300;font-size:24px;letter-spacing:-.03em;color:#fff}
 .fit .bp span{font-family:var(--mono);font-size:10px;color:var(--faint);text-transform:uppercase}
 .fit em{font-style:normal;font-family:var(--mono);font-size:11px;color:var(--acc)}
+
+.uni{display:grid;gap:10px}
+.unihead h3{font-size:clamp(26px,3.4vw,44px);line-height:1.08;letter-spacing:-.035em;margin:8px 0 6px;max-width:820px}
+.unihead h3 b{font-weight:400;color:var(--acc)}
+.unihead p{color:var(--dim);font-size:14.5px}
+.unistage{position:relative;height:560px;margin:0 -22px;background:radial-gradient(60% 70% at 50% 55%,rgba(var(--accrgb),.08),transparent 70%)}
+@media(max-width:560px){.unistage{height:520px;margin:0 -16px}}
+#uni{position:absolute;inset:0;width:100%;height:100%}
+.unipick{display:grid;grid-template-columns:auto 1fr auto;gap:6px 22px;align-items:baseline;padding:18px 0 4px;border-top:1px solid rgba(var(--accrgb),.35)}
+.unipick .mono{grid-column:1/-1}
+.unipick h4{margin:0;font-weight:300;font-size:clamp(28px,3.4vw,40px);letter-spacing:-.03em}
+.unipick p{color:var(--dim);font-size:15px}
+.unipick .up{display:flex;align-items:baseline;gap:8px;white-space:nowrap}
+.unipick .up b{font-weight:300;font-size:30px;color:var(--acc);letter-spacing:-.03em}
+.unipick .up span{font-family:var(--mono);font-size:10.5px;color:var(--faint);text-transform:uppercase}
+.unipick .up em{font-style:normal;font-family:var(--mono);font-size:12px;color:#000;background:var(--acc);border-radius:999px;padding:3px 10px}
+.unipick .up em.no{background:none;color:var(--dim);border:1px solid var(--line2)}
+@media(max-width:700px){.unipick{grid-template-columns:1fr}.unipick .up{flex-wrap:wrap}}
 </style>
 
 <nav id="nav"><div class="wrap">
@@ -780,6 +798,36 @@ function moneyView(body,rg){WR=rg;const R=WREG[WR];
   c.fillStyle='rgba(255,255,255,.12)';c.fillRect(0,base,W,1)}
   requestAnimationFrame(f)}
  requestAnimationFrame(f)})();
+
+/* share universe */
+var UNI={nodes:[],pick:-1,t0:performance.now()};
+function uniPick(i){UNI.pick=i;const n=UNI.nodes[i],el=$('#unipick');if(!n||!el)return;
+ el.innerHTML=`<span class="mono">${n.t}${n.brand?' · a brand you use':''}</span><h4>${n.n}</h4><p>${n.d}</p><div class="up"><b>${UNI.p2(n.p)}</b><span>per share</span><em class="${n.ok?'':'no'}">${UNI.can(n.p)}</em></div>`}
+function uniPack(W,H){const N=UNI.nodes,mx=Math.max(...N.map(n=>n.cap)),k=Math.min(1,W/1100);
+ N.forEach((n,i)=>{n.r=(W<600?14:20)+(W<600?44:78)*k*Math.pow(n.cap/mx,.33)+(n.ok?4:0);const a=i*2.4,d=12+i*9*k;n.x=W/2+Math.cos(a)*d*1.6;n.y=H/2+Math.sin(a)*d});
+ for(let it=0;it<400;it++){for(const n of N){n.x+=(W/2-n.x)*.01;n.y+=(H/2-n.y)*.014}
+  for(let i=0;i<N.length;i++)for(let j=i+1;j<N.length;j++){const a=N[i],b=N[j],dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1,m=a.r+b.r+12;if(d<m){const p=(m-d)/2,ux=dx/d,uy=dy/d;a.x-=ux*p;a.y-=uy*p;b.x+=ux*p;b.y+=uy*p}}
+  for(const n of N){n.x=Math.max(n.r+4,Math.min(W-n.r-4,n.x));n.y=Math.max(n.r+4,Math.min(H-n.r-4,n.y))}}
+ UNI.packed=W+'x'+H}
+(function uniLoop(){function f(now){const cv=$('#uni');if(cv&&cv.offsetParent&&UNI.nodes.length){const d=Math.min(devicePixelRatio||1,2),W=cv.clientWidth,H=cv.clientHeight;
+  if(cv.width!==Math.round(W*d)||cv.height!==Math.round(H*d)){cv.width=W*d;cv.height=H*d}
+  if(UNI.packed!==W+'x'+H)uniPack(W,H);
+  if(!cv._b){cv._b=1;const hit=e=>{const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;return UNI.nodes.findIndex(n=>Math.hypot(n.x-x,n.y-y)<n.r)};cv.addEventListener('click',e=>{const i=hit(e);if(i>=0)uniPick(i)});cv.addEventListener('mousemove',e=>{cv.style.cursor=hit(e)>=0?'pointer':'default'})}
+  const c=cv.getContext('2d');c.setTransform(d,0,0,d,0,0);c.clearRect(0,0,W,H);const t=(now-UNI.t0)/1000,acc=getComputedStyle(document.documentElement).getPropertyValue('--accrgb').trim()||'255,255,255';
+  /* faint orbit lines from picked node */
+  const P=UNI.nodes[UNI.pick];
+  UNI.nodes.forEach((n,i)=>{const ox=RM?0:Math.sin(t*.5+i*1.7)*3,oy=RM?0:Math.cos(t*.4+i*1.3)*3,x=n.x+ox,y=n.y+oy,r=n.r,on=i===UNI.pick;n.dx=x;n.dy=y;
+   if(n.ok){const g=c.createRadialGradient(x-r*.35,y-r*.4,r*.1,x,y,r);g.addColorStop(0,'rgba(255,255,255,.95)');g.addColorStop(.25,`rgba(${acc},.95)`);g.addColorStop(1,`rgba(${acc},.25)`);
+    c.shadowColor=`rgba(${acc},${on?.95:.55})`;c.shadowBlur=on?40:18+Math.sin(t*2+i)*6;c.fillStyle=g;c.beginPath();c.arc(x,y,r,0,7);c.fill();c.shadowBlur=0}
+   else{c.fillStyle='rgba(255,255,255,.03)';c.beginPath();c.arc(x,y,r,0,7);c.fill();c.strokeStyle=on?`rgba(${acc},.9)`:'rgba(255,255,255,.16)';c.lineWidth=1;c.setLineDash([3,4]);c.stroke();c.setLineDash([])}
+   if(on){c.strokeStyle=`rgba(${acc},.8)`;c.lineWidth=1.2;c.beginPath();c.arc(x,y,r+7+Math.sin(t*3)*2,0,7);c.stroke()}
+   if(n.brand){c.fillStyle=n.ok?'#fff':`rgba(${acc},.8)`;c.beginPath();c.arc(x+r*.72,y-r*.72,3,0,7);c.fill()}
+   c.textAlign='center';c.textBaseline='middle';const ink=n.ok?'#1a0f00':'rgba(255,255,255,.75)';
+   if(r>=30){c.font=`600 ${Math.min(15,Math.max(11,r/4.2))}px "Inter Tight",system-ui,sans-serif`;c.fillStyle=ink;let nm=n.n;if(c.measureText(nm).width>r*1.75)nm=n.n.split(' ').slice(0,2).join(' ');if(c.measureText(nm).width>r*1.75)nm=n.n.split(' ')[0];c.fillText(nm,x,y-7);
+    c.font=`500 ${Math.min(12,Math.max(9.5,r/5.5))}px "IBM Plex Mono",monospace`;c.fillStyle=n.ok?'rgba(26,15,0,.75)':'rgba(255,255,255,.45)';c.fillText(n.ok?UNI.can(n.p).replace('= ',''):UNI.p2(n.p),x,y+10)}
+   else{c.font='600 10px "Inter Tight",system-ui,sans-serif';c.fillStyle=n.ok?ink:'rgba(255,255,255,.6)';c.fillText(n.n.split(' ')[0].slice(0,8),x,y)}})}
+  requestAnimationFrame(f)}requestAnimationFrame(f)})();
+
 /* student hub */
 (function(){
 const SH={
@@ -787,6 +835,7 @@ const SH={
  gcc:[['Saudi Aramco','Energy','One of the most valuable companies on earth.',25.85,'Tadawul · 2222'],['International Holding Co.','Conglomerate','The UAE\'s giant, owning dozens of firms.',384.00,'ADX · IHC'],['Al Rajhi Bank','Islamic banking','The world\'s largest Islamic bank.',62.62,'Tadawul · 1120'],['ADNOC Gas','Energy','Gas for power and exports.',3.27,'ADX · ADNOCGAS'],['Saudi National Bank','Banking','Saudi Arabia\'s biggest lender.',38.19,'Tadawul · 1180'],['Ma\'aden','Mining','Saudi gold, phosphate and aluminium.',57.33,'Tadawul · 1211'],['First Abu Dhabi Bank','Banking','The UAE\'s biggest bank.',19.62,'ADX · FAB'],['stc','Telecom','Saudi\'s phone and cloud network.',40.73,'Tadawul · 7010'],['Emirates NBD','Banking','Dubai\'s home bank.',31.28,'DFM · EMIRATESNBD'],['e&','Telecom','UAE telecom, now in 16 countries.',21.60,'ADX · EAND']],
  world:[['Apple','Devices','iPhone, Mac and a loyal user base.',1308.4,'NASDAQ · AAPL'],['Nvidia','Chips','Makes the chips that train almost every AI.',598.07,'NASDAQ · NVDA'],['Microsoft','Software','Windows, Office and a huge AI cloud.',1923.95,'NASDAQ · MSFT'],['Alphabet','Internet','Google Search, YouTube and Gemini.',1074.28,'NASDAQ · GOOG'],['Amazon','Retail and cloud','Online shopping plus the biggest cloud.',979.31,'NASDAQ · AMZN'],['TSMC','Chip making','Manufactures chips for Apple and Nvidia.',1464.34,'NYSE · TSM'],['SpaceX','Space','Rockets and Starlink internet.',510.88,'SPCX'],['Saudi Aramco','Energy','The Gulf\'s giant on the global stage.',25.85,'Tadawul · 2222'],['Broadcom','Chips','Networking chips inside data centres.',1274.39,'NASDAQ · AVGO'],['Meta','Social','Instagram, WhatsApp and Facebook.',2356.61,'NASDAQ · META']]};
 const BRANDS=[['Lulu','Hypermarkets across the Gulf',0.955,'ADX · LULU'],['Talabat','The food delivery app',1.13,'DFM · TALABAT'],['Salik','Dubai road tolls',5.62,'DFM · SALIK'],['Air Arabia','Low-cost airline from Sharjah',4.89,'DFM · AIRARABIA'],['Americana','Runs KFC and Pizza Hut in the region',2.43,'ADX · AMR'],['Parkin','Dubai public parking',6.09,'DFM · PARKIN'],['du','Mobile and home internet',12.00,'DFM · DU'],['Unikai Foods','Dairy, juice and ice cream brand',5.01,'DFM · UNIKAI'],['Presight AI','Abu Dhabi AI company',3.70,'ADX · PRESIGHT'],['Aldar','Builds homes and schools in Abu Dhabi',8.01,'ADX · ALDAR']];
+const CAP={'International Holding Co.':217.6,'ADNOC Gas':68.3,'First Abu Dhabi Bank':60.3,'Emirates NBD':53.1,'e&':52.0,'DEWA':36.9,'ADCB':34.4,'Emaar Properties':28.1,'ADNOC Drilling':24.7,'Abu Dhabi Islamic Bank':23.2,'Lulu':2.6,'Talabat':7.2,'Salik':11.4,'Air Arabia':6.2,'Americana':5.6,'Parkin':5.0,'du':14.7,'Unikai Foods':0.053,'Presight AI':5.65,'Aldar':17.4,'Saudi Aramco':1702,'Al Rajhi Bank':102.3,'Saudi National Bank':61.7,"Ma'aden":60.6,'stc':55.3,'Apple':5177,'Nvidia':3932,'Microsoft':3890,'Alphabet':3596,'Amazon':2883,'TSMC':2068,'SpaceX':1889,'Broadcom':1656,'Meta':1640};
 const PDATE='14 Nov 2026';let HAVE=10;const USD=3.6725;
 const AI={
  uae:[['G42','AI group','Abu Dhabi\'s flagship AI company.'],['MGX','AI investment','Invests billions into AI worldwide.'],['TII · Falcon','Research','Built the Falcon open AI models.'],['Core42','AI cloud','Runs the computers that power UAE AI.'],['Presight','AI analytics','Big-data AI for governments and cities.'],['Inception','AI products','Built Jais, an Arabic language model.'],['MBZUAI','University','The world\'s first AI-only university.'],['Bayanat','Geospatial AI','Maps and satellite data with AI.'],['Khazna','Data centres','Houses the machines AI runs on.'],['e& AI','Telecom AI','AI in your phone network and apps.']],
@@ -823,14 +872,16 @@ function render(){
   const pool=[...SH[Rg].map(r=>({n:r[0],d:r[2],p:r[3],t:r[4]})),...(Rg==='uae'?BRANDS.map(b=>({n:b[0],d:b[1],p:b[2],t:b[3]})):[])].filter((x,i,arr)=>arr.findIndex(y=>y.n===x.n)===i);
   const fit=pool.filter(x=>u(x.p)<=HAVE).sort((a,b)=>a.p-b.p).slice(0,10);
   body.innerHTML=`<div class="have"><span class="mono">If you have</span>${[10,100,1000].map(v=>`<button type="button" data-h2="${v}" class="${v===HAVE?'on':''}">$${v}</button>`).join('')}<span class="mono hdate">Prices per share in USD · ${PDATE} · delayed</span></div>
-  <div class="fitbox"><div class="fithead"><span class="mono">With $${HAVE} you can buy, in ${RN[Rg]}</span><b>${fit.length?fit.length+' compan'+(fit.length>1?'ies':'y'):'Nothing yet'}</b></div>
-  ${fit.length?`<div class="fitgrid">${fit.map((x,i)=>`<div class="fit" style="animation-delay:${i*45}ms"><span class="mono">${x.t}</span><h4>${x.n}</h4><p>${x.d}</p><div class="bp"><b>${p2(x.p)}</b><span>/ share</span></div><em>${can(x.p)}</em></div>`).join('')}</div>`:`<p class="bsub" style="margin:10px 0 0">Every big company here costs more than $${HAVE} a share. Try a bigger amount, or a broker that sells fractions of a share.</p>`}</div>
+  <div class="uni"><div class="unihead"><span class="mono">Your $${HAVE} universe · ${RN[Rg]}</span><h3>With <b>$${HAVE}</b> you can own a piece of <b>${pool.filter(x=>u(x.p)<=HAVE).length}</b> ${pool.filter(x=>u(x.p)<=HAVE).length===1?'company':'companies'} here.</h3><p>Glowing = you can buy it today. Bigger = more valuable company. Tap any one.</p></div>
+  <div class="unistage"><canvas id="uni" aria-label="Companies as glowing planets sized by value; glowing ones are affordable"></canvas></div>
+  <div class="unipick" id="unipick"></div></div>
   <div class="mono" style="margin:30px 0 6px">Top 10 companies by market value · ${RN[Rg]}</div>
   <div class="rank">${SH[Rg].map((r,i)=>`<div class="row pr" style="animation-delay:${i*45}ms"><span class="n">${String(i+1).padStart(2,'0')}</span><div><h4>${r[0]} <small>${r[4]}</small></h4><p>${r[2]}</p><div class="bar" style="--w:${(1-i*.08).toFixed(2)};animation-delay:${200+i*60}ms"></div></div><div class="px"><b>${p2(r[3])}</b><span>per share</span><em>${can(r[3])}</em></div></div>`).join('')}</div>
-  ${Rg==='uae'?`<div class="brands"><div class="mono" style="margin:30px 0 4px">Brands you already use are on the UAE stock market</div><p class="bsub">Most people don't know they can own a piece of the shops, apps and roads they use every day.</p><div class="bgrid">${BRANDS.map((b,i)=>`<div class="brand" style="animation-delay:${i*50}ms"><span class="mono">${b[3]}</span><h4>${b[0]}</h4><p>${b[1]}</p><div class="bp"><b>${p2(b[2])}</b><span>/ share</span></div><em>${can(b[2])}</em></div>`).join('')}</div></div>`:''}
   ${Rg==='world'?`<div class="lesson"><span class="ic">i</span><p><b>Too expensive?</b> Some global brokers let you buy a fraction of one share, so you can start with a few dollars.</p></div>`:''}
   <div class="lesson"><span class="ic">i</span><p><b>Market value</b> = share price × number of shares. A cheap share is not a cheap company: Lulu at about 26 cents and IHC at about $105 are both big businesses.</p></div>`;
-  body.querySelectorAll('[data-h2]').forEach(b=>b.onclick=()=>{HAVE=+b.dataset.h2;render()})}
+  body.querySelectorAll('[data-h2]').forEach(b=>b.onclick=()=>{HAVE=+b.dataset.h2;render()});
+  const brandSet=new Set(BRANDS.map(b=>b[0]));UNI={nodes:pool.map(x=>({...x,cap:CAP[x.n]||1,ok:u(x.p)<=HAVE,brand:Rg==='uae'&&brandSet.has(x.n)})),pick:-1,t0:performance.now(),packed:0,p2,can};
+  const fi=UNI.nodes.findIndex(n=>n.ok);uniPick(fi>=0?fi:0)}
  if(H==='aico')body.innerHTML=rows(AI[Rg],'Top 10 AI names to know')+`<div class="lesson"><span class="ic">i</span><p><b>Why it matters:</b> these companies decide which jobs, tools and skills grow next. Dioma links each one to careers you could follow.</p></div>`;
  if(H==='news'){body.innerHTML=`<div class="ncat" role="group" aria-label="News type">${['business','politics','tech','world'].map(c=>`<button type="button" data-c="${c}" aria-pressed="${c===Nc}">${c}</button>`).join('')}</div><div class="mono" style="margin-bottom:14px">Explained for students · ${RN[Rg]} · example stories</div><div class="news">${NEWS[Rg][Nc].map((n,i)=>`<article class="story" style="animation-delay:${i*80}ms"><h4>${n[0]}</h4><div class="k"><span>What</span><span>${n[1]}</span></div><div class="k"><span>Why you care</span><span>${n[2]}</span></div><div class="k"><span>Word to learn</span><span class="word">${n[3]}</span></div></article>`).join('')}</div>`;
   body.querySelectorAll('.ncat button').forEach(b=>b.onclick=()=>{Nc=b.dataset.c;render()})}
