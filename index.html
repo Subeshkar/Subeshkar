@@ -440,6 +440,20 @@ section{position:relative}
 .brand .bp span{font-family:var(--mono);font-size:10px;color:var(--faint);text-transform:uppercase}
 .x72{border:1px solid rgba(var(--accrgb),.35);border-radius:14px;padding:14px 16px;background:linear-gradient(90deg,rgba(var(--accrgb),.1),transparent);display:grid;gap:6px}
 .x72 p{color:#d6d6d6;font-size:15px}.x72 b{color:var(--acc);font-weight:500}
+
+.fitbox{border:1px solid rgba(var(--accrgb),.45);border-radius:18px;padding:20px;background:radial-gradient(100% 120% at 0 0,rgba(var(--accrgb),.12),transparent 55%),#050505;box-shadow:0 30px 100px -50px rgba(var(--accrgb),.5)}
+.fithead{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.fithead b{font-weight:300;font-size:28px;letter-spacing:-.03em;color:var(--acc)}
+.fitgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+@media(max-width:1000px){.fitgrid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:560px){.fitgrid{grid-template-columns:1fr 1fr}}
+.fit{border:1px solid var(--line2);border-radius:14px;padding:14px;background:#070707;display:grid;gap:5px;opacity:0;animation:rin .4s forwards}
+.fit h4{margin:0;font-weight:400;font-size:18px}
+.fit p{color:var(--dim);font-size:12.5px;min-height:2.6em}
+.fit .bp{display:flex;align-items:baseline;gap:6px}
+.fit .bp b{font-weight:300;font-size:24px;letter-spacing:-.03em;color:#fff}
+.fit .bp span{font-family:var(--mono);font-size:10px;color:var(--faint);text-transform:uppercase}
+.fit em{font-style:normal;font-family:var(--mono);font-size:11px;color:var(--acc)}
 </style>
 
 <nav id="nav"><div class="wrap">
@@ -536,7 +550,7 @@ section{position:relative}
     <div class="stat"><b data-v="0">0</b><span>messages sent without your yes</span></div>
     <div class="stat"><b data-v="06:00">06:00</b><span>your morning brief, every day</span></div>
     <div class="stat"><b data-v="30">30</b><span>days to learn your voice, rhythm and circle</span></div>
-    <div class="stat"><b data-v="19">19</b><span>AED a month to start, for students</span></div>
+    <div class="stat"><b data-v="5">$5</b><span>a month to start, for students</span></div>
   </div>
 </div></section>
 
@@ -611,16 +625,16 @@ section{position:relative}
   </div>
   <div class="toggle rv" role="group" aria-label="Billing"><button type="button" data-b="m" aria-pressed="true">Monthly</button><button type="button" data-b="y" aria-pressed="false">Yearly · 2 months free</button></div>
   <div class="plans">
-    <div class="plan rv"><div class="top"><h3>Student</h3></div><p class="for">School and university</p><div class="price"><b data-m="19">19</b><span class="per">AED / month</span></div>
+    <div class="plan rv"><div class="top"><h3>Student</h3></div><p class="for">School and university</p><div class="price"><b data-m="5">$5</b><span class="per">USD / month</span></div>
       <ul><li>Study planner and homework coach</li><li>Learn AI with games and levels</li><li>Money and investing news for students</li><li>Top 10 shares and AI companies, UAE to world</li><li>Career fit and confidence coach</li></ul><a class="btn" href="https://wa.me/971585155559?text=Hi%20Dioma%21%20I%27m%20ready%20to%20change%20my%20life.%20I%27d%20like%20early%20access%20%28Student%20plan%29." target="_blank" rel="noopener">Choose Student</a></div>
-    <div class="plan rv"><div class="top"><h3>Basic</h3></div><p class="for">A calmer personal life</p><div class="price"><b data-m="49">49</b><span class="per">AED / month</span></div>
+    <div class="plan rv"><div class="top"><h3>Basic</h3></div><p class="for">A calmer personal life</p><div class="price"><b data-m="13">$13</b><span class="per">USD / month</span></div>
       <ul><li>WhatsApp, Gmail and Calendar</li><li>One place for what needs you</li><li>Follow-ups and reminders</li><li>Voice and daily summary</li></ul><a class="btn" href="https://wa.me/971585155559?text=Hi%20Dioma%21%20I%27m%20ready%20to%20change%20my%20life.%20I%27d%20like%20early%20access%20%28Basic%20plan%29." target="_blank" rel="noopener">Choose Basic</a></div>
-    <div class="plan hi rv"><div class="top"><h3>Pro</h3><span class="tag">Most chosen</span></div><p class="for">Founders and professionals</p><div class="price"><b data-m="149">149</b><span class="per">AED / month</span></div>
+    <div class="plan hi rv"><div class="top"><h3>Pro</h3><span class="tag">Most chosen</span></div><p class="for">Founders and professionals</p><div class="price"><b data-m="40">$40</b><span class="per">USD / month</span></div>
       <ul><li>Everything in Basic</li><li>Business WhatsApp and company mail</li><li>Meeting requests and preparation</li><li>Social, CRM and invoices</li></ul><a class="btn w" href="https://wa.me/971585155559?text=Hi%20Dioma%21%20I%27m%20ready%20to%20change%20my%20life.%20I%27d%20like%20early%20access%20%28Pro%20plan%29." target="_blank" rel="noopener">Choose Pro</a></div>
-    <div class="plan rv"><div class="top"><h3>Premium</h3></div><p class="for">Your whole world</p><div class="price"><b data-m="399">399</b><span class="per">AED / month</span></div>
+    <div class="plan rv"><div class="top"><h3>Premium</h3></div><p class="for">Your whole world</p><div class="price"><b data-m="109">$109</b><span class="per">USD / month</span></div>
       <ul><li>Everything in Pro</li><li>Unlimited connected apps</li><li>Trusted actions on autopilot</li><li>Personal onboarding</li></ul><a class="btn" href="https://wa.me/971585155559?text=Hi%20Dioma%21%20I%27m%20ready%20to%20change%20my%20life.%20I%27d%20like%20early%20access%20%28Premium%20plan%29." target="_blank" rel="noopener">Choose Premium</a></div>
   </div>
-  <p class="note">Concept prices for research only. Nothing is charged today. Under 18: no social DMs, no ads, never sells data, parents can see settings.</p>
+  <p class="note">Concept prices in US dollars, for research only. Nothing is charged today. Under 18: no social DMs, no ads, never sells data, parents can see settings.</p>
 </div></section>
 
 <section class="close" id="join">
@@ -773,7 +787,7 @@ const SH={
  gcc:[['Saudi Aramco','Energy','One of the most valuable companies on earth.',25.85,'Tadawul · 2222'],['International Holding Co.','Conglomerate','The UAE\'s giant, owning dozens of firms.',384.00,'ADX · IHC'],['Al Rajhi Bank','Islamic banking','The world\'s largest Islamic bank.',62.62,'Tadawul · 1120'],['ADNOC Gas','Energy','Gas for power and exports.',3.27,'ADX · ADNOCGAS'],['Saudi National Bank','Banking','Saudi Arabia\'s biggest lender.',38.19,'Tadawul · 1180'],['Ma\'aden','Mining','Saudi gold, phosphate and aluminium.',57.33,'Tadawul · 1211'],['First Abu Dhabi Bank','Banking','The UAE\'s biggest bank.',19.62,'ADX · FAB'],['stc','Telecom','Saudi\'s phone and cloud network.',40.73,'Tadawul · 7010'],['Emirates NBD','Banking','Dubai\'s home bank.',31.28,'DFM · EMIRATESNBD'],['e&','Telecom','UAE telecom, now in 16 countries.',21.60,'ADX · EAND']],
  world:[['Apple','Devices','iPhone, Mac and a loyal user base.',1308.4,'NASDAQ · AAPL'],['Nvidia','Chips','Makes the chips that train almost every AI.',598.07,'NASDAQ · NVDA'],['Microsoft','Software','Windows, Office and a huge AI cloud.',1923.95,'NASDAQ · MSFT'],['Alphabet','Internet','Google Search, YouTube and Gemini.',1074.28,'NASDAQ · GOOG'],['Amazon','Retail and cloud','Online shopping plus the biggest cloud.',979.31,'NASDAQ · AMZN'],['TSMC','Chip making','Manufactures chips for Apple and Nvidia.',1464.34,'NYSE · TSM'],['SpaceX','Space','Rockets and Starlink internet.',510.88,'SPCX'],['Saudi Aramco','Energy','The Gulf\'s giant on the global stage.',25.85,'Tadawul · 2222'],['Broadcom','Chips','Networking chips inside data centres.',1274.39,'NASDAQ · AVGO'],['Meta','Social','Instagram, WhatsApp and Facebook.',2356.61,'NASDAQ · META']]};
 const BRANDS=[['Lulu','Hypermarkets across the Gulf',0.955,'ADX · LULU'],['Talabat','The food delivery app',1.13,'DFM · TALABAT'],['Salik','Dubai road tolls',5.62,'DFM · SALIK'],['Air Arabia','Low-cost airline from Sharjah',4.89,'DFM · AIRARABIA'],['Americana','Runs KFC and Pizza Hut in the region',2.43,'ADX · AMR'],['Parkin','Dubai public parking',6.09,'DFM · PARKIN'],['du','Mobile and home internet',12.00,'DFM · DU'],['Unikai Foods','Dairy, juice and ice cream brand',5.01,'DFM · UNIKAI'],['Presight AI','Abu Dhabi AI company',3.70,'ADX · PRESIGHT'],['Aldar','Builds homes and schools in Abu Dhabi',8.01,'ADX · ALDAR']];
-const PDATE='14 Nov 2026';let HAVE=100;
+const PDATE='14 Nov 2026';let HAVE=10;const USD=3.6725;
 const AI={
  uae:[['G42','AI group','Abu Dhabi\'s flagship AI company.'],['MGX','AI investment','Invests billions into AI worldwide.'],['TII · Falcon','Research','Built the Falcon open AI models.'],['Core42','AI cloud','Runs the computers that power UAE AI.'],['Presight','AI analytics','Big-data AI for governments and cities.'],['Inception','AI products','Built Jais, an Arabic language model.'],['MBZUAI','University','The world\'s first AI-only university.'],['Bayanat','Geospatial AI','Maps and satellite data with AI.'],['Khazna','Data centres','Houses the machines AI runs on.'],['e& AI','Telecom AI','AI in your phone network and apps.']],
  gcc:[['Humain','AI company','Saudi Arabia\'s national AI champion.'],['G42','AI group','The UAE\'s flagship AI company.'],['SDAIA','Government AI','Saudi\'s data and AI authority.'],['MGX','AI investment','Abu Dhabi\'s AI investment arm.'],['TII · Falcon','Research','Open Arabic and English AI models.'],['Presight','AI analytics','AI for public services.'],['Mozn','Fintech AI','Fights fraud with AI in Saudi banks.'],['Lean Technologies','Fintech','Open banking rails across the GCC.'],['QCRI','Research','Qatar\'s computing research institute.'],['KAUST','University','Saudi research hub for AI and science.']],
@@ -804,13 +818,18 @@ function render(){
  if(H==='ai')body.innerHTML=`<div class="mono" style="margin-bottom:10px">AI study · ${RN[Rg]}</div><div class="why">${WHY[Rg].map(w=>`<div><b>${w[0]}</b><span>${w[1]}</span></div>`).join('')}</div>
  <div class="levels">${LV.map(l=>`<div class="lvl"><span class="mono">${l[0].replace('Level ','L')}</span><div><h4>${l[0]==='Level 6'?L6[Rg]:l[1]}</h4><p>${l[2]}</p></div><span class="st ${l[3]}">${l[3]==='done'?'Done':l[3]==='now'?'Today':'Locked'}</span></div>`).join('')}</div>
  <div class="lesson"><span class="ic">?</span><p><b>Today's question:</b> ${QQ[Rg]}</p></div>`;
- if(H==='shares'){const p2=v=>v>=100?v.toFixed(0):v>=10?v.toFixed(2):v.toFixed(v<1?3:2);const can=v=>{const n=Math.floor(HAVE/v);return n>=1?`= ${n.toLocaleString('en-US')} share${n>1?'s':''}`:`need ${Math.ceil(v).toLocaleString('en-US')} AED`};
-  body.innerHTML=`<div class="have"><span class="mono">If you have</span>${[10,100,1000].map(v=>`<button type="button" data-h2="${v}" class="${v===HAVE?'on':''}">${v} AED</button>`).join('')}<span class="mono hdate">Prices per share in AED · ${PDATE} · delayed</span></div>
-  <div class="mono" style="margin:4px 0 6px">Top 10 companies by market value · ${RN[Rg]}</div>
-  <div class="rank">${SH[Rg].map((r,i)=>`<div class="row pr" style="animation-delay:${i*45}ms"><span class="n">${String(i+1).padStart(2,'0')}</span><div><h4>${r[0]} <small>${r[4]}</small></h4><p>${r[2]}</p><div class="bar" style="--w:${(1-i*.08).toFixed(2)};animation-delay:${200+i*60}ms"></div></div><div class="px"><b>${p2(r[3])}</b><span>AED / share</span><em>${can(r[3])}</em></div></div>`).join('')}</div>
-  ${Rg==='uae'?`<div class="brands"><div class="mono" style="margin:30px 0 4px">Brands you already use are on the UAE stock market</div><p class="bsub">Most people don't know they can own a piece of the shops, apps and roads they use every day.</p><div class="bgrid">${BRANDS.map((b,i)=>`<div class="brand" style="animation-delay:${i*50}ms"><span class="mono">${b[3]}</span><h4>${b[0]}</h4><p>${b[1]}</p><div class="bp"><b>${p2(b[2])}</b><span>AED / share</span></div><em>${can(b[2])}</em></div>`).join('')}</div></div>`:''}
-  ${Rg==='world'?`<div class="lesson"><span class="ic">i</span><p><b>Too expensive?</b> Some global brokers let you buy a fraction of one share, so you can start with a few dirhams.</p></div>`:''}
-  <div class="lesson"><span class="ic">i</span><p><b>Market value</b> = share price × number of shares. A cheap share is not a cheap company: Lulu at under 1 AED and IHC at 384 AED are both big businesses.</p></div>`;
+ if(H==='shares'){const u=v=>v/USD;const p2=v=>{const d=u(v);return '$'+(d>=100?d.toFixed(0):d>=10?d.toFixed(2):d.toFixed(d<1?3:2))};
+  const can=v=>{const n=Math.floor(HAVE/u(v));return n>=1?`= ${n.toLocaleString('en-US')} share${n>1?'s':''}`:`need $${Math.ceil(u(v)).toLocaleString('en-US')}`};
+  const pool=[...SH[Rg].map(r=>({n:r[0],d:r[2],p:r[3],t:r[4]})),...(Rg==='uae'?BRANDS.map(b=>({n:b[0],d:b[1],p:b[2],t:b[3]})):[])].filter((x,i,arr)=>arr.findIndex(y=>y.n===x.n)===i);
+  const fit=pool.filter(x=>u(x.p)<=HAVE).sort((a,b)=>a.p-b.p).slice(0,10);
+  body.innerHTML=`<div class="have"><span class="mono">If you have</span>${[10,100,1000].map(v=>`<button type="button" data-h2="${v}" class="${v===HAVE?'on':''}">$${v}</button>`).join('')}<span class="mono hdate">Prices per share in USD · ${PDATE} · delayed</span></div>
+  <div class="fitbox"><div class="fithead"><span class="mono">With $${HAVE} you can buy, in ${RN[Rg]}</span><b>${fit.length?fit.length+' compan'+(fit.length>1?'ies':'y'):'Nothing yet'}</b></div>
+  ${fit.length?`<div class="fitgrid">${fit.map((x,i)=>`<div class="fit" style="animation-delay:${i*45}ms"><span class="mono">${x.t}</span><h4>${x.n}</h4><p>${x.d}</p><div class="bp"><b>${p2(x.p)}</b><span>/ share</span></div><em>${can(x.p)}</em></div>`).join('')}</div>`:`<p class="bsub" style="margin:10px 0 0">Every big company here costs more than $${HAVE} a share. Try a bigger amount, or a broker that sells fractions of a share.</p>`}</div>
+  <div class="mono" style="margin:30px 0 6px">Top 10 companies by market value · ${RN[Rg]}</div>
+  <div class="rank">${SH[Rg].map((r,i)=>`<div class="row pr" style="animation-delay:${i*45}ms"><span class="n">${String(i+1).padStart(2,'0')}</span><div><h4>${r[0]} <small>${r[4]}</small></h4><p>${r[2]}</p><div class="bar" style="--w:${(1-i*.08).toFixed(2)};animation-delay:${200+i*60}ms"></div></div><div class="px"><b>${p2(r[3])}</b><span>per share</span><em>${can(r[3])}</em></div></div>`).join('')}</div>
+  ${Rg==='uae'?`<div class="brands"><div class="mono" style="margin:30px 0 4px">Brands you already use are on the UAE stock market</div><p class="bsub">Most people don't know they can own a piece of the shops, apps and roads they use every day.</p><div class="bgrid">${BRANDS.map((b,i)=>`<div class="brand" style="animation-delay:${i*50}ms"><span class="mono">${b[3]}</span><h4>${b[0]}</h4><p>${b[1]}</p><div class="bp"><b>${p2(b[2])}</b><span>/ share</span></div><em>${can(b[2])}</em></div>`).join('')}</div></div>`:''}
+  ${Rg==='world'?`<div class="lesson"><span class="ic">i</span><p><b>Too expensive?</b> Some global brokers let you buy a fraction of one share, so you can start with a few dollars.</p></div>`:''}
+  <div class="lesson"><span class="ic">i</span><p><b>Market value</b> = share price × number of shares. A cheap share is not a cheap company: Lulu at about 26 cents and IHC at about $105 are both big businesses.</p></div>`;
   body.querySelectorAll('[data-h2]').forEach(b=>b.onclick=()=>{HAVE=+b.dataset.h2;render()})}
  if(H==='aico')body.innerHTML=rows(AI[Rg],'Top 10 AI names to know')+`<div class="lesson"><span class="ic">i</span><p><b>Why it matters:</b> these companies decide which jobs, tools and skills grow next. Dioma links each one to careers you could follow.</p></div>`;
  if(H==='news'){body.innerHTML=`<div class="ncat" role="group" aria-label="News type">${['business','politics','tech','world'].map(c=>`<button type="button" data-c="${c}" aria-pressed="${c===Nc}">${c}</button>`).join('')}</div><div class="mono" style="margin-bottom:14px">Explained for students · ${RN[Rg]} · example stories</div><div class="news">${NEWS[Rg][Nc].map((n,i)=>`<article class="story" style="animation-delay:${i*80}ms"><h4>${n[0]}</h4><div class="k"><span>What</span><span>${n[1]}</span></div><div class="k"><span>Why you care</span><span>${n[2]}</span></div><div class="k"><span>Word to learn</span><span class="word">${n[3]}</span></div></article>`).join('')}</div>`;
@@ -823,7 +842,7 @@ render();
 
 
 $$('.toggle button').forEach(bt=>bt.onclick=()=>{$$('.toggle button').forEach(x=>x.setAttribute('aria-pressed',x===bt));const y=bt.dataset.b==='y';
-  $$('.price b').forEach(b=>b.textContent=y?(+b.dataset.m*10).toLocaleString('en-US'):b.dataset.m);$$('.price .per').forEach(s=>s.textContent=y?'AED / year':'AED / month')});
+  $$('.price b').forEach(b=>b.textContent='$'+(y?(+b.dataset.m*10).toLocaleString('en-US'):b.dataset.m));$$('.price .per').forEach(s=>s.textContent=y?'USD / year':'USD / month')});
 
 /* connect orbit */
 (function(){
