@@ -23,7 +23,20 @@ export async function statementText(buf, filename = '') {
     const X = require('xlsx'); const wb = X.read(buf, { type: 'buffer', cellDates: true });
     return wb.SheetNames.map((n) => X.utils.sheet_to_csv(wb.Sheets[n], { blankrows: false, dateNF: 'yyyy-mm-dd' })).join('\n');
   }
+  if (/\.docx$/.test(f)) {
+    // .docx is a zip; pull the text out of word/document.xml
+    const X = require('xlsx'); const z = X.CFB.read(buf, { type: 'buffer' });
+    const e = X.CFB.find(z, 'word/document.xml') || X.CFB.find(z, '/word/document.xml');
+    const xml = e && e.content ? Buffer.from(e.content).toString('utf8') : '';
+    return xml.replace(/<\/w:p>/g, '\n').replace(/<w:tab\/>/g, '\t').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+  }
+  if (/\.(png|jpe?g|gif|webp|zip|rar|exe)$/.test(f)) return '';
   return buf.toString('utf8');
+}
+// Any attached file -> plain text (PDF, Excel, CSV, Word, text). Long sheets are kept whole up to the limit.
+export async function anyFileText(buf, filename = '', limit = 60000) {
+  const t = String(await statementText(buf, filename) || '').replace(/\r/g, '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  return t.length > limit ? t.slice(0, limit) + '\n…(file continues)' : t;
 }
 
 export async function uploadStatement(acct, name, b64) {

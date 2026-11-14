@@ -18,8 +18,8 @@ import { xStatus, xPost, xLike, xReply, xFollow, xSearch } from './xpost.js';
 import { liStatus, liPost, liInbox, liInboxChunk, igDmSnap, igInboxSave } from './linkedin.js';
 import { igapiStatus, igapiInbox, igapiThread, igapiSend, igapiMyPosts, igapiComments, igapiReply } from './igapi.js';
 import { igStatus, igFeed, igComments, igComment, igInbox, igThread, igSend, igImage, igLastError } from './ig.js';
-import { zohoList, zohoRead, zohoLinked, zohoSetupLink, booksSummary, booksContact, crmSummary, booksRecordPayment, booksBalances, booksInvoiceTotals, booksOrgs, booksFindContacts, booksCreateInvoice, booksEmailInvoice, booksGetInvoice, booksAddVat, zcalEvents, zcalCreate, calSetupLink, zohoLastTry } from './zoho.js';
-import { uploadStatement, addTx, listTx, setCategory, clearAcct, fileText, clearFileTx, accounts } from './wealth.js';
+import { zohoList, zohoRead, zohoLinked, zohoSetupLink, booksSummary, booksContact, crmSummary, booksRecordPayment, booksBalances, booksInvoiceTotals, booksOrgs, booksFindContacts, booksCreateInvoice, booksEmailInvoice, booksGetInvoice, booksAddVat, zohoAttachments, zcalEvents, zcalCreate, calSetupLink, zohoLastTry } from './zoho.js';
+import { anyFileText, uploadStatement, addTx, listTx, setCategory, clearAcct, fileText, clearFileTx, accounts } from './wealth.js';
 const { personalStatus, listChats, listMessages, sendPersonal, markChatRead } = P;
 
 const json = (data) => ({ content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: Array.isArray(data) ? { data } : data });
@@ -84,6 +84,7 @@ function buildServer() {
     if (q === '__books__') { try { return json(await booksSummary()); } catch (e) { return json({ linked: true, error: String(e.message || e) }); } }
     if (q && (q || '').startsWith('__bookscontact__:')) { try { return json(await booksContact(q.split(':')[1])); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (q && (q || '').startsWith('__zoho__:')) { const [, folder, ...rest] = q.split(':'); try { return json({ data: await zohoList(folder, rest.join(':')) }); } catch (e) { return json({ error: String(e.message || e), linked: zohoLinked() }); } }
+    if (q && (q || '').startsWith('__zohoatt__:')) { const [, f, m] = q.split(':'); try { const files = await zohoAttachments(f, m); const out = []; for (const x of files) { if (x.error) { out.push({ name: x.name, size: x.size, error: x.error }); continue; } let text = ''; try { text = await anyFileText(x.buf, x.name); } catch (e) { out.push({ name: x.name, size: x.size, error: 'Could not read: ' + (e.message || e) }); continue; } out.push({ name: x.name, size: x.size, text: text || '(no text inside: image or scanned file)' }); } return json({ files: out }); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (q && (q || '').startsWith('__zohomsg__:')) { const [, f, m] = q.split(':'); try { return json(await zohoRead(f, m)); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (q && (q || '').startsWith('__pulsein__')) return json({ items: takePulse(q.split(':')[1]), link: talkLink() + '?to=pulse' });
     if (q && (q || '').startsWith('__talkcmd__')) return json(takeCommand(q.split(':')[1]) || {});
@@ -109,6 +110,7 @@ function buildServer() {
       try { return json({ text: await transcribe(buf, mime) }); } catch (e) { return json({ error: String(e.message || e) }); }
     }
     // Wealth (bank statements) and Zoho Books payments ride on this tool until the connector list is refreshed.
+    if (chat_id.startsWith('__filetext__|')) { const [, name, b64] = chat_id.split('|'); try { const buf = Buffer.from(b64 || '', 'base64'); if (!buf.length) throw new Error('Empty file'); const text = await anyFileText(buf, decodeURIComponent(name)); return json({ name: decodeURIComponent(name), size: buf.length, text: text || '(no text inside: image or scanned file)' }); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__stmt__|')) { const [, acct, name, b64] = chat_id.split('|'); try { return json(await uploadStatement(acct, decodeURIComponent(name), b64)); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__txadd__|')) { const p = chat_id.split('|'); try { return json(addTx(p[1], JSON.parse(p.slice(3).join('|')), decodeURIComponent(p[2] || ''))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__txcat__|')) { const [, id, cat] = chat_id.split('|'); return json(setCategory(id, decodeURIComponent(cat))); }

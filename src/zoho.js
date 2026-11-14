@@ -226,6 +226,24 @@ export async function zohoList(folder = 'all', q = '') {
   const de = (x) => String(x || '').replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');
   return (rows || []).map((m) => ({ ...m, subject: de(m.subject), summary: de(m.summary), sender: de(m.sender), toAddress: de(m.toAddress) })).map((m) => ({ id: m.messageId, folderId: m.folderId, threadId: m.threadId || m.messageId, subject: m.subject || '(no subject)', from: m.sender && m.sender !== m.fromAddress ? `${m.sender} <${m.fromAddress}>` : m.fromAddress, fromEmail: m.fromAddress, to: m.toAddress, date: m.receivedTime ? new Date(Number(m.receivedTime)).toISOString() : '', snippet: String(m.summary || '').slice(0, 300), unread: m.status === '0' || m.status === 0 }));
 }
+// Attachments of one Zoho mail message (skips small inline signature images). Returns [{name, size, buf}].
+export async function zohoAttachments(folderId, messageId) {
+  const a = await account(); const c = load();
+  const base = `${c.api || 'https://mail.zoho.com'}/api/accounts/${a.accountId}/folders/${folderId}/messages/${messageId}`;
+  const info = await api(`/accounts/${a.accountId}/folders/${folderId}/messages/${messageId}/attachmentinfo`);
+  const list = [...((info && info.attachments) || [])];
+  const out = [];
+  for (const at of list) {
+    const name = String(at.attachmentName || 'file'); const size = Number(at.attachmentSize) || 0;
+    if (/\.(png|jpe?g|gif|bmp|webp)$/i.test(name) && size < 40000) continue;
+    if (size > 12 * 1024 * 1024) { out.push({ name, size, error: 'File is over 12 MB' }); continue; }
+    const res = await fetch(`${base}/attachments/${at.attachmentId}`, { headers: { Authorization: 'Zoho-oauthtoken ' + await accessToken() } });
+    if (!res.ok) { out.push({ name, size, error: 'Zoho refused the download (' + res.status + ')' }); continue; }
+    out.push({ name, size, buf: Buffer.from(await res.arrayBuffer()) });
+    if (out.length >= 6) break;
+  }
+  return out;
+}
 export async function zohoRead(folderId, messageId) {
   const a = await account();
   const d = await api(`/accounts/${a.accountId}/folders/${folderId}/messages/${messageId}/content`);
