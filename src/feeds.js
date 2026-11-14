@@ -159,7 +159,8 @@ async function netTrend(net) {
   for (const [id, r] of Object.entries(REGIONS)) {
     const lists = await Promise.all(Q[id].map((u) => rss(u, 14).catch(() => [])));
     const posts = []; const seen = new Set();
-    for (let i = 0; i < 14; i++) for (const l of lists) { const it = l[i]; if (!it || !it.title) continue; const k = it.title.toLowerCase().slice(0, 60); if (seen.has(k)) continue; seen.add(k); posts.push({ topic: it.title.split(/[:|–-]/)[0].trim().slice(0, 60), traffic: '', title: it.title, url: it.link, image: '', source: it.source || 'News', region: r.tag }); }
+    const junk = (it) => /stream|live free|watch live|free event|【|】|[\uFF01-\uFF5E]|\+\+/i.test(it.title) || /[\u3040-\u30FF\u4E00-\u9FFF]/.test(it.source || '') || it.title.trim() === String(it.source || '').trim() || it.title.split(/\s+/).length < 4;
+    for (let i = 0; i < 14; i++) for (const l of lists) { const it = l[i]; if (!it || !it.title || junk(it)) continue; const k = it.title.toLowerCase().slice(0, 60); if (seen.has(k)) continue; seen.add(k); posts.push({ topic: it.title.split(/[:|–-]/)[0].trim().slice(0, 60), traffic: '', title: it.title, url: it.link, image: '', source: it.source || 'News', region: r.tag }); }
     out.regions.push({ id, tag: r.tag, posts: posts.slice(0, 12), xtags: [] });
   }
   if (!out.regions.some((x) => x.posts.length)) throw new Error('Trending sources did not answer, try again shortly');
