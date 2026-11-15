@@ -4,228 +4,477 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Try Dioma</title>
-<meta name="description" content="Try Dioma with sample data: your mail, WhatsApp, invoices and money in one assistant. Nothing is sent.">
+<meta name="description" content="Try the full Dioma app with sample data: brief, to-do, WhatsApp, mail, calendar, invoices, money and files. Nothing is sent.">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-:root{--bg:#000000;--s1:#0B0B0B;--s2:#141414;--line:#1F1F1F;--line2:#2C2C2C;--fg:#FFFFFF;--mute:#9A9A9A;--y:#FFB547;--ys:rgba(255,181,71,.14);--ink:#1A0F00;--ok:#7FD8C4;
---display:'Inter Tight',ui-sans-serif,system-ui,sans-serif;--body:'Inter Tight',ui-sans-serif,system-ui,sans-serif;--mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;color-scheme:dark}
+:root{--bg:#000;--s1:#0B0B0B;--s2:#141414;--line:#1F1F1F;--line2:#2C2C2C;--fg:#fff;--mute:#9A9A9A;--faint:#5c5c5c;--y:#FFB547;--ys:rgba(255,181,71,.14);--ink:#1A0F00;--ok:#7FD8C4;--bad:#ff8a7a;
+--sans:'Inter Tight',ui-sans-serif,system-ui,sans-serif;--mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;color-scheme:dark}
+html[data-tone=mono]{--y:#fff;--ys:rgba(255,255,255,.12);--ink:#000}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--fg)}
-body{font:15px/1.5 var(--body);-webkit-font-smoothing:antialiased;padding-bottom:calc(88px + env(safe-area-inset-bottom,0px))}
-button{font:inherit;color:inherit;cursor:pointer}
+body{font:15px/1.5 var(--sans);-webkit-font-smoothing:antialiased;padding-bottom:calc(92px + env(safe-area-inset-bottom,0px))}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer}
 a{color:var(--y)}
-.wrap{max-width:480px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+b,strong{font-weight:500}
+.wrap{max-width:560px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .demo{background:var(--y);color:var(--ink);font-size:12.5px;font-weight:500;text-align:center;padding:8px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px));padding-top:calc(8px + env(safe-area-inset-top,0px))}
 .demo a{color:var(--ink)}
-.top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
-.bar{display:flex;align-items:center;justify-content:space-between;padding:12px 0 10px}
-.brand{display:flex;align-items:center;gap:10px;font-family:var(--body);font-weight:500;font-size:17px;letter-spacing:.32em}
-.dlogo .ring{transform-origin:10px 10px;animation:dspin 6s linear infinite}@keyframes dspin{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.dlogo .ring{animation:none}}
-b,strong{font-weight:500}
-.live{font:800 10.5px var(--body);letter-spacing:2px;background:var(--y);color:var(--ink);border-radius:99px;padding:3px 9px;display:inline-flex;gap:6px;align-items:center}
-.live i{width:6px;height:6px;border-radius:50%;background:var(--ink);animation:p 1.6s infinite}@keyframes p{50%{opacity:.25}}
-.join{background:var(--y);color:var(--ink);border:0;border-radius:99px;padding:8px 14px;font-weight:500;font-size:13px;text-decoration:none}
-h1{font-family:var(--display);font-weight:500;letter-spacing:-.025em;font-size:40px;line-height:1.04;margin:22px 0 14px}
+.top{position:sticky;top:0;z-index:6;background:rgba(0,0,0,.9);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-block:11px}.tone,.join{flex:none}
+.brand{display:flex;align-items:center;gap:10px;font-weight:500;font-size:15px;letter-spacing:.32em;min-width:0}
+.dlogo .ring{transform-origin:10px 10px;animation:dspin 6s linear infinite}@keyframes dspin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.dlogo .ring{animation:none}}
+.live{font:500 10px var(--mono);letter-spacing:.12em;background:var(--y);color:var(--ink);border-radius:99px;padding:3px 8px;display:inline-flex;gap:6px;align-items:center}
+.live i{width:6px;height:6px;border-radius:50%;background:var(--ink);animation:pz 1.6s infinite}@keyframes pz{50%{opacity:.25}}
+.tr{display:flex;align-items:center;gap:8px}
+.tone{display:inline-flex;gap:2px;background:#111;border:1px solid var(--line);border-radius:99px;padding:2px}
+.tone button{border:0;background:transparent;border-radius:99px;padding:5px 10px;font:500 11px var(--mono);letter-spacing:.06em;color:var(--mute);display:inline-flex;align-items:center;gap:5px}
+.tone button i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.tone button[aria-pressed=true]{background:var(--fg);color:#000}
+.join{background:var(--y);color:var(--ink);border:0;border-radius:99px;padding:7px 13px;font-weight:500;font-size:13px;text-decoration:none;white-space:nowrap}
+h1{font-weight:400;letter-spacing:-.025em;font-size:34px;line-height:1.08;margin:6px 0 14px;text-wrap:balance}
 h1 span{color:var(--y)}
-h2{font-family:var(--mono);font-weight:500;font-size:13px;letter-spacing:.12em;text-transform:uppercase;margin:0}
-.panel{background:var(--s1);border:1px solid var(--line);border-radius:20px;padding:16px;margin:14px 0;display:grid;gap:12px}
+h2{font:500 11.5px var(--mono);letter-spacing:.12em;text-transform:uppercase;margin:0;color:var(--mute)}
+.eyebrow{font:500 11.5px var(--mono);letter-spacing:.12em;color:var(--mute);text-transform:uppercase;margin-top:18px}
+.sun{height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,var(--y),transparent);margin:6px 0 16px;opacity:.85}
+.panel{background:var(--s1);border:1px solid var(--line);border-radius:20px;padding:16px;margin:14px 0;display:grid;gap:12px;min-width:0}
 .ycard{background:var(--y);color:var(--ink);border-radius:22px;padding:18px}
-.ycard .lbl{font-family:var(--mono);font-size:11px;letter-spacing:.1em;font-weight:500}
-.ycard ul{margin:8px 0 0;padding-left:18px}
-.ycard li{margin:4px 0}
-.item{background:var(--s2);border:1px solid var(--line);border-radius:14px;padding:12px;display:grid;gap:6px}
-.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ycard .lbl{font:500 11px var(--mono);letter-spacing:.1em}
+.ycard ul{margin:8px 0 0;padding-left:18px}.ycard li{margin:5px 0}
+.item{background:var(--s2);border:1px solid var(--line);border-radius:14px;padding:12px;display:grid;gap:6px;min-width:0}
+.item.click{cursor:pointer}.item.click:hover{border-color:var(--line2)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0}
 .sp{justify-content:space-between}
-.sub{font-size:12.5px;color:var(--mute)}
-.ttl{font-weight:500}
+.grow{flex:1;min-width:0}
+.sub{font-size:12.5px;color:var(--mute);overflow-wrap:anywhere}
+.ttl{font-weight:500;overflow-wrap:anywhere}
 .act{font-size:13px;color:var(--y)}
-.pill{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:1px;border-radius:99px;padding:2px 8px;border:1px solid currentColor}
+.pill{font:500 10px var(--mono);letter-spacing:.08em;border-radius:99px;padding:2px 8px;border:1px solid var(--line2);color:var(--mute);text-transform:uppercase;white-space:nowrap}
 .pill.y{background:var(--y);color:var(--ink);border-color:var(--y)}
+.pill.ok{color:var(--ok);border-color:rgba(127,216,196,.4)}
+.pill.bad{color:var(--bad);border-color:rgba(255,138,122,.4)}
 .btn{background:var(--y);color:var(--ink);border:0;border-radius:12px;min-height:40px;padding:0 16px;font-weight:500}
-.ghost{background:transparent;border:1px solid var(--line2);border-radius:12px;min-height:38px;padding:0 13px;font-weight:500;font-size:13.5px}
-.seg{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;background:var(--bg);border-radius:12px;padding:4px}
-.seg button{border:0;background:transparent;border-radius:9px;min-height:34px;font-weight:500;font-size:12px;padding:0 2px}
+.ghost{background:transparent;border:1px solid var(--line2);border-radius:12px;min-height:36px;padding:0 12px;font-weight:500;font-size:13px;color:var(--fg)}
+.ghost:hover{border-color:#444}
+.seg{display:flex;gap:3px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:4px;overflow-x:auto;scrollbar-width:none}
+.seg::-webkit-scrollbar{display:none}
+.seg button{flex:1 0 auto;border:0;background:transparent;border-radius:9px;min-height:32px;font-weight:500;font-size:12.5px;padding:0 11px;color:var(--mute);white-space:nowrap}
 .seg button[aria-pressed=true]{background:var(--y);color:var(--ink)}
-.seg2{grid-template-columns:repeat(2,minmax(0,1fr))}
 .appr{border:1.5px solid var(--y);border-radius:16px;padding:12px 14px;display:grid;gap:10px;background:var(--s2)}
-.appr .tag{font-size:11px;letter-spacing:2px;font-weight:500;color:var(--y);text-transform:uppercase}
-.appr pre{margin:0;white-space:pre-wrap;font:14px/1.5 var(--body)}
+.appr .tag{font:500 10.5px var(--mono);letter-spacing:.12em;color:var(--y);text-transform:uppercase}
+.appr pre{margin:0;white-space:pre-wrap;font:14px/1.5 var(--sans)}
 .done{color:var(--ok);font-weight:500;font-size:13px}
 .steps{display:grid;gap:6px}
-.step{font-size:13px;color:var(--mute);display:flex;gap:8px;align-items:center;opacity:0;transform:translateY(4px);transition:all .35s}
-.step.on{opacity:1;transform:none}
+.step{font-size:13px;color:var(--mute);display:flex;gap:8px;align-items:center;animation:stin .35s both}
+@keyframes stin{from{opacity:0;transform:translateY(4px)}}
 .step:before{content:"";width:6px;height:6px;border-radius:50%;background:var(--y)}
-.chat{display:grid;gap:10px;min-height:220px}
-.msg{max-width:88%;border-radius:18px;padding:10px 13px;white-space:pre-wrap;line-height:1.5}
-.me{justify-self:end;background:var(--y);color:var(--ink);font-weight:500;border-bottom-right-radius:4px}
-.ai{justify-self:start;background:var(--s2);border:1px solid var(--line);border-bottom-left-radius:4px}
+.chat{display:grid;gap:10px}
+.msg{max-width:86%;border-radius:18px;padding:9px 13px;white-space:pre-wrap;line-height:1.45;overflow-wrap:anywhere}
+.msg .t{display:block;font:10.5px var(--mono);color:var(--mute);margin-top:3px;text-align:right}
+.me{justify-self:end;background:var(--y);color:var(--ink);border-bottom-right-radius:4px}
+.me .t{color:rgba(0,0,0,.55)}
+.ai,.them{justify-self:start;background:var(--s2);border:1px solid var(--line);border-bottom-left-radius:4px}
 .quick{display:flex;gap:8px;flex-wrap:wrap}
-.quick button{background:var(--s2);border:1px solid var(--line2);border-radius:99px;min-height:36px;padding:6px 12px;font-size:13px;font-weight:500}
+.quick button{background:var(--s2);border:1px solid var(--line2);border-radius:99px;min-height:34px;padding:6px 12px;font-size:13px;font-weight:500}
 .bars{display:grid;gap:8px}
 .bl{display:grid;grid-template-columns:110px 1fr 72px;gap:8px;align-items:center;font-size:13px}
-.bl .b{height:8px;background:#222222;border-radius:99px;overflow:hidden}
+.bl .b{height:8px;background:#222;border-radius:99px;overflow:hidden}
 .bl .b i{display:block;height:100%;background:var(--y);border-radius:99px;width:0;transition:width 1s}
 .bl em{font-style:normal;text-align:right;font-variant-numeric:tabular-nums}
 .stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.stat{background:var(--s2);border:1px solid var(--line);border-radius:14px;padding:10px}
-.stat b{font-family:var(--display);font-size:24px;display:block;line-height:1.1}
+.stat{background:var(--s2);border:1px solid var(--line);border-radius:14px;padding:10px;min-width:0}
+.stat b{font-size:22px;display:block;line-height:1.15;font-variant-numeric:tabular-nums}
 .stat span{font-size:11.5px;color:var(--mute)}
-.file{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;border:1px solid var(--line2);border-radius:10px;padding:5px 9px;background:var(--bg)}
-textarea{width:100%;min-height:84px;border-radius:12px;border:1px solid var(--line2);background:var(--bg);color:var(--fg);padding:10px;font:14px/1.5 var(--body);resize:vertical}
-.bnav{position:fixed;left:0;right:0;bottom:0;z-index:8;background:#000000;border-top:1px solid var(--line);padding:6px max(6px,env(safe-area-inset-right,0px)) calc(8px + env(safe-area-inset-bottom,0px)) max(6px,env(safe-area-inset-left,0px))}
-.bnav .in{max-width:520px;margin:0 auto;display:grid;grid-template-columns:repeat(6,minmax(0,1fr))}
+.file{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;border:1px solid var(--line2);border-radius:10px;padding:5px 9px;background:var(--bg);max-width:100%}
+textarea,.field{width:100%;border-radius:12px;border:1px solid var(--line2);background:var(--bg);color:var(--fg);padding:10px 12px;font:14px/1.5 var(--sans);outline:none}
+textarea{min-height:110px;resize:vertical}
+.field{height:42px}
+textarea:focus,.field:focus{border-color:var(--y)}
+.chk{width:22px;height:22px;flex:none;border-radius:50%;border:1.5px solid var(--line2);background:transparent;display:grid;place-items:center;padding:0}
+.chk.on{background:var(--y);border-color:var(--y)}
+.chk.on::after{content:"";width:8px;height:4px;border:solid var(--ink);border-width:0 0 2px 2px;transform:rotate(-45deg) translate(1px,-1px)}
+.strike .ttl{text-decoration:line-through;color:var(--faint)}
+.when{font:500 12px var(--mono);color:var(--mute);width:50px;flex:none}
+.av{width:38px;height:38px;flex:none;border-radius:50%;background:#1d1d1d;border:1px solid var(--line2);display:grid;place-items:center;font:500 12px var(--mono);color:var(--mute)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--y);flex:none}
+.back{background:none;border:0;color:var(--mute);padding:4px 0;font-size:14px}
+.fic{width:36px;height:36px;flex:none;border:1px solid var(--line2);border-radius:9px;display:grid;place-items:center;font:500 9.5px var(--mono);color:var(--mute);text-transform:uppercase}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.tile{background:var(--s2);border:1px solid var(--line);border-radius:16px;padding:14px;display:grid;gap:6px;text-align:left;color:var(--fg)}
+.tile:hover{border-color:var(--line2)}
+.tile svg{width:22px;height:22px;color:var(--y)}
+.bnav{position:fixed;left:0;right:0;bottom:0;z-index:8;background:#000;border-top:1px solid var(--line);padding:6px max(6px,env(safe-area-inset-right,0px)) calc(8px + env(safe-area-inset-bottom,0px)) max(6px,env(safe-area-inset-left,0px))}
+.bnav .in{max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(5,minmax(0,1fr))}
 .bnav button{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;color:#9A978C;font-size:11px;font-weight:500;min-height:52px;justify-content:center;position:relative}
-.bnav button .ic{width:38px;height:28px;border-radius:99px;display:grid;place-items:center}
+.bnav button .ic{width:40px;height:28px;border-radius:99px;display:grid;place-items:center}
 .bnav button[aria-current=true]{color:var(--y)}
 .bnav button[aria-current=true] .ic{background:var(--ys)}
-.bnav svg{width:20px;height:20px}
-.badge{position:absolute;top:4px;left:calc(50% + 6px);background:var(--y);color:var(--ink);font-size:10px;font-weight:500;border-radius:99px;min-width:16px;height:16px;padding:0 4px;display:grid;place-items:center}
-.hide{display:none}
-.toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--ink);font-weight:500;font-size:13.5px;border-radius:99px;padding:9px 16px;z-index:20;opacity:0;transition:opacity .3s;pointer-events:none;max-width:calc(100vw - 32px);text-align:center}
+.bnav svg,.ico{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.badge{position:absolute;top:3px;left:calc(50% + 6px);background:var(--y);color:var(--ink);font-size:10px;font-weight:500;border-radius:99px;min-width:16px;height:16px;padding:0 4px;display:grid;place-items:center}
+.fab{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:7;width:52px;height:52px;border-radius:50%;border:0;background:var(--y);color:var(--ink);display:grid;place-items:center;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.fab svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8}
+.toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:#000;font-weight:500;font-size:13.5px;border-radius:99px;padding:9px 16px;z-index:20;opacity:0;transition:opacity .3s;pointer-events:none;max-width:calc(100vw - 32px);text-align:center}
 .toast.on{opacity:1}
-.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.1em;color:var(--mute);text-transform:uppercase;margin-top:18px}
+.empty{color:var(--faint);font-size:14px;padding:6px 2px}
+.hide{display:none!important}
+.join .gs{display:none}
+@media (max-width:430px){.brand .live{display:none}.brand{letter-spacing:.2em;gap:8px}.tone button{padding:5px 8px}.join .gd{display:none}.join .gs{display:inline}.join{padding:7px 11px}}
 </style>
 </head>
 <body>
-<div class="demo">Demo with sample people and data. Nothing is sent. <a href="https://dioma.life">Back to dioma.life</a></div>
+<div class="demo">Demo with made-up people and data. Nothing is sent. <a href="https://dioma.life">Back to dioma.life</a></div>
 <div class="top"><div class="wrap bar">
-  <div class="brand"><svg class="dlogo" width="24" height="24" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle class="ring" cx="10" cy="10" r="8.5" stroke="#fff" stroke-width="1.3" stroke-dasharray="46 7.4" stroke-linecap="round"/><circle cx="10" cy="10" r="3.2" fill="var(--y)"/></svg>DIOMA <span class="live"><i></i>DEMO</span></div>
-  <a class="join" id="join" target="_blank" rel="noopener">Get Dioma</a>
+  <div class="brand"><svg class="dlogo" width="22" height="22" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle class="ring" cx="10" cy="10" r="8.5" stroke="#fff" stroke-width="1.3" stroke-dasharray="46 7.4" stroke-linecap="round"/><circle cx="10" cy="10" r="3.2" fill="var(--y)"/></svg>DIOMA <span class="live"><i></i>DEMO</span></div>
+  <div class="tr"><div class="tone" role="group" aria-label="Colour"><button type="button" data-tone="mono" aria-pressed="false"><i style="background:#fff"></i><span>Mono</span></button><button type="button" data-tone="sun" aria-pressed="true"><i style="background:#FFB547"></i><span>Sunrise</span></button></div>
+  <a class="join" id="join" target="_blank" rel="noopener"><span class="gd">Get Dioma</span><span class="gs">Join</span></a></div>
 </div></div>
 
 <main class="wrap" id="view"></main>
-
+<button class="fab" id="fab" aria-label="Ask Dioma"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7-4.7-1.8 4.7-1.8z"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></svg></button>
 <nav class="bnav" aria-label="Demo sections"><div class="in" id="nav"></div></nav>
 <div class="toast" id="toast" role="status"></div>
 
 <script>
 const WA = 'https://wa.me/971585155559?text=' + encodeURIComponent("Hi Dioma! I tried the demo and I'm ready to change my life. I'd like early access.");
 document.getElementById('join').href = WA;
-const $ = (s) => document.querySelector(s);
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const toast = (t) => { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 2200); };
-const ICONS = {
-  home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
-  mail: '<rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 6.5l8.5 6 8.5-6" fill="none" stroke="currentColor" stroke-width="1.8"/>',
-  wa: '<path d="M4 20l1.3-3.8A8 8 0 1 1 8 19z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
-  biz: '<rect x="3" y="7" width="18" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 7V5h6v2" fill="none" stroke="currentColor" stroke-width="1.8"/>',
-  wealth: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
-  ai: '<path d="M12 3l1.8 4.7L18.5 9.5 13.8 11.3 12 16l-1.8-4.7L5.5 9.5l4.7-1.8z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" fill="currentColor"/>'
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const toast = (t) => { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 2400); };
+const SIG = '\n\nBest regards,\nSara Khan\nSwift Cold Logistics';
+
+// ---- tone (Mono / Sunrise) ----
+function setTone(t) {
+  if (t === 'mono') document.documentElement.dataset.tone = 'mono'; else delete document.documentElement.dataset.tone;
+  $$('[data-tone]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tone === t)));
+  try { localStorage.setItem('dioma-tone', t); } catch {}
+}
+try { setTone(localStorage.getItem('dioma-tone') || 'sun'); } catch { setTone('sun'); }
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-tone]'); if (b) { setTone(b.dataset.tone); if (S.tab === 'more' && S.more === 'settings') render(); } });
+
+const IC = {
+  home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  assistant: '<rect x="4" y="4" width="16" height="16" rx="4"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
+  pulse: '<path d="M3 12h4l2-6 4 12 2-6h6"/>',
+  wealth: '<path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/>',
+  more: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
+  files: '<path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2h8.5A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"/>',
+  career: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5h6v2"/>',
+  grow: '<path d="M12 21V11M12 11C12 7 9 5 5 5c0 4 3 6 7 6zM12 13c0-3 2.5-5 6-5 0 3.5-2.5 5-6 5z"/>',
+  set: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>',
+  cal: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
 };
-const TABS = [['home', 'Home'], ['mail', 'Mail'], ['wa', 'WhatsApp'], ['biz', 'Business'], ['wealth', 'Wealth'], ['ai', 'Ask']];
+const NAV = [['home', 'Home'], ['assistant', 'Assistant'], ['pulse', 'Pulse'], ['wealth', 'Wealth'], ['more', 'More']];
+const SUBS = [['me', 'Me'], ['wa', 'WhatsApp'], ['mail', 'Mail'], ['cal', 'Calendar'], ['biz', 'Business'], ['ai', 'Ask']];
 
 // ---- sample data (all fictional) ----
 const D = {
-  mail: {
-    action: [
-      { id: 'm1', from: 'Noor Al Hashimi · Falcon Freight', subj: 'Rates for December chilled trips', act: 'Send the December rate card and confirm the 2 extra trucks', urgent: true, snip: 'Hi, can you share December rates and confirm if two extra chillers are possible from the 3rd?', draft: 'Hi Noor,\n\nThanks for reaching out. Our December chilled rates are attached (same as November). Two extra trucks from 3 December are confirmed.\n\nBest regards' },
-      { id: 'm2', from: 'Daniel Moore · Harbor Foods', subj: 'Meeting on Tuesday?', act: 'Reply with a time: you are free Tuesday 11:00 and 15:00', snip: 'Would Tuesday work for a quick catch-up at our office in DIP?', draft: 'Hi Daniel,\n\nTuesday works. I can come to DIP at 11:00 or 15:00, whichever suits you.\n\nBest regards' },
-      { id: 'm3', from: 'Accounts · Sky Mart', subj: 'Missing PO number on INV-1042', act: 'Add PO 77812 to the invoice and resend', snip: 'Please add our PO number 77812 to the invoice so we can process payment.', draft: 'Hello,\n\nThank you. I have added PO 77812 and attached the updated invoice.\n\nBest regards' }
-    ],
-    unread: [
-      { from: 'Emirates NBD', subj: 'Your statement is ready', snip: 'Your November statement is now available.' },
-      { from: 'Lina · Student Council', subj: 'Guest talk next week', snip: 'Would you speak to our business students on Thursday?' }
-    ],
-    inbox: [
-      { from: 'Noor Al Hashimi', subj: 'Rates for December chilled trips', snip: 'Hi, can you share December rates…' },
-      { from: 'Daniel Moore', subj: 'Meeting on Tuesday?', snip: 'Would Tuesday work for a quick…' },
-      { from: 'Accounts · Sky Mart', subj: 'Missing PO number on INV-1042', snip: 'Please add our PO number…' },
-      { from: 'LinkedIn', subj: '5 people viewed your profile', snip: 'See who is interested in you.' }
-    ],
-    sent: [{ from: 'To: Omar · Desert Cold', subj: 'Re: Proposal signed', snip: 'Great, we start on the 1st.' }],
-    drafts: [{ from: 'To: Harbor Foods', subj: 'Quotation for weekly trips', snip: 'Dear team, please find…' }]
-  },
   wa: [
-    { name: 'Ahmed (driver)', last: 'Truck 3 tyre is low, can I go to the garage first?', ago: '9m', draft: 'Yes, go to the garage first and send me the bill photo. Tell the client you will be 30 min late.' },
-    { name: 'Mum', last: 'Are you coming for dinner on Friday?', ago: '1h', draft: 'Yes Amma, I will be there by 8. Do you need anything from the shop?' },
-    { name: 'Priya · Bright Kids', last: 'Can we get the invoice copy again?', ago: '3h', draft: 'Sure Priya, sending the invoice copy now. Let me know if you need anything else.' }
-  ]
+    { id: 'w1', name: 'Ahmed (driver)', ini: 'AH', ago: '9m', unread: 2, urgent: true, msgs: [['them', 'Good morning boss', '08:41'], ['them', 'Truck 3 tyre is low, can I go to the garage first?', '08:42']], draft: 'Yes, go to the garage first and send me the bill photo. Tell Harbor Foods you will be 30 minutes late.' },
+    { id: 'w2', name: 'Priya · Bright Kids', ini: 'PR', ago: '1h', unread: 1, msgs: [['me', 'Hi Priya, invoice INV-1038 is attached.', 'Tue'], ['them', 'Thanks! Can you send the copy again? Our accounts lost it.', '09:55']], draft: 'Sure Priya, sending INV-1038 again now. Let me know if anything else is needed.', attach: 'INV-1038.pdf' },
+    { id: 'w3', name: 'Mum', ini: 'MU', ago: '3h', unread: 1, msgs: [['them', 'Are you coming for dinner on Friday?', '07:30']], draft: 'Yes Amma, I will be there by 8. Do you need anything from the shop?' },
+    { id: 'w4', name: 'Omar · Desert Cold', ini: 'OM', ago: '22d', unread: 0, waiting: 22, msgs: [['me', 'Hi Omar, did you get a chance to review the warehouse quote?', '24 Oct']], draft: 'Hi Omar, just checking in on the warehouse quote from last month. Happy to adjust the storage period if that helps.' },
+    { id: 'w5', name: 'Team · Ops', ini: 'OP', ago: '1d', unread: 0, msgs: [['them', 'All 6 trucks back, temps OK ✅', 'Sat']] },
+  ],
+  mail: [
+    { id: 'm1', box: 'action', from: 'Noor Al Hashimi', org: 'Falcon Freight', email: 'noor@falconfreight.example', subj: 'Rates for December chilled trips', ago: '1h', urgent: true, act: 'Send the December rate card and confirm 2 extra trucks', body: 'Hi Sara,\n\nCan you share December rates for chilled trips, and confirm if two extra chiller trucks are possible from the 3rd?\n\nThanks,\nNoor', draft: 'Hi Noor,\n\nThank you for reaching out. Our December chilled rates are attached and are the same as November. Two extra chiller trucks are confirmed from 3 December.', attach: 'Rate card December.pdf' },
+    { id: 'm2', box: 'action', from: 'Daniel Moore', org: 'Harbor Foods', email: 'daniel@harborfoods.example', subj: 'Meeting on Tuesday?', ago: '3h', act: 'Reply with a time — you are free Tuesday 11:00 or 15:00', body: 'Hi Sara,\n\nWould Tuesday work for a quick catch-up at our office in DIP?\n\nDaniel', draft: 'Hi Daniel,\n\nTuesday works. I can come to your office in DIP at 11:00 or 15:00, whichever suits you.' },
+    { id: 'm3', box: 'action', from: 'Accounts', org: 'Sky Mart', email: 'accounts@skymart.example', subj: 'October trip details — please invoice', ago: '5h', act: 'Create the October invoice from the attached sheet', body: 'Dear Sara,\n\nPlease find attached the trip details for October and share the invoice.\n\nRegards,\nSky Mart Accounts', file: 'October Trip Details.xlsx', biz: true },
+    { id: 'm4', box: 'follow', from: 'Leena Joseph', org: 'Green Basket', email: 'leena@greenbasket.example', subj: 'Proposal: weekly chilled deliveries', ago: '11d', waiting: 11, act: 'No reply for 11 days — send a short follow-up', body: '(You sent this proposal 11 days ago. No reply yet.)', draft: 'Hi Leena,\n\nJust following up on the weekly chilled delivery proposal I shared on the 4th. Happy to walk you through it on a short call this week.' },
+    { id: 'm5', box: 'inbox', from: 'Emirates NBD', subj: 'Your November statement is ready', ago: '1d', body: 'Your statement for November is now available in online banking.' },
+    { id: 'm6', box: 'inbox', from: 'LinkedIn', subj: '5 people viewed your profile', ago: '1d', body: 'See who is interested in you.', promo: true },
+    { id: 'm7', box: 'sent', from: 'To: Omar · Desert Cold', subj: 'Warehouse quote', ago: '22d', body: 'Hi Omar, please find the warehouse quote attached.' },
+  ],
+  cal: [
+    { t: '09:30', end: '10:00', title: 'Daily ops call', where: 'Microsoft Teams', link: 'teams', done: true },
+    { t: '11:00', end: '12:00', title: 'Site visit · Harbor Foods', where: 'Dubai Investments Park, Dubai', map: true },
+    { t: '14:00', end: '14:30', title: 'Falcon Freight · December plan', where: 'Google Meet', link: 'meet' },
+    { t: '18:30', end: '19:30', title: 'Gym', where: 'Personal · can move', personal: true },
+  ],
+  invLines: [['Abu Dhabi trips', 4, 665], ['Dubai trips', 4, 475], ['Dubai additional trip', 1, 80], ['Dubai special trip', 1, 850]],
+  owed: [['Sky Mart', 9200, 18], ['Bright Kids', 5700, 9], ['Harbor Foods', 3500, -3]],
+  leads: [['Green Basket', 'Proposal sent · waiting 11 days', 'warm'], ['Fresh Fold Kitchens', 'Asked for a quote yesterday', 'hot'], ['Al Noor Bakery', 'Met at networking event', 'new']],
+  pulse: [
+    ['UAE', 'Sample: New logistics corridor announced between Dubai and Abu Dhabi ports', 'Why it matters to you: shorter port-to-warehouse runs for chilled cargo.'],
+    ['Business', 'Sample: Food-delivery volumes up in the GCC this quarter', 'Opportunity: more chilled last-mile demand. Two of your leads are in food.'],
+    ['AI', 'Sample: New AI tools can plan delivery routes in minutes', 'Try it: Dioma can draft a route plan for tomorrow’s 6 trucks.'],
+    ['Money', 'Sample: Fuel price for next month published', 'Your fuel cost could move by about AED 300 next month.'],
+  ],
 };
-let tab = 'home', folder = 'action', done = {}, sent = {}, invState = 0, chatLog = [];
+const S = { tab: 'home', sub: 'me', meSeg: 'today', mailBox: 'action', openMail: null, openWa: null, more: null, folder: '', done: new Set(), notNeeded: new Set(), sent: {}, inv: 0, chat: [], todos: [
+  { id: 1, t: 'Renew trade licence', due: 'Thu', done: false },
+  { id: 2, t: 'Pay Salik top-up', due: 'Today', done: false },
+  { id: 3, t: 'Book truck 5 service', due: '', done: false },
+], files: [
+  { n: 'Passport — Sara.pdf', f: 'Personal/IDs', s: '1.2 MB' }, { n: 'Emirates ID.jpg', f: 'Personal/IDs', s: '640 KB' }, { n: 'Driving licence.jpg', f: 'Personal/IDs', s: '410 KB' },
+  { n: 'Trade licence 2026.pdf', f: 'Business/Swift Cold', s: '880 KB' }, { n: 'VAT certificate.pdf', f: 'Business/Swift Cold', s: '320 KB' }, { n: 'Rate card December.pdf', f: 'Business/Swift Cold', s: '210 KB' },
+  { n: 'INV-1038.pdf', f: 'Business/Swift Cold/Invoices', s: '96 KB' }, { n: 'Tenancy contract.pdf', f: 'Personal', s: '2.1 MB' },
+], invNo: 1043 };
 
-function render() {
-  $('#nav').innerHTML = TABS.map(([id, l]) => `<button type="button" data-t="${id}" aria-current="${tab === id}"><span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[id]}</svg></span>${l}${id === 'mail' && left() ? `<span class="badge">${left()}</span>` : ''}${id === 'wa' && waLeft() ? `<span class="badge">${waLeft()}</span>` : ''}</button>`).join('');
-  document.querySelectorAll('#nav button').forEach((b) => b.onclick = () => { tab = b.dataset.t; render(); scrollTo({ top: 0, behavior: 'smooth' }); });
-  $('#view').innerHTML = VIEWS[tab]();
-  (BIND[tab] || (() => {}))();
+// ---- derived ----
+const waOpen = () => D.wa.filter((c) => (c.draft && c.unread || c.waiting) && !S.done.has(c.id) && !S.notNeeded.has(c.id));
+const mailOpen = () => D.mail.filter((m) => (m.box === 'action' || m.box === 'follow') && !S.done.has(m.id) && !S.notNeeded.has(m.id));
+const openTodos = () => S.todos.filter((t) => !t.done);
+function actions() {
+  const a = [];
+  waOpen().forEach((c) => a.push({ id: c.id, src: 'WhatsApp', who: c.name, what: c.waiting ? `No reply for ${c.waiting} days — follow up` : c.msgs[c.msgs.length - 1][1], urgent: c.urgent, go: () => { S.sub = 'wa'; S.openWa = c.id; } }));
+  mailOpen().forEach((m) => a.push({ id: m.id, src: 'Mail', who: `${m.from}${m.org ? ' · ' + m.org : ''}`, what: m.act, urgent: m.urgent, go: () => { S.sub = m.biz ? 'biz' : 'mail'; S.openMail = m.biz ? null : m.id; } }));
+  if (!S.done.has('meet')) a.push({ id: 'meet', src: 'Calendar', who: 'Daniel Moore · Harbor Foods', what: 'Wants to meet Tuesday — accept 11:00 in person?', go: () => { S.sub = 'cal'; } });
+  return a.sort((x, y) => (y.urgent ? 1 : 0) - (x.urgent ? 1 : 0));
 }
-const left = () => D.mail.action.filter((m) => !done[m.id]).length;
-const waLeft = () => D.wa.filter((c) => !sent[c.name]).length;
 
-const VIEWS = {
-  home: () => `<div class="eyebrow">Sunday · demo</div><h1>Good morning, <span>Sara</span></h1>
-    <div class="ycard"><div class="lbl">YOUR BRIEF · HOW DOES MY DAY LOOK?</div>
-      <ul><li><b>${left()} emails</b> need your reply, 1 urgent (Falcon Freight rates).</li>
-      <li><b>${waLeft()} WhatsApp chats</b> are waiting, Ahmed needs an answer now.</li>
-      <li>Harbor Foods wants to meet: you are free Tuesday 11:00.</li>
-      <li>New trip sheet attached by Sky Mart: an invoice of <b>AED 5,764.50</b> is ready to check.</li>
-      <li>This month: AED 48,200 in, AED 31,750 out.</li></ul></div>
-    <div class="panel"><h2>Try it</h2>
-      <div class="quick"><button data-go="mail">Reply to my emails</button><button data-go="biz">Create the invoice</button><button data-go="wa">Answer WhatsApp</button><button data-go="wealth">My money</button><button data-go="ai">Ask Dioma</button></div>
-      <p class="sub" style="margin:0">This demo uses made-up people. In your own Dioma, it reads your real Gmail, Outlook, Zoho, WhatsApp and calendar, and nothing is sent until you tap Approve.</p></div>`,
-  mail: () => {
-    const F = [['action', 'To reply'], ['unread', 'Unread'], ['inbox', 'Inbox'], ['sent', 'Sent'], ['drafts', 'Drafts']];
-    let list = '';
-    if (folder === 'action') {
-      const L = D.mail.action.filter((m) => !done[m.id]);
-      list = L.length ? L.map((m) => `<div class="item"><div class="row">${m.urgent ? '<span class="pill y">URGENT</span>' : ''}<span class="ttl">${esc(m.subj)}</span></div><div class="act">→ ${esc(m.act)}</div><div class="sub">${esc(m.from)} · ${esc(m.snip)}</div>
-        <div class="appr hide" id="d-${m.id}"><div class="tag">Reply written by Dioma</div><textarea>${esc(m.draft)}</textarea><div class="row"><button class="btn" data-send="${m.id}">Approve &amp; send</button><button class="ghost" data-cancel="${m.id}">Cancel</button></div></div>
-        <div class="row"><button class="ghost" data-draft="${m.id}">Write reply</button><button class="ghost" data-done="${m.id}">Already replied ✓</button></div></div>`).join('') : '<p class="sub">Nothing waiting on you. 👏</p>';
-    } else list = D.mail[folder].map((m) => `<div class="item"><span class="ttl">${esc(m.subj)}</span><div class="sub">${esc(m.from)} · ${esc(m.snip)}</div></div>`).join('');
-    return `<div class="eyebrow">Mail · personal and business</div><h1>Your <span>mail</span></h1>
-      <div class="panel"><div class="seg">${F.map(([id, l]) => `<button type="button" data-f="${id}" aria-pressed="${folder === id}">${l}${id === 'action' && left() ? ' ' + left() : ''}</button>`).join('')}</div>${list}</div>`;
-  },
-  wa: () => `<div class="eyebrow">WhatsApp</div><h1>Need your <span>reply</span></h1><div class="panel">${D.wa.map((c, i) => `<div class="item"><div class="row sp"><span class="ttl">${esc(c.name)}</span><span class="sub">${c.ago}</span></div><div class="sub">“${esc(c.last)}”</div>${sent[c.name] ? `<div class="done">✓ Sent: ${esc(sent[c.name])}</div>` : `<div class="appr"><div class="tag">Dioma suggests</div><textarea id="w-${i}">${esc(c.draft)}</textarea><div class="row"><button class="btn" data-wa="${i}">Approve &amp; send</button></div></div>`}</div>`).join('')}</div>`,
-  biz: () => {
-    const lines = [['Abu Dhabi trips', 4, 665], ['Dubai trips', 4, 475], ['Dubai additional trip', 1, 80], ['Dubai special trip', 1, 850]];
-    const sub = lines.reduce((a, l) => a + l[1] * l[2], 0), vat = sub * 0.05;
-    return `<div class="eyebrow">Business · invoices</div><h1>Email in, <span>invoice out</span></h1>
-    <div class="panel"><div class="item"><span class="ttl">Sky Mart: October trip details</span><div class="sub">accounts@skymart.example · “Please find attached the trip details for October and share the invoice.”</div><span class="file">📎 October Trip Details.xlsx</span></div>
-      ${invState === 0 ? `<button class="btn" id="mk">Ask Dioma: “Read the file and create the invoice”</button>` : ''}
-      <div class="steps" id="steps">${invState ? ['Found the email from Sky Mart', 'Opened October Trip Details.xlsx', 'Totalled 10 trips', 'Found Sky Mart in Zoho Books', 'Added 5% VAT'].map((t) => `<div class="step on">${t}</div>`).join('') : ''}</div>
-      ${invState >= 1 ? `<div class="appr"><div class="tag">Invoice · Zoho Books · waiting for your OK</div><pre>To: Sky Mart (accounts@skymart.example)
-${lines.map((l) => `• ${l[0]}: ${l[1]} × ${l[2]} = ${(l[1] * l[2]).toLocaleString()}`).join('\n')}
+// ---- render ----
+function render() {
+  const n = actions().length;
+  $('#nav').innerHTML = NAV.map(([id, l]) => `<button type="button" data-nav="${id}" aria-current="${S.tab === id}"><span class="ic"><svg viewBox="0 0 24 24">${IC[id]}</svg></span>${l}${id === 'assistant' && n ? `<span class="badge">${n}</span>` : ''}</button>`).join('');
+  $('#view').innerHTML = V[S.tab]();
+  $('#fab').classList.toggle('hide', S.tab === 'assistant' && S.sub === 'ai');
+  B[S.tab]?.();
+  $$('[data-w]').forEach((i) => requestAnimationFrame(() => (i.style.width = i.dataset.w + '%')));
+}
+const go = (tab, sub) => { S.tab = tab; if (sub) S.sub = sub; S.openMail = null; S.openWa = null; S.more = null; render(); scrollTo({ top: 0 }); };
+document.addEventListener('click', (e) => {
+  const nv = e.target.closest('[data-nav]'); if (nv) return go(nv.dataset.nav);
+  const g = e.target.closest('[data-go]'); if (g) { const [t, s] = g.dataset.go.split(':'); return go(t, s); }
+});
+$('#fab').onclick = () => go('assistant', 'ai');
+
+const V = {};
+const B = {};
+
+// ---------- Home ----------
+V.home = () => {
+  const a = actions();
+  return `<div class="eyebrow">Sunday 15 Nov · Dubai 24°</div><h1>Good morning, <span>Sara</span></h1><div class="sun"></div>
+  <div class="ycard"><div class="lbl">YOUR BRIEF</div><ul>
+    <li><b>${a.length} things</b> need you today${a.some((x) => x.urgent) ? ', 1 urgent: Falcon Freight wants December rates' : ''}.</li>
+    <li><b>11:00</b> site visit at Harbor Foods, DIP. Leave by 10:25 — 18 min drive.</li>
+    <li>Sky Mart sent October trips: an invoice of <b>AED 5,764.50</b> is ready to check.</li>
+    <li>Money: AED 18.4k owed to you, Sky Mart is 18 days late.</li>
+    <li>Gym at 18:30 can move if Falcon Freight runs long.</li></ul></div>
+  <div class="panel"><div class="row sp"><h2>Do these first</h2><button class="ghost" data-go="assistant:me">All ${a.length}</button></div>
+    ${a.slice(0, 3).map((x, i) => `<div class="item click" data-act="${x.id}"><div class="row"><span class="pill ${x.urgent ? 'y' : ''}">${x.urgent ? 'Urgent' : x.src}</span><span class="ttl grow">${esc(x.who)}</span></div><div class="act">→ ${esc(x.what)}</div></div>`).join('') || '<p class="empty">All clear. Nice work.</p>'}</div>
+  <div class="panel"><div class="row sp"><h2>Today</h2><button class="ghost" data-go="assistant:cal">Calendar</button></div>
+    ${D.cal.map((c) => `<div class="row" style="${c.done ? 'opacity:.45' : ''}"><span class="when">${c.t}</span><div class="grow"><div class="ttl">${esc(c.title)}</div><div class="sub">${esc(c.where)}</div></div>${c.link && !c.done ? '<span class="pill">Join</span>' : c.map ? '<span class="pill">Map</span>' : ''}</div>`).join('')}</div>
+  <div class="grid2">
+    <button class="tile" data-go="assistant:biz"><svg class="ico" viewBox="0 0 24 24">${IC.career}</svg><b>Business</b><span class="sub">1 invoice to check · 3 leads</span></button>
+    <button class="tile" data-go="wealth"><svg class="ico" viewBox="0 0 24 24">${IC.wealth}</svg><b>Wealth</b><span class="sub">AED 16.4k kept this month</span></button>
+    <button class="tile" data-go="pulse"><svg class="ico" viewBox="0 0 24 24">${IC.pulse}</svg><b>Pulse</b><span class="sub">4 stories for your work</span></button>
+    <button class="tile" data-go="more"><svg class="ico" viewBox="0 0 24 24">${IC.files}</svg><b>Files</b><span class="sub">${S.files.length} documents kept safe</span></button>
+  </div>
+  <p class="sub" style="margin:18px 0 0">Everything here is a demo. In your own Dioma it reads your real WhatsApp, Gmail, Outlook, Zoho and calendar — and nothing is sent until you tap Approve.</p>`;
+};
+B.home = () => $$('[data-act]').forEach((el) => (el.onclick = () => { const x = actions().find((a) => a.id === el.dataset.act); S.tab = 'assistant'; x.go(); render(); scrollTo({ top: 0 }); }));
+
+// ---------- Assistant ----------
+V.assistant = () => `<div class="eyebrow">Assistant</div>
+  <div class="seg" style="margin:8px 0 4px">${SUBS.map(([k, l]) => { const c = k === 'wa' ? waOpen().length : k === 'mail' ? mailOpen().filter((m) => !m.biz).length : k === 'me' ? actions().length : 0; return `<button type="button" data-sub="${k}" aria-pressed="${S.sub === k}">${l}${c ? ' · ' + c : ''}</button>`; }).join('')}</div>
+  <div id="subv">${SV[S.sub]()}</div>`;
+B.assistant = () => { $$('[data-sub]').forEach((b) => (b.onclick = () => { S.sub = b.dataset.sub; S.openMail = null; S.openWa = null; render(); })); SB[S.sub]?.(); };
+const SV = {}, SB = {};
+
+// Me
+SV.me = () => {
+  const a = actions();
+  const seg = `<div class="seg" style="margin-top:12px">${[['today', 'Me · today'], ['todo', `To-do · ${openTodos().length}`], ['follow', 'Follow-ups']].map(([k, l]) => `<button data-me="${k}" aria-pressed="${S.meSeg === k}">${l}</button>`).join('')}</div>`;
+  if (S.meSeg === 'todo') return seg + `<div class="panel"><form class="row" id="addt"><input class="field grow" id="tt" placeholder="Add a to-do" maxlength="120"><button class="btn">Add</button></form>
+    ${S.todos.map((t) => `<div class="item ${t.done ? 'strike' : ''}"><div class="row"><button class="chk ${t.done ? 'on' : ''}" data-td="${t.id}" aria-label="Done"></button><span class="ttl grow">${esc(t.t)}</span>${t.due ? `<span class="pill ${t.due === 'Today' && !t.done ? 'y' : ''}">${t.due}</span>` : ''}</div></div>`).join('')}</div>`;
+  if (S.meSeg === 'follow') {
+    const owe = a.filter((x) => !/No reply for/.test(x.what));
+    const wait = [...D.wa.filter((c) => c.waiting && !S.done.has(c.id) && !S.notNeeded.has(c.id)).map((c) => [c.id, c.name, 'WhatsApp', c.waiting, 20]), ...D.mail.filter((m) => m.waiting && !S.done.has(m.id) && !S.notNeeded.has(m.id)).map((m) => [m.id, `${m.from} · ${m.org}`, 'Mail', m.waiting, 10])];
+    return seg + `<div class="panel"><h2>You owe a reply · ${owe.length}</h2>${owe.map((x) => `<div class="row"><span class="dot"></span><span class="grow">${esc(x.who)}</span><span class="pill">${x.src}</span></div>`).join('') || '<p class="empty">Nobody is waiting on you.</p>'}</div>
+      <div class="panel"><h2>Waiting on them · ${wait.length}</h2>${wait.map(([id, who, src, d, rule]) => `<div class="item"><div class="row"><span class="ttl grow">${esc(who)}</span><span class="pill ${d >= rule ? 'y' : ''}">${d} days</span></div><div class="sub">${src} follow-up rule: every ${rule} days${d >= rule ? ' — time to nudge' : ''}</div><div class="row"><button class="ghost" data-fu="${id}">Write follow-up</button><button class="ghost" data-nn="${id}">Not needed</button></div></div>`).join('') || '<p class="empty">Nothing to chase.</p>'}
+      <p class="sub" style="margin:0">Dioma checks WhatsApp and every mailbox before suggesting a follow-up. If you already replied somewhere else, it disappears.</p></div>`;
+  }
+  return seg + `<div class="panel"><h2>Needs you · ${a.length}</h2>
+    ${a.map((x) => `<div class="item" id="a-${x.id}"><div class="row"><span class="pill ${x.urgent ? 'y' : ''}">${x.urgent ? 'Urgent · ' : ''}${x.src}</span><span class="ttl grow">${esc(x.who)}</span></div><div class="act">→ ${esc(x.what)}</div>
+      <div class="row"><button class="ghost" data-open="${x.id}">Open &amp; reply</button><button class="ghost" data-dn="${x.id}">Done ✓</button><button class="ghost" data-nn="${x.id}">Not needed</button></div></div>`).join('') || '<p class="empty">All clear for today. 🎉</p>'}</div>`;
+};
+SB.me = () => {
+  $$('[data-me]').forEach((b) => (b.onclick = () => { S.meSeg = b.dataset.me; render(); }));
+  $$('[data-open]').forEach((b) => (b.onclick = () => { actions().find((a) => a.id === b.dataset.open).go(); render(); scrollTo({ top: 0 }); }));
+  $$('[data-dn]').forEach((b) => (b.onclick = () => { S.done.add(b.dataset.dn); render(); toast('Done — removed everywhere'); }));
+  $$('[data-nn]').forEach((b) => (b.onclick = () => { S.notNeeded.add(b.dataset.nn); render(); toast('Got it — Dioma won’t suggest this again'); }));
+  $$('[data-fu]').forEach((b) => (b.onclick = () => { const id = b.dataset.fu; if (id.startsWith('w')) { S.sub = 'wa'; S.openWa = id; } else { S.sub = 'mail'; S.openMail = id; } render(); scrollTo({ top: 0 }); }));
+  $$('[data-td]').forEach((b) => (b.onclick = () => { const t = S.todos.find((x) => x.id === +b.dataset.td); t.done = !t.done; render(); }));
+  const f = $('#addt'); if (f) f.onsubmit = (e) => { e.preventDefault(); const v = $('#tt').value.trim(); if (!v) return; S.todos.unshift({ id: Date.now(), t: v, due: '', done: false }); render(); toast('Added'); };
+};
+
+// WhatsApp
+SV.wa = () => {
+  if (S.openWa) {
+    const c = D.wa.find((x) => x.id === S.openWa);
+    const msgs = [...c.msgs, ...(S.sent[c.id] ? [['me', S.sent[c.id], 'now']] : [])];
+    const show = c.draft && !S.sent[c.id];
+    return `<button class="back" data-back>‹ Chats</button><div class="row" style="margin:6px 0 12px"><span class="av">${c.ini}</span><div class="grow"><div class="ttl">${esc(c.name)}</div><div class="sub">WhatsApp · personal</div></div></div>
+      <div class="panel"><div class="chat">${msgs.map(([w, t, tm]) => `<div class="msg ${w}">${esc(t)}<span class="t">${tm}${w === 'me' ? ' ✓✓' : ''}</span></div>`).join('')}</div></div>
+      ${show ? `<div class="appr"><div class="tag">Reply written by Dioma</div><textarea id="wad">${esc(c.draft)}</textarea>${c.attach ? `<span class="file">📎 ${esc(c.attach)} · from Files</span>` : ''}<div class="row"><button class="btn" id="was">Approve &amp; send</button><button class="ghost" data-nn2="${c.id}">Not needed</button></div></div>`
+        : S.sent[c.id] ? '<p class="done">✓ Sent from your WhatsApp (demo — nothing really sent)</p>' : ''}`;
+  }
+  return `<div class="panel" style="padding:6px 12px">${D.wa.map((c) => { const open = waOpen().includes(c); return `<div class="row click" data-wa="${c.id}" style="padding:11px 0;border-bottom:1px solid var(--line);cursor:pointer"><span class="av">${c.ini}</span><div class="grow"><div class="row sp"><span class="ttl">${esc(c.name)}</span><span class="sub">${c.ago}</span></div><div class="sub">${S.sent[c.id] ? 'You: ' + esc(S.sent[c.id]) : esc(c.msgs[c.msgs.length - 1][1])}</div></div>${open && c.unread ? `<span class="badge" style="position:static">${c.unread}</span>` : open && c.waiting ? '<span class="pill y">Follow up</span>' : ''}</div>`; }).join('')}</div>
+    <p class="sub">Dioma reads your chats, writes replies in your style, and attaches files from your Files when someone asks for a document.</p>`;
+};
+SB.wa = () => {
+  $$('[data-wa]').forEach((r) => (r.onclick = () => { S.openWa = r.dataset.wa; render(); scrollTo({ top: 0 }); }));
+  const bk = $('[data-back]'); if (bk) bk.onclick = () => { S.openWa = null; render(); };
+  const s = $('#was'); if (s) s.onclick = () => { S.sent[S.openWa] = $('#wad').value; S.done.add(S.openWa); render(); toast('Demo: sent ✓ — and removed from your to-dos'); };
+  const nn = $('[data-nn2]'); if (nn) nn.onclick = () => { S.notNeeded.add(nn.dataset.nn2); S.openWa = null; render(); toast('Won’t suggest this again'); };
+};
+
+// Mail
+SV.mail = () => {
+  if (S.openMail) {
+    const m = D.mail.find((x) => x.id === S.openMail);
+    const showDraft = m.draft && !S.done.has(m.id) && !S.notNeeded.has(m.id);
+    return `<button class="back" data-back>‹ Mail</button><h1 style="font-size:24px;margin-top:8px">${esc(m.subj)}</h1>
+      <div class="panel"><div class="row"><span class="av">${esc(m.from.slice(0, 2).toUpperCase())}</span><div class="grow"><div class="ttl">${esc(m.from)}${m.org ? ' · ' + esc(m.org) : ''}</div><div class="sub">${esc(m.email || '')} · ${m.ago} ago</div></div></div>
+      <div style="white-space:pre-wrap">${esc(m.body)}</div>${m.file ? `<span class="file">📎 ${esc(m.file)}</span>` : ''}</div>
+      ${showDraft ? `<div class="appr"><div class="tag">Reply written by Dioma · from sara@swiftcold.example</div><textarea id="md">${esc(m.draft + SIG)}</textarea>
+        <div class="row" id="atts">${m.attach ? `<span class="file">📎 ${esc(m.attach)}</span>` : ''}</div>
+        <div class="row"><button class="btn" id="ms">Send</button><button class="ghost" id="ma">Attach from Files</button><button class="ghost" data-nn2="${m.id}">Not needed</button></div><div id="pick"></div></div>`
+        : S.done.has(m.id) ? '<p class="done">✓ Replied (demo — nothing really sent)</p>' : ''}`;
+  }
+  const F = [['action', 'To reply'], ['follow', 'Follow up'], ['inbox', 'Inbox'], ['sent', 'Sent']];
+  const L = D.mail.filter((m) => m.box === S.mailBox && !m.biz && !(['action', 'follow'].includes(S.mailBox) && (S.done.has(m.id) || S.notNeeded.has(m.id))));
+  return `<div class="row" style="margin:12px 0 0"><input class="field grow" id="ms2" placeholder="Search all mailboxes — try “Falcon”"></div>
+    <div class="seg" style="margin-top:10px">${F.map(([k, l]) => `<button data-box="${k}" aria-pressed="${S.mailBox === k}">${l}</button>`).join('')}</div>
+    <div class="panel" id="ml">${L.map((m) => `<div class="item click" data-m="${m.id}"><div class="row">${m.urgent ? '<span class="pill y">Urgent</span>' : ''}${m.waiting ? `<span class="pill">${m.waiting} days</span>` : ''}<span class="ttl grow">${esc(m.subj)}</span><span class="sub">${m.ago}</span></div><div class="sub">${esc(m.from)}${m.org ? ' · ' + esc(m.org) : ''}</div>${m.act ? `<div class="act">→ ${esc(m.act)}</div>` : ''}</div>`).join('') || '<p class="empty">Nothing here. 👏</p>'}</div>
+    <p class="sub">Personal Gmail and company Zoho in one list. Promotions are kept out of your way.</p>`;
+};
+SB.mail = () => {
+  $$('[data-box]').forEach((b) => (b.onclick = () => { S.mailBox = b.dataset.box; render(); }));
+  $$('[data-m]').forEach((r) => (r.onclick = () => { S.openMail = r.dataset.m; render(); scrollTo({ top: 0 }); }));
+  const q = $('#ms2'); if (q) q.oninput = () => { const v = q.value.toLowerCase(); const hits = D.mail.filter((m) => (m.subj + m.from + (m.org || '') + m.body).toLowerCase().includes(v)); $('#ml').innerHTML = v ? hits.map((m) => `<div class="item click" data-m="${m.id}"><span class="ttl">${esc(m.subj)}</span><div class="sub">${esc(m.from)} · ${m.box}</div></div>`).join('') || '<p class="empty">No match.</p>' : ''; $$('[data-m]').forEach((r) => (r.onclick = () => { S.openMail = r.dataset.m; render(); })); if (!v) render(); };
+  const bk = $('[data-back]'); if (bk) bk.onclick = () => { S.openMail = null; render(); };
+  const s = $('#ms'); if (s) s.onclick = () => { S.done.add(S.openMail); render(); toast('Demo: sent once ✓ — removed from Me and Mail'); };
+  const nn = $('[data-nn2]'); if (nn) nn.onclick = () => { S.notNeeded.add(nn.dataset.nn2); S.openMail = null; render(); toast('Won’t suggest this again'); };
+  const a = $('#ma'); if (a) a.onclick = () => { $('#pick').innerHTML = `<div class="item">${S.files.slice(0, 6).map((f, i) => `<button class="ghost" data-pf="${i}" style="justify-content:flex-start;text-align:left">📎 ${esc(f.n)} <span class="sub">· ${esc(f.f)}</span></button>`).join('')}</div>`; $$('[data-pf]').forEach((b) => (b.onclick = () => { $('#atts').insertAdjacentHTML('beforeend', `<span class="file">📎 ${esc(S.files[+b.dataset.pf].n)}</span>`); $('#pick').innerHTML = ''; })); };
+};
+
+// Calendar
+SV.cal = () => `<div class="panel" style="margin-top:14px"><h2>Today · Sunday 15 Nov</h2>
+  ${D.cal.map((c) => `<div class="item" style="${c.done ? 'opacity:.45' : ''}"><div class="row"><span class="when">${c.t}</span><div class="grow"><div class="ttl">${esc(c.title)}</div><div class="sub">${c.t}–${c.end} · ${esc(c.where)}</div></div>
+    ${c.link && !c.done ? `<button class="ghost" data-join="${c.link}">Join ${c.link === 'teams' ? 'Teams' : 'Meet'}</button>` : c.map ? '<button class="ghost" data-mapb>Map ↗</button>' : c.personal ? '<span class="pill">Can move</span>' : ''}</div></div>`).join('')}</div>
+  ${S.done.has('meet') ? '<div class="panel"><p class="done">✓ Tuesday 11:00 at Harbor Foods added, and Daniel has a reply waiting for your OK in Mail.</p></div>' : `<div class="appr"><div class="tag">Meeting request · found in Mail</div><div><b>Daniel Moore · Harbor Foods</b> wants to meet on Tuesday.</div><div class="sub">You’re free 11:00–12:00 and 15:00–16:00. You prefer to meet in person — their office is in DIP.</div><div class="row"><button class="btn" id="acc">Accept 11:00 in person</button><button class="ghost" id="acc2">Suggest 15:00</button></div></div>`}
+  <p class="sub">Business meetings never move without your OK. Personal things like the gym can be moved to make room.</p>`;
+SB.cal = () => {
+  $$('[data-join]').forEach((b) => (b.onclick = () => toast('Demo: would open the meeting link')));
+  $$('[data-mapb]').forEach((b) => (b.onclick = () => toast('Demo: would open Google Maps')));
+  const a = $('#acc'), a2 = $('#acc2');
+  if (a) a.onclick = () => { S.done.add('meet'); render(); toast('Added to calendar (demo)'); };
+  if (a2) a2.onclick = () => { S.done.add('meet'); render(); toast('Suggested 15:00 (demo)'); };
+};
+
+// Business
+SV.biz = () => {
+  const sub = D.invLines.reduce((s, l) => s + l[1] * l[2], 0), vat = sub * 0.05;
+  const steps = ['Found the email from Sky Mart', 'Opened October Trip Details.xlsx', 'Counted 10 trips', 'Found Sky Mart in your Books', 'Added 5% VAT'];
+  return `<div class="panel" style="margin-top:14px"><h2>Email in, invoice out</h2>
+    <div class="item"><span class="ttl">Sky Mart: October trip details — please invoice</span><div class="sub">accounts@skymart.example · 5h ago</div><span class="file">📎 October Trip Details.xlsx</span></div>
+    ${S.inv === 0 ? '<button class="btn" id="mk">Create the invoice</button>' : ''}
+    <div class="steps" id="steps">${S.inv >= 1 ? steps.map((t) => `<div class="step">${t}</div>`).join('') : ''}</div>
+    ${S.inv >= 1 ? `<div class="appr"><div class="tag">Invoice INV-${S.invNo} · draft · waiting for your OK</div><pre>To: Sky Mart (accounts@skymart.example)
+${D.invLines.map((l) => `• ${l[0]}: ${l[1]} × ${l[2]} = ${(l[1] * l[2]).toLocaleString()}`).join('\n')}
 Subtotal: AED ${sub.toLocaleString()}
 VAT 5%: AED ${vat.toFixed(2)}
-Total: AED ${(sub + vat).toLocaleString(undefined, { minimumFractionDigits: 2 })}</pre>${invState === 1 ? `<div class="row"><button class="btn" id="ok">Approve &amp; send</button><button class="ghost" id="no">Cancel</button></div>` : `<div class="done">✓ INV-1043 created and emailed to Sky Mart, CC your accounts mailbox</div>`}</div>` : ''}
-    </div>
-    <div class="panel"><h2>Money owed to you</h2><div class="stats"><div class="stat"><b>3</b><span>overdue invoices</span></div><div class="stat"><b>18.4k</b><span>AED owed</span></div><div class="stat"><b>12</b><span>days average late</span></div></div><button class="ghost" id="chase">Chase the oldest one</button></div>`;
-  },
-  wealth: () => `<div class="eyebrow">Wealth · this month</div><h1>Where your money <span>goes</span></h1>
-    <div class="panel"><div class="stats"><div class="stat"><b>48.2k</b><span>AED in</span></div><div class="stat"><b>31.8k</b><span>AED out</span></div><div class="stat"><b style="color:var(--y)">16.4k</b><span>kept</span></div></div>
-    <div class="bars">${[['Salaries', 12400], ['Vehicle lease', 7800], ['Fuel', 4300], ['Rent', 3500], ['Salik & fines', 1650], ['Software', 1100], ['Other', 1000]].map(([n, v]) => `<div class="bl"><span>${n}</span><span class="b"><i data-w="${Math.round(v / 12400 * 100)}"></i></span><em>${v.toLocaleString()}</em></div>`).join('')}</div>
-    <p class="sub" style="margin:0">Dioma reads your bank statements (PDF or Excel) and sorts every line. Tip it gives you: Salik and fines are up 40% this month, check which truck.</p></div>`,
-  ai: () => `<div class="eyebrow">Ask Dioma</div><h1>Tell me what <span>you want</span></h1>
-    <div class="panel"><div class="chat" id="chat">${chatLog.length ? chatLog.map((m) => `<div class="msg ${m.me ? 'me' : 'ai'}">${esc(m.t)}</div>`).join('') : '<div class="msg ai">Hi Sara, I am Dioma (demo). Pick a question below.</div>'}</div>
-    <div class="quick">${Object.keys(ANS).map((q) => `<button data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>
-    <p class="sub" style="margin:0">In your own Dioma you can ask anything by typing or voice. The answers come from your own mail, chats, calendar and files.</p></div>`
+<b>Total: AED ${(sub + vat).toLocaleString(undefined, { minimumFractionDigits: 2 })}</b></pre>
+      ${S.inv === 1 ? '<div class="row"><button class="btn" id="ok">Approve &amp; email PDF</button><button class="ghost" id="no">Cancel</button></div>' : '<div class="done">✓ INV-' + S.invNo + ' emailed to Sky Mart as PDF (demo — nothing really sent)</div>'}</div>` : ''}</div>
+  <div class="panel"><div class="row sp"><h2>Money owed to you</h2><span class="pill">AED 18.4k</span></div>
+    ${D.owed.map(([n, v, d]) => `<div class="row"><span class="grow">${n}</span><span class="pill ${d > 14 ? 'bad' : d > 0 ? 'y' : ''}">${d > 0 ? d + ' days late' : 'due in ' + -d + ' days'}</span><b style="width:80px;text-align:right">${v.toLocaleString()}</b></div>`).join('')}
+    <button class="ghost" id="chase">Write a polite reminder to Sky Mart</button><div id="chaseOut"></div></div>
+  <div class="panel"><h2>Purchase orders</h2><div class="item"><div class="row"><span class="ttl grow">PO-0412 · Tyre replacement, truck 3</span><span class="pill">Draft</span></div><div class="sub">To Gulf Tyres · AED 1,260.00 incl. VAT · created from Ahmed’s WhatsApp</div><div class="row"><button class="ghost" id="po">Approve &amp; send</button></div></div></div>
+  <div class="panel"><h2>Leads</h2>${D.leads.map(([n, s, h]) => `<div class="row"><span class="grow"><b>${n}</b><div class="sub">${s}</div></span><span class="pill ${h === 'hot' ? 'y' : ''}">${h}</span></div>`).join('')}</div>`;
 };
+SB.biz = () => {
+  const mk = $('#mk'); if (mk) mk.onclick = () => { mk.disabled = true; mk.textContent = 'Dioma is working…'; const st = $('#steps'); ['Found the email from Sky Mart', 'Opened October Trip Details.xlsx', 'Counted 10 trips', 'Found Sky Mart in your Books', 'Added 5% VAT'].forEach((t, i) => setTimeout(() => st.insertAdjacentHTML('beforeend', `<div class="step">${t}</div>`), 450 * (i + 1))); setTimeout(() => { S.inv = 1; render(); }, 2800); };
+  const ok = $('#ok'); if (ok) ok.onclick = () => { S.inv = 2; S.done.add('m3'); render(); toast('Demo: invoice emailed ✓'); };
+  const no = $('#no'); if (no) no.onclick = () => { S.inv = 0; render(); };
+  const po = $('#po'); if (po) po.onclick = () => { po.outerHTML = '<span class="done">✓ PO-0412 sent to Gulf Tyres (demo)</span>'; };
+  const ch = $('#chase'); if (ch) ch.onclick = () => { $('#chaseOut').innerHTML = `<div class="appr"><div class="tag">Reminder written by Dioma</div><textarea>Dear Sky Mart Accounts,\n\nA gentle reminder that INV-1031 for AED 9,200.00 was due 18 days ago. Could you share the payment date? A copy is attached.${SIG}</textarea><span class="file">📎 INV-1031.pdf</span><div class="row"><button class="btn" onclick="this.closest('.appr').innerHTML='<span class=done>✓ Reminder sent (demo)</span>'">Approve &amp; send</button></div></div>`; };
+};
+
+// Ask
 const ANS = {
-  'How does my day look?': '• 10:00 Call with Falcon Freight (they want December rates)\n• 3 emails need replies, 1 urgent\n• Ahmed is waiting on WhatsApp about truck 3\n• Free from 14:00: good time to finish the Harbor Foods quote',
-  'Who owes me money?': '• Sky Mart: AED 9,200, 18 days late\n• Bright Kids: AED 5,700, 9 days late\n• Harbor Foods: AED 3,500, due Friday\nShall I write a polite reminder to Sky Mart?',
-  'Write a LinkedIn post about our new chiller trucks': 'Cold chain does not take a day off. 🚚❄️\nThis week we added two new chiller trucks to keep fresh food moving across the UAE, on time and at the right temperature.\nThank you to our clients for trusting us with what matters most.\n\n(Shall I post it? Approve to publish.)',
-  'What should I learn this week?': 'Based on your work: 20 minutes a day on AI for logistics planning.\nMonday: what AI can predict (demand, delays)\nWednesday: write better prompts for quotes\nFriday: build one small route plan with AI'
+  'How does my day look?': '• 11:00 site visit at Harbor Foods (leave by 10:25)\n• 14:00 Falcon Freight call — they want December rates; the reply is drafted\n• Ahmed is waiting on WhatsApp about truck 3\n• Gym 18:30 can move if needed',
+  'Who owes me money?': '• Sky Mart: AED 9,200 — 18 days late\n• Bright Kids: AED 5,700 — 9 days late\n• Harbor Foods: AED 3,500 — due in 3 days\nWant me to write a polite reminder to Sky Mart?',
+  'Find my Emirates ID': 'Found it in Files › Personal › IDs: “Emirates ID.jpg” (640 KB). I can attach it to any email or WhatsApp.',
+  'Remind me to call the bank tomorrow': 'Done — added “Call the bank” to your to-do for tomorrow.',
+  'Write a LinkedIn post about our new trucks': 'Cold chain doesn’t take a day off. This week we added two new chiller trucks to keep fresh food moving across the UAE — on time and at the right temperature.\n\nThank you to our clients for trusting us with what matters most.\n\n(Share it? I won’t post without your OK.)',
 };
-const BIND = {
-  home: () => document.querySelectorAll('[data-go]').forEach((b) => b.onclick = () => { tab = b.dataset.go; render(); scrollTo({ top: 0 }); }),
-  mail: () => {
-    document.querySelectorAll('[data-f]').forEach((b) => b.onclick = () => { folder = b.dataset.f; render(); });
-    document.querySelectorAll('[data-draft]').forEach((b) => b.onclick = () => $('#d-' + b.dataset.draft).classList.toggle('hide'));
-    document.querySelectorAll('[data-cancel]').forEach((b) => b.onclick = () => $('#d-' + b.dataset.cancel).classList.add('hide'));
-    document.querySelectorAll('[data-done]').forEach((b) => b.onclick = () => { done[b.dataset.done] = 1; render(); toast('Marked as replied'); });
-    document.querySelectorAll('[data-send]').forEach((b) => b.onclick = () => { done[b.dataset.send] = 1; render(); toast('Demo: reply sent ✓ (nothing really sent)'); });
-  },
-  wa: () => document.querySelectorAll('[data-wa]').forEach((b) => b.onclick = () => { const i = +b.dataset.wa; sent[D.wa[i].name] = $('#w-' + i).value; render(); toast('Demo: WhatsApp sent ✓ (nothing really sent)'); }),
-  biz: () => {
-    const mk = $('#mk'); if (mk) mk.onclick = () => { mk.disabled = true; mk.textContent = 'Dioma is working…'; const st = $('#steps'); const S = ['Found the email from Sky Mart', 'Opened October Trip Details.xlsx', 'Totalled 10 trips', 'Found Sky Mart in Zoho Books', 'Added 5% VAT']; S.forEach((t, i) => setTimeout(() => { const d = document.createElement('div'); d.className = 'step'; d.textContent = t; st.append(d); requestAnimationFrame(() => d.classList.add('on')); if (i === S.length - 1) setTimeout(() => { invState = 1; render(); }, 600); }, 550 * (i + 1))); };
-    const ok = $('#ok'); if (ok) ok.onclick = () => { invState = 2; render(); toast('Demo: invoice sent ✓ (nothing really sent)'); };
-    const no = $('#no'); if (no) no.onclick = () => { invState = 0; render(); };
-    const ch = $('#chase'); if (ch) ch.onclick = () => { tab = 'ai'; chatLog.push({ me: true, t: 'Who owes me money?' }, { t: ANS['Who owes me money?'] }); render(); };
-  },
-  wealth: () => requestAnimationFrame(() => document.querySelectorAll('.bl i').forEach((i) => i.style.width = i.dataset.w + '%')),
-  ai: () => document.querySelectorAll('[data-q]').forEach((b) => b.onclick = () => { const q = b.dataset.q; chatLog.push({ me: true, t: q }); render(); setTimeout(() => { chatLog.push({ t: ANS[q] }); render(); const c = $('#chat'); c && c.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 700); })
+SV.ai = () => `<div class="panel" style="margin-top:14px"><div class="chat" id="chat">${S.chat.length ? S.chat.map((m) => `<div class="msg ${m.me ? 'me' : 'ai'}">${esc(m.t)}</div>`).join('') : '<div class="msg ai">Hi Sara, I’m Dioma. Ask me anything about your day, your money or your files.</div>'}</div>
+  <div class="quick">${Object.keys(ANS).map((q) => `<button data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>
+  <form class="row" id="askf"><input class="field grow" id="askq" placeholder="Type a question…"><button class="btn">Ask</button></form></div>
+  <p class="sub">In your own Dioma, answers come from your real mail, chats, calendar and files — by typing or voice.</p>`;
+SB.ai = () => {
+  const ask = (q) => { S.chat.push({ me: true, t: q }); render(); const c = $('#chat'); c.insertAdjacentHTML('beforeend', '<div class="msg ai" id="typ">…</div>');
+    setTimeout(() => { const k = Object.keys(ANS).find((x) => x.toLowerCase() === q.toLowerCase()) || Object.keys(ANS).find((x) => q.toLowerCase().split(/\W+/).filter((w) => w.length > 3).some((w) => x.toLowerCase().includes(w)));
+      const rm = q.match(/remind me to\s+(.+)/i); const task = rm ? rm[1].replace(/\s*tomorrow\s*$/i, '').replace(/^\w/, (c) => c.toUpperCase()) : '';
+      if (rm) S.todos.unshift({ id: Date.now(), t: task, due: 'Tomorrow', done: false });
+      S.chat.push({ t: rm ? `Done — added “${task}” to your to-do for tomorrow.` : k ? ANS[k] : 'In the demo I only know Sara’s sample day. In your own Dioma I’d answer that from your real mail, chats and files.' }); render(); $('#askq')?.focus(); }, 700); };
+  $$('[data-q]').forEach((b) => (b.onclick = () => ask(b.dataset.q)));
+  $('#askf').onsubmit = (e) => { e.preventDefault(); const v = $('#askq').value.trim(); if (v) ask(v); };
 };
+
+// ---------- Pulse ----------
+V.pulse = () => `<div class="eyebrow">Pulse · picked for your work</div><h1>What <span>matters</span> today</h1>
+  <div class="panel">${D.pulse.map(([c, h, w]) => `<div class="item"><span class="pill" style="justify-self:start">${c}</span><span class="ttl">${esc(h)}</span><div class="act">${esc(w)}</div></div>`).join('')}</div>
+  <p class="sub">Demo headlines are samples. Your Pulse picks real news for your industry, your clients and your money — and says why each one matters to you.</p>`;
+
+// ---------- Wealth ----------
+V.wealth = () => `<div class="eyebrow">Wealth · November</div><h1>Where your money <span>goes</span></h1>
+  <div class="stats"><div class="stat"><b>48.2k</b><span>AED in</span></div><div class="stat"><b>31.8k</b><span>AED out</span></div><div class="stat"><b style="color:var(--y)">16.4k</b><span>kept</span></div></div>
+  <div class="panel"><h2>Spending</h2><div class="bars">${[['Salaries', 12400], ['Vehicle lease', 7800], ['Fuel', 4300], ['Rent', 3500], ['Salik & fines', 1650], ['Software', 1100], ['Other', 1000]].map(([n, v]) => `<div class="bl"><span>${n}</span><span class="b"><i data-w="${Math.round((v / 12400) * 100)}"></i></span><em>${v.toLocaleString()}</em></div>`).join('')}</div>
+    <div class="item"><span class="act">Tip: Salik and fines are up 40% this month — mostly truck 2. Want a list of the fines?</span></div></div>
+  <div class="panel"><h2>Bills due</h2>${[['DEWA', '820', 'in 4 days'], ['du business', '399', 'in 6 days'], ['Truck lease', '7,800', 'on the 1st']].map(([n, v, d]) => `<div class="row"><span class="grow">${n}</span><span class="sub">${d}</span><b style="width:70px;text-align:right">${v}</b></div>`).join('')}</div>
+  <div class="panel"><h2>Savings goal</h2><div class="row sp"><span>Second chiller truck</span><span class="sub">62%</span></div><div class="bl" style="grid-template-columns:1fr"><span class="b"><i data-w="62"></i></span></div><p class="sub" style="margin:0">At this month’s pace you reach it in about 4 months.</p></div>
+  <p class="sub">Dioma reads your bank statements (PDF or Excel) and sorts every line for you.</p>`;
+
+// ---------- More ----------
+V.more = () => {
+  if (S.more === 'files') return filesView();
+  if (S.more === 'settings') return settingsView();
+  if (S.more === 'career') return `<button class="back" data-mb>‹ More</button><h1>Career</h1><div class="panel"><h2>This week</h2>${['Polish your LinkedIn headline — draft ready', 'Ops Director roles: 3 new matches in Dubai', 'Learn: AI for route planning · 20 min'].map((t) => `<div class="item"><span class="ttl">${t}</span></div>`).join('')}</div>`;
+  if (S.more === 'grow') return `<button class="back" data-mb>‹ More</button><h1>Grow</h1><div class="panel"><h2>Habits</h2>${[['Walk 8,000 steps', 70], ['Read 20 minutes', 40], ['Gym 3× this week', 66]].map(([n, p]) => `<div class="row sp"><span>${n}</span><span class="sub">${p}%</span></div><div class="bl" style="grid-template-columns:1fr"><span class="b"><i data-w="${p}"></i></span></div>`).join('')}</div>`;
+  return `<div class="eyebrow">More</div><h1>Everything <span>else</span></h1>
+    <div class="grid2">${[['files', 'Files', `${S.files.length} documents`], ['career', 'Career', 'Jobs and learning'], ['grow', 'Grow', 'Habits and health'], ['settings', 'Settings', 'Colour, apps, account']].map(([k, l, d]) => `<button class="tile" data-mo="${k}"><svg class="ico" viewBox="0 0 24 24">${IC[k === 'settings' ? 'set' : k]}</svg><b>${l}</b><span class="sub">${d}</span></button>`).join('')}</div>`;
+};
+B.more = () => {
+  $$('[data-mo]').forEach((b) => (b.onclick = () => { S.more = b.dataset.mo; S.folder = ''; render(); scrollTo({ top: 0 }); }));
+  $$('[data-mb]').forEach((b) => (b.onclick = () => { S.more = null; render(); }));
+  if (S.more === 'files') filesBind();
+};
+function filesView() {
+  const cur = S.folder;
+  const all = new Set(); S.files.forEach((f) => { const p = f.f.split('/'); for (let i = 1; i <= p.length; i++) all.add(p.slice(0, i).join('/')); });
+  const subs = [...all].filter((f) => cur ? f.startsWith(cur + '/') && !f.slice(cur.length + 1).includes('/') : !f.includes('/'));
+  const here = S.files.filter((f) => f.f === cur);
+  const crumbs = ['', ...cur.split('/').filter(Boolean).map((_, i, a) => a.slice(0, i + 1).join('/'))];
+  return `<button class="back" data-mb>‹ More</button><h1>Files</h1>
+    <div class="row" style="font-size:14px">${crumbs.map((c) => `<button class="back" data-fo="${esc(c)}" style="color:${c === cur ? 'var(--fg)' : 'var(--mute)'}">${c ? esc(c.split('/').pop()) : 'All files'}</button>`).join('<span class="sub">/</span>')}</div>
+    <div class="row" style="margin:10px 0"><label class="btn" style="display:inline-flex;align-items:center">Upload<input type="file" id="fup" multiple hidden></label><span class="sub">Stays on this page — demo only</span></div>
+    <div class="panel" style="padding:6px 12px">
+      ${subs.map((f) => `<div class="row" data-fo="${esc(f)}" style="padding:11px 0;border-bottom:1px solid var(--line);cursor:pointer"><span class="fic"><svg class="ico" viewBox="0 0 24 24" style="width:17px;height:17px">${IC.files}</svg></span><span class="ttl grow">${esc(f.split('/').pop())}</span><span class="sub">${S.files.filter((x) => x.f === f || x.f.startsWith(f + '/')).length}</span></div>`).join('')}
+      ${here.map((f) => `<div class="row" style="padding:11px 0;border-bottom:1px solid var(--line)"><span class="fic">${esc((f.n.split('.').pop() || 'file').slice(0, 4))}</span><div class="grow"><div class="ttl">${esc(f.n)}</div><div class="sub">${esc(f.s)}</div></div><button class="ghost" data-share="${esc(f.n)}">Send</button></div>`).join('')}
+      ${!subs.length && !here.length ? '<p class="empty">Empty folder.</p>' : ''}</div>
+    <p class="sub">Keep passports, IDs, licences and contracts here. Dioma attaches them when someone asks — on WhatsApp or email.</p>`;
+}
+function filesBind() {
+  $$('[data-fo]').forEach((b) => (b.onclick = () => { S.folder = b.dataset.fo; render(); }));
+  $$('[data-share]').forEach((b) => (b.onclick = () => toast(`Demo: “${b.dataset.share}” ready to attach to WhatsApp or email`)));
+  const up = $('#fup'); if (up) up.onchange = () => { [...up.files].forEach((f) => S.files.push({ n: f.name, f: S.folder || 'Personal', s: f.size < 1048576 ? Math.max(1, Math.round(f.size / 1024)) + ' KB' : (f.size / 1048576).toFixed(1) + ' MB' })); if (!S.folder) S.folder = 'Personal'; render(); toast(`${up.files.length} file${up.files.length === 1 ? '' : 's'} added (demo)`); };
+}
+function settingsView() {
+  const t = document.documentElement.dataset.tone === 'mono' ? 'mono' : 'sun';
+  return `<button class="back" data-mb>‹ More</button><h1>Settings</h1>
+    <div class="panel"><h2>Colour</h2><div class="grid2">
+      <button class="tile" data-tone="mono" style="${t === 'mono' ? 'border-color:#fff' : ''}"><span style="display:flex;gap:6px"><i style="width:18px;height:18px;border-radius:50%;background:#fff"></i><i style="width:18px;height:18px;border-radius:50%;background:#2c2c2c"></i></span><b>Mono</b><span class="sub">Black and white, calm</span></button>
+      <button class="tile" data-tone="sun" style="${t === 'sun' ? 'border-color:#FFB547' : ''}"><span style="display:flex;gap:6px"><i style="width:18px;height:18px;border-radius:50%;background:#FFB547"></i><i style="width:18px;height:18px;border-radius:50%;background:#2c2c2c"></i></span><b>Sunrise</b><span class="sub">Warm amber accent</span></button></div></div>
+    <div class="panel"><h2>Connected apps</h2>${[['WhatsApp', 'Personal + Business'], ['Gmail', 'sara@example.com'], ['Zoho Mail', 'sara@swiftcold.example'], ['Calendar', 'Google + Zoho'], ['Books', 'Invoices and POs']].map(([n, d]) => `<div class="row"><span class="grow"><b>${n}</b><div class="sub">${d}</div></span><span class="pill ok">Connected</span></div>`).join('')}</div>
+    <div class="panel"><h2>Rules Dioma follows</h2>${['Nothing is sent without your OK', 'Follow up on email after 10 days, WhatsApp after 20', 'Business meetings never move without you', 'If it isn’t sure, it asks you first'].map((r) => `<div class="row"><span class="dot"></span><span>${r}</span></div>`).join('')}</div>`;
+}
+
 render();
 </script>
 </body>
