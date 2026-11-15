@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Sign up · Dioma</title>
-<meta name="description" content="Create your Dioma account or sign in. Just your email — no password.">
+<meta name="description" content="Create your Dioma account or sign in. Just your email, no password.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14'/%3E%3Ccircle cx='32' cy='32' r='19' fill='none' stroke='%23fff' stroke-width='3' stroke-dasharray='103 16.4' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='32' r='6' fill='%23FFB547'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -40,7 +40,7 @@ ul{margin:0;padding-left:18px;color:var(--dim);font-size:14.5px}li{margin:3px 0}
 <body>
 <main class="wrap">
   <a class="logo" href="https://dioma.life"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle class="ring" cx="10" cy="10" r="8.5" stroke="currentColor" stroke-width="1.4" stroke-dasharray="46 7.4" stroke-linecap="round"/><circle cx="10" cy="10" r="2.8" fill="var(--acc)"/></svg>DIOMA</a>
-  <div style="display:grid;gap:10px"><h1 id="h">Create your Dioma</h1><p class="dim" id="p">Just your email. We send you a 6-digit code — no password.</p></div>
+  <div style="display:grid;gap:10px"><h1 id="h">Create your Dioma</h1><p class="dim" id="p">Just your email. We send you a 6-digit code, no password.</p></div>
   <div class="seg" role="group" aria-label="Sign up or sign in"><button type="button" data-m="up" aria-pressed="true">Sign up</button><button type="button" data-m="in" aria-pressed="false">Sign in</button></div>
   <form class="card" id="f" novalidate>
     <span class="plan" id="plan" hidden></span>
@@ -68,7 +68,7 @@ function setMode(m) {
   mode = m;
   document.querySelectorAll('[data-m]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.m === m)));
   document.getElementById('h').textContent = m === 'up' ? 'Create your Dioma' : 'Welcome back';
-  document.getElementById('p').textContent = m === 'up' ? 'Just your email. We send you a 6-digit code — no password.' : 'Enter your email and we’ll send you a sign-in code.';
+  document.getElementById('p').textContent = m === 'up' ? 'Just your email. We send you a 6-digit code, no password.' : 'Enter your email and we’ll send you a sign-in code.';
   document.getElementById('perks').hidden = m === 'in';
 }
 document.querySelectorAll('[data-m]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.m)));

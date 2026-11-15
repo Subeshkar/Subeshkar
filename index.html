@@ -778,7 +778,7 @@ function moneyView(body,rg){WR=rg;const R=WREG[WR];
   $('#mpv').textContent=MP+' AED'+(MM==='month'?' / month':'');$('#myv').textContent=MY+' year'+(MY>1?'s':'');
   $('#wname').textContent=a.n+' · likely value';$('#mlikely').textContent=aed(fv(MP,r[0],MY,MM))+' AED';$('#msub').textContent=`You put in ${aed(put)} AED`;
   $('#wdesc').innerHTML=`<b>${a.n}.</b> ${a.d}`;
-  $('#mrange').textContent=`${aed(fv(MP,r[1],MY,MM))} – ${aed(fv(MP,r[2],MY,MM))} AED`;$('#mdd').textContent=a.dd?`Could drop ${-a.dd}% at the worst moment`:`No market drops, but inflation slowly shrinks it`;$('#mstart').textContent=R.how[MA];
+  $('#mrange').textContent=`${aed(fv(MP,r[1],MY,MM))} to ${aed(fv(MP,r[2],MY,MM))} AED`;$('#mdd').textContent=a.dd?`Could drop ${-a.dd}% at the worst moment`:`No market drops, but inflation slowly shrinks it`;$('#mstart').textContent=R.how[MA];
   $$('.achips button').forEach((b,i)=>b.classList.toggle('on',i===MA));const y2=r[0]>0?Math.round(72/r[0]):0;$('#x72').innerHTML=r[0]>0?`At about ${r[0]}% a year, money doubles roughly every <b>${y2} years</b>. 1 AED becomes about <b>${(Math.pow(1+r[0]/100,MY)).toFixed(1)} AED</b> in ${MY} years, and about <b>${(Math.pow(1+r[0]/100,30)).toFixed(1)} AED</b> in 30. Anyone promising 10x fast is selling risk.`:''};
  $$('.achips button').forEach(b=>b.onclick=()=>{MA=+b.dataset.a;upd()});
  $$('#mmode button').forEach(b=>b.onclick=()=>{MM=b.dataset.m;$$('#mmode button').forEach(x=>x.setAttribute('aria-pressed',x===b));upd()});

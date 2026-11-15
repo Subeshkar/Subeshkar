@@ -196,9 +196,9 @@ const D = {
   ],
   mail: [
     { id: 'm1', box: 'action', from: 'Noor Al Hashimi', org: 'Falcon Freight', email: 'noor@falconfreight.example', subj: 'Rates for December chilled trips', ago: '1h', urgent: true, act: 'Send the December rate card and confirm 2 extra trucks', body: 'Hi Sara,\n\nCan you share December rates for chilled trips, and confirm if two extra chiller trucks are possible from the 3rd?\n\nThanks,\nNoor', draft: 'Hi Noor,\n\nThank you for reaching out. Our December chilled rates are attached and are the same as November. Two extra chiller trucks are confirmed from 3 December.', attach: 'Rate card December.pdf' },
-    { id: 'm2', box: 'action', from: 'Daniel Moore', org: 'Harbor Foods', email: 'daniel@harborfoods.example', subj: 'Meeting on Tuesday?', ago: '3h', act: 'Reply with a time — you are free Tuesday 11:00 or 15:00', body: 'Hi Sara,\n\nWould Tuesday work for a quick catch-up at our office in DIP?\n\nDaniel', draft: 'Hi Daniel,\n\nTuesday works. I can come to your office in DIP at 11:00 or 15:00, whichever suits you.' },
-    { id: 'm3', box: 'action', from: 'Accounts', org: 'Sky Mart', email: 'accounts@skymart.example', subj: 'October trip details — please invoice', ago: '5h', act: 'Create the October invoice from the attached sheet', body: 'Dear Sara,\n\nPlease find attached the trip details for October and share the invoice.\n\nRegards,\nSky Mart Accounts', file: 'October Trip Details.xlsx', biz: true },
-    { id: 'm4', box: 'follow', from: 'Leena Joseph', org: 'Green Basket', email: 'leena@greenbasket.example', subj: 'Proposal: weekly chilled deliveries', ago: '11d', waiting: 11, act: 'No reply for 11 days — send a short follow-up', body: '(You sent this proposal 11 days ago. No reply yet.)', draft: 'Hi Leena,\n\nJust following up on the weekly chilled delivery proposal I shared on the 4th. Happy to walk you through it on a short call this week.' },
+    { id: 'm2', box: 'action', from: 'Daniel Moore', org: 'Harbor Foods', email: 'daniel@harborfoods.example', subj: 'Meeting on Tuesday?', ago: '3h', act: 'Reply with a time, you are free Tuesday 11:00 or 15:00', body: 'Hi Sara,\n\nWould Tuesday work for a quick catch-up at our office in DIP?\n\nDaniel', draft: 'Hi Daniel,\n\nTuesday works. I can come to your office in DIP at 11:00 or 15:00, whichever suits you.' },
+    { id: 'm3', box: 'action', from: 'Accounts', org: 'Sky Mart', email: 'accounts@skymart.example', subj: 'October trip details, please invoice', ago: '5h', act: 'Create the October invoice from the attached sheet', body: 'Dear Sara,\n\nPlease find attached the trip details for October and share the invoice.\n\nRegards,\nSky Mart Accounts', file: 'October Trip Details.xlsx', biz: true },
+    { id: 'm4', box: 'follow', from: 'Leena Joseph', org: 'Green Basket', email: 'leena@greenbasket.example', subj: 'Proposal: weekly chilled deliveries', ago: '11d', waiting: 11, act: 'No reply for 11 days, send a short follow-up', body: '(You sent this proposal 11 days ago. No reply yet.)', draft: 'Hi Leena,\n\nJust following up on the weekly chilled delivery proposal I shared on the 4th. Happy to walk you through it on a short call this week.' },
     { id: 'm5', box: 'inbox', from: 'Emirates NBD', subj: 'Your November statement is ready', ago: '1d', body: 'Your statement for November is now available in online banking.' },
     { id: 'm6', box: 'inbox', from: 'LinkedIn', subj: '5 people viewed your profile', ago: '1d', body: 'See who is interested in you.', promo: true },
     { id: 'm7', box: 'sent', from: 'To: Omar · Desert Cold', subj: 'Warehouse quote', ago: '22d', body: 'Hi Omar, please find the warehouse quote attached.' },
@@ -224,7 +224,7 @@ const S = { tab: 'home', sub: 'me', meSeg: 'today', mailBox: 'action', openMail:
   { id: 2, t: 'Pay Salik top-up', due: 'Today', done: false },
   { id: 3, t: 'Book truck 5 service', due: '', done: false },
 ], files: [
-  { n: 'Passport — Sara.pdf', f: 'Personal/IDs', s: '1.2 MB' }, { n: 'Emirates ID.jpg', f: 'Personal/IDs', s: '640 KB' }, { n: 'Driving licence.jpg', f: 'Personal/IDs', s: '410 KB' },
+  { n: 'Passport, Sara.pdf', f: 'Personal/IDs', s: '1.2 MB' }, { n: 'Emirates ID.jpg', f: 'Personal/IDs', s: '640 KB' }, { n: 'Driving licence.jpg', f: 'Personal/IDs', s: '410 KB' },
   { n: 'Trade licence 2026.pdf', f: 'Business/Swift Cold', s: '880 KB' }, { n: 'VAT certificate.pdf', f: 'Business/Swift Cold', s: '320 KB' }, { n: 'Rate card December.pdf', f: 'Business/Swift Cold', s: '210 KB' },
   { n: 'INV-1038.pdf', f: 'Business/Swift Cold/Invoices', s: '96 KB' }, { n: 'Tenancy contract.pdf', f: 'Personal', s: '2.1 MB' },
 ], invNo: 1043 };
@@ -235,10 +235,10 @@ const mailOpen = () => D.mail.filter((m) => (m.box === 'action' || m.box === 'fo
 const openTodos = () => S.todos.filter((t) => !t.done);
 function actions() {
   const a = [];
-  waOpen().forEach((c) => a.push({ id: c.id, src: 'WhatsApp', who: c.name, what: c.waiting ? `No reply for ${c.waiting} days — follow up` : c.msgs[c.msgs.length - 1][1], urgent: c.urgent, go: () => { S.sub = 'wa'; S.openWa = c.id; } }));
+  waOpen().forEach((c) => a.push({ id: c.id, src: 'WhatsApp', who: c.name, what: c.waiting ? `No reply for ${c.waiting} days, follow up` : c.msgs[c.msgs.length - 1][1], urgent: c.urgent, go: () => { S.sub = 'wa'; S.openWa = c.id; } }));
   mailOpen().forEach((m) => a.push({ id: m.id, src: 'Mail', who: `${m.from}${m.org ? ' · ' + m.org : ''}`, what: m.act, urgent: m.urgent, go: () => { S.sub = m.biz ? 'biz' : 'mail'; S.openMail = m.biz ? null : m.id; } }));
   socialOpen().filter((x) => x.id !== 's3').forEach((x) => a.push({ id: x.id, src: 'Social', who: `${x.who} · ${x.net}`, what: x.what, go: () => { S.sub = 'social'; } }));
-  if (!S.done.has('meet')) a.push({ id: 'meet', src: 'Calendar', who: 'Daniel Moore · Harbor Foods', what: 'Wants to meet Tuesday — accept 11:00 in person?', go: () => { S.sub = 'cal'; } });
+  if (!S.done.has('meet')) a.push({ id: 'meet', src: 'Calendar', who: 'Daniel Moore · Harbor Foods', what: 'Wants to meet Tuesday, accept 11:00 in person?', go: () => { S.sub = 'cal'; } });
   return a.sort((x, y) => (y.urgent ? 1 : 0) - (x.urgent ? 1 : 0));
 }
 
@@ -267,7 +267,7 @@ V.home = () => {
   return `${stabs('')}<div class="eyebrow">Sunday 15 Nov · Dubai 24°</div><h1>Good morning, <span>Sara</span></h1><div class="sun"></div>
   <div class="ycard"><div class="lbl">YOUR BRIEF</div><ul>
     <li><b>${a.length} things</b> need you today${a.some((x) => x.urgent) ? ', 1 urgent: Falcon Freight wants December rates' : ''}.</li>
-    <li><b>11:00</b> site visit at Harbor Foods, DIP. Leave by 10:25 — 18 min drive.</li>
+    <li><b>11:00</b> site visit at Harbor Foods, DIP. Leave by 10:25, 18 min drive.</li>
     <li>Sky Mart sent October trips: an invoice of <b>AED 5,764.50</b> is ready to check.</li>
     <li>Money: AED 18.4k owed to you, Sky Mart is 18 days late.</li>
     <li>Gym at 18:30 can move if Falcon Freight runs long.</li></ul></div>
@@ -281,7 +281,7 @@ V.home = () => {
     <button class="tile" data-go="pulse"><svg class="ico" viewBox="0 0 24 24">${IC.pulse}</svg><b>Pulse</b><span class="sub">4 stories for your work</span></button>
     <button class="tile" data-go="more"><svg class="ico" viewBox="0 0 24 24">${IC.files}</svg><b>Files</b><span class="sub">${S.files.length} documents kept safe</span></button>
   </div>
-  <p class="sub" style="margin:18px 0 0">Everything here is a demo. In your own Dioma it reads your real WhatsApp, Gmail, Outlook, Zoho and calendar — and nothing is sent until you tap Approve.</p>`;
+  <p class="sub" style="margin:18px 0 0">Everything here is a demo. In your own Dioma it reads your real WhatsApp, Gmail, Outlook, Zoho and calendar, and nothing is sent until you tap Approve.</p>`;
 };
 B.home = () => $$('[data-sub]').forEach((b) => (b.onclick = () => go('assistant', b.dataset.sub))) || $$('[data-act]').forEach((el) => (el.onclick = () => { const x = actions().find((a) => a.id === el.dataset.act); S.tab = 'assistant'; x.go(); render(); scrollTo({ top: 0 }); }));
 
@@ -293,9 +293,9 @@ B.assistant = () => { $$('[data-sub]').forEach((b) => (b.onclick = () => { S.sub
 const SV = {}, SB = {};
 const subCount = (k) => ({ me: actions().length, wa: waOpen().length, social: socialOpen().length, mail: mailOpen().filter((m) => !m.biz).length, cal: S.done.has('meet') ? 0 : 1, biz: (S.inv < 2 ? 1 : 0) + 1 }[k] || 0);
 const SOC = [
-  { id: 's1', net: 'LinkedIn', who: 'Rania Saeed', what: 'commented on your post: “Do you also do frozen, or only chilled?”', draft: 'Hi Rania, yes — we run both chilled (0–4°C) and frozen (−18°C) trucks across the UAE. Happy to share rates in a DM.' },
+  { id: 's1', net: 'LinkedIn', who: 'Rania Saeed', what: 'commented on your post: “Do you also do frozen, or only chilled?”', draft: 'Hi Rania, yes, we run both chilled (0 to 4°C) and frozen (−18°C) trucks across the UAE. Happy to share rates in a DM.' },
   { id: 's2', net: 'Instagram', who: 'freshfold.kitchens', what: 'sent a message: “Can you deliver to Al Quoz daily?”', draft: 'Hi! Yes, we cover Al Quoz every day. Could you share your daily volume and delivery window? We\u2019ll send a quote today.' },
-  { id: 's3', net: 'LinkedIn', who: 'Post idea from Dioma', what: 'Your new chiller trucks arrived — a short post could bring in leads this week.', draft: 'Cold chain doesn\u2019t take a day off. This week we added two new chiller trucks to keep fresh food moving across the UAE — on time, at the right temperature.' },
+  { id: 's3', net: 'LinkedIn', who: 'Post idea from Dioma', what: 'Your new chiller trucks arrived, a short post could bring in leads this week.', draft: 'Cold chain doesn\u2019t take a day off. This week we added two new chiller trucks to keep fresh food moving across the UAE, on time, at the right temperature.' },
 ];
 const socialOpen = () => SOC.filter((x) => !S.done.has(x.id) && !S.notNeeded.has(x.id));
 SV.social = () => `<div class="panel" style="margin-top:14px"><div class="row sp"><h2>Social · needs you</h2><span class="sub">LinkedIn · Instagram · X · Facebook</span></div>
@@ -306,11 +306,11 @@ SB.social = () => {
   $$('[data-sok]').forEach((b) => (b.onclick = () => { S.done.add(b.dataset.sok); render(); toast('Demo: posted ✓ (nothing really posted)'); }));
   $$('[data-snn]').forEach((b) => (b.onclick = () => { S.notNeeded.add(b.dataset.snn); render(); toast('Won\u2019t suggest this again'); }));
 };
-const LOG = [['08:02', 'Read 46 new emails and 128 WhatsApp messages', 'Brief'], ['08:03', 'Found Sky Mart\u2019s trip sheet and prepared the October invoice', 'Business'], ['08:05', 'Hid 31 promotions and newsletters from your inbox', 'Mail'], ['08:06', 'Noticed Harbor Foods wants to meet — checked your calendar for free times', 'Calendar'], ['08:07', 'Spotted you already replied to Fatima on WhatsApp — removed it from your list', 'Me'], ['08:10', 'Drafted 6 replies in your style. Waiting for your OK', 'Assistant']];
+const LOG = [['08:02', 'Read 46 new emails and 128 WhatsApp messages', 'Brief'], ['08:03', 'Found Sky Mart\u2019s trip sheet and prepared the October invoice', 'Business'], ['08:05', 'Hid 31 promotions and newsletters from your inbox', 'Mail'], ['08:06', 'Noticed Harbor Foods wants to meet, checked your calendar for free times', 'Calendar'], ['08:07', 'Spotted you already replied to Fatima on WhatsApp, removed it from your list', 'Me'], ['08:10', 'Drafted 6 replies in your style. Waiting for your OK', 'Assistant']];
 SV.act = () => { const mine = Object.keys(S.sent).length + [...S.done].length; return `<div class="panel" style="margin-top:14px"><h2>What Dioma did today</h2>
-  ${mine ? `<div class="row"><span class="when">now</span><span class="grow">You approved ${mine} action${mine === 1 ? '' : 's'} — each one sent once and cleared everywhere</span><span class="pill ok">You</span></div>` : ''}
+  ${mine ? `<div class="row"><span class="when">now</span><span class="grow">You approved ${mine} action${mine === 1 ? '' : 's'}, each one sent once and cleared everywhere</span><span class="pill ok">You</span></div>` : ''}
   ${LOG.slice().reverse().map(([t, w, c]) => `<div class="row"><span class="when">${t}</span><span class="grow">${esc(w)}</span><span class="pill">${c}</span></div>`).join('')}</div>
-  <p class="sub">A full record of everything Dioma reads, drafts and sends — so you always know what happened.</p>`; };
+  <p class="sub">A full record of everything Dioma reads, drafts and sends, so you always know what happened.</p>`; };
 
 // Me
 SV.me = () => {
@@ -322,7 +322,7 @@ SV.me = () => {
     const owe = a.filter((x) => !/No reply for/.test(x.what));
     const wait = [...D.wa.filter((c) => c.waiting && !S.done.has(c.id) && !S.notNeeded.has(c.id)).map((c) => [c.id, c.name, 'WhatsApp', c.waiting, 20]), ...D.mail.filter((m) => m.waiting && !S.done.has(m.id) && !S.notNeeded.has(m.id)).map((m) => [m.id, `${m.from} · ${m.org}`, 'Mail', m.waiting, 10])];
     return seg + `<div class="panel"><h2>You owe a reply · ${owe.length}</h2>${owe.map((x) => `<div class="row"><span class="dot"></span><span class="grow">${esc(x.who)}</span><span class="pill">${x.src}</span></div>`).join('') || '<p class="empty">Nobody is waiting on you.</p>'}</div>
-      <div class="panel"><h2>Waiting on them · ${wait.length}</h2>${wait.map(([id, who, src, d, rule]) => `<div class="item"><div class="row"><span class="ttl grow">${esc(who)}</span><span class="pill ${d >= rule ? 'y' : ''}">${d} days</span></div><div class="sub">${src} follow-up rule: every ${rule} days${d >= rule ? ' — time to nudge' : ''}</div><div class="row"><button class="ghost" data-fu="${id}">Write follow-up</button><button class="ghost" data-nn="${id}">Not needed</button></div></div>`).join('') || '<p class="empty">Nothing to chase.</p>'}
+      <div class="panel"><h2>Waiting on them · ${wait.length}</h2>${wait.map(([id, who, src, d, rule]) => `<div class="item"><div class="row"><span class="ttl grow">${esc(who)}</span><span class="pill ${d >= rule ? 'y' : ''}">${d} days</span></div><div class="sub">${src} follow-up rule: every ${rule} days${d >= rule ? ', time to nudge' : ''}</div><div class="row"><button class="ghost" data-fu="${id}">Write follow-up</button><button class="ghost" data-nn="${id}">Not needed</button></div></div>`).join('') || '<p class="empty">Nothing to chase.</p>'}
       <p class="sub" style="margin:0">Dioma checks WhatsApp and every mailbox before suggesting a follow-up. If you already replied somewhere else, it disappears.</p></div>`;
   }
   return seg + `<div class="panel"><h2>Needs you · ${a.length}</h2>
@@ -332,8 +332,8 @@ SV.me = () => {
 SB.me = () => {
   $$('[data-me]').forEach((b) => (b.onclick = () => { S.meSeg = b.dataset.me; render(); }));
   $$('[data-open]').forEach((b) => (b.onclick = () => { actions().find((a) => a.id === b.dataset.open).go(); render(); scrollTo({ top: 0 }); }));
-  $$('[data-dn]').forEach((b) => (b.onclick = () => { S.done.add(b.dataset.dn); render(); toast('Done — removed everywhere'); }));
-  $$('[data-nn]').forEach((b) => (b.onclick = () => { S.notNeeded.add(b.dataset.nn); render(); toast('Got it — Dioma won’t suggest this again'); }));
+  $$('[data-dn]').forEach((b) => (b.onclick = () => { S.done.add(b.dataset.dn); render(); toast('Done, removed everywhere'); }));
+  $$('[data-nn]').forEach((b) => (b.onclick = () => { S.notNeeded.add(b.dataset.nn); render(); toast('Got it, Dioma won’t suggest this again'); }));
   $$('[data-fu]').forEach((b) => (b.onclick = () => { const id = b.dataset.fu; if (id.startsWith('w')) { S.sub = 'wa'; S.openWa = id; } else { S.sub = 'mail'; S.openMail = id; } render(); scrollTo({ top: 0 }); }));
   $$('[data-td]').forEach((b) => (b.onclick = () => { const t = S.todos.find((x) => x.id === +b.dataset.td); t.done = !t.done; render(); }));
   const f = $('#addt'); if (f) f.onsubmit = (e) => { e.preventDefault(); const v = $('#tt').value.trim(); if (!v) return; S.todos.unshift({ id: Date.now(), t: v, due: '', done: false }); render(); toast('Added'); };
@@ -348,7 +348,7 @@ SV.wa = () => {
     return `<button class="back" data-back>‹ Chats</button><div class="row" style="margin:6px 0 12px"><span class="av">${c.ini}</span><div class="grow"><div class="ttl">${esc(c.name)}</div><div class="sub">WhatsApp · personal</div></div></div>
       <div class="panel"><div class="chat">${msgs.map(([w, t, tm]) => `<div class="msg ${w}">${esc(t)}<span class="t">${tm}${w === 'me' ? ' ✓✓' : ''}</span></div>`).join('')}</div></div>
       ${show ? `<div class="appr"><div class="tag">Reply written by Dioma</div><textarea id="wad">${esc(c.draft)}</textarea>${c.attach ? `<span class="file">📎 ${esc(c.attach)} · from Files</span>` : ''}<div class="row"><button class="btn" id="was">Approve &amp; send</button><button class="ghost" data-nn2="${c.id}">Not needed</button></div></div>`
-        : S.sent[c.id] ? '<p class="done">✓ Sent from your WhatsApp (demo — nothing really sent)</p>' : ''}`;
+        : S.sent[c.id] ? '<p class="done">✓ Sent from your WhatsApp (demo, nothing really sent)</p>' : ''}`;
   }
   return `<div class="panel" style="padding:6px 12px">${D.wa.map((c) => { const open = waOpen().includes(c); return `<div class="row click" data-wa="${c.id}" style="padding:11px 0;border-bottom:1px solid var(--line);cursor:pointer"><span class="av">${c.ini}</span><div class="grow"><div class="row sp"><span class="ttl">${esc(c.name)}</span><span class="sub">${c.ago}</span></div><div class="sub">${S.sent[c.id] ? 'You: ' + esc(S.sent[c.id]) : esc(c.msgs[c.msgs.length - 1][1])}</div></div>${open && c.unread ? `<span class="badge" style="position:static">${c.unread}</span>` : open && c.waiting ? '<span class="pill y">Follow up</span>' : ''}</div>`; }).join('')}</div>
     <p class="sub">Dioma reads your chats, writes replies in your style, and attaches files from your Files when someone asks for a document.</p>`;
@@ -356,7 +356,7 @@ SV.wa = () => {
 SB.wa = () => {
   $$('[data-wa]').forEach((r) => (r.onclick = () => { S.openWa = r.dataset.wa; render(); scrollTo({ top: 0 }); }));
   const bk = $('[data-back]'); if (bk) bk.onclick = () => { S.openWa = null; render(); };
-  const s = $('#was'); if (s) s.onclick = () => { S.sent[S.openWa] = $('#wad').value; S.done.add(S.openWa); render(); toast('Demo: sent ✓ — and removed from your to-dos'); };
+  const s = $('#was'); if (s) s.onclick = () => { S.sent[S.openWa] = $('#wad').value; S.done.add(S.openWa); render(); toast('Demo: sent ✓, and removed from your to-dos'); };
   const nn = $('[data-nn2]'); if (nn) nn.onclick = () => { S.notNeeded.add(nn.dataset.nn2); S.openWa = null; render(); toast('Won’t suggest this again'); };
 };
 
@@ -371,11 +371,11 @@ SV.mail = () => {
       ${showDraft ? `<div class="appr"><div class="tag">Reply written by Dioma · from sara@swiftcold.example</div><textarea id="md">${esc(m.draft + SIG)}</textarea>
         <div class="row" id="atts">${m.attach ? `<span class="file">📎 ${esc(m.attach)}</span>` : ''}</div>
         <div class="row"><button class="btn" id="ms">Send</button><button class="ghost" id="ma">Attach from Files</button><button class="ghost" data-nn2="${m.id}">Not needed</button></div><div id="pick"></div></div>`
-        : S.done.has(m.id) ? '<p class="done">✓ Replied (demo — nothing really sent)</p>' : ''}`;
+        : S.done.has(m.id) ? '<p class="done">✓ Replied (demo, nothing really sent)</p>' : ''}`;
   }
   const F = [['action', 'To reply'], ['follow', 'Follow up'], ['inbox', 'Inbox'], ['sent', 'Sent']];
   const L = D.mail.filter((m) => m.box === S.mailBox && !m.biz && !(['action', 'follow'].includes(S.mailBox) && (S.done.has(m.id) || S.notNeeded.has(m.id))));
-  return `<div class="row" style="margin:12px 0 0"><input class="field grow" id="ms2" placeholder="Search all mailboxes — try “Falcon”"></div>
+  return `<div class="row" style="margin:12px 0 0"><input class="field grow" id="ms2" placeholder="Search all mailboxes, try “Falcon”"></div>
     <div class="seg" style="margin-top:10px">${F.map(([k, l]) => `<button data-box="${k}" aria-pressed="${S.mailBox === k}">${l}</button>`).join('')}</div>
     <div class="panel" id="ml">${L.map((m) => `<div class="item click" data-m="${m.id}"><div class="row">${m.urgent ? '<span class="pill y">Urgent</span>' : ''}${m.waiting ? `<span class="pill">${m.waiting} days</span>` : ''}<span class="ttl grow">${esc(m.subj)}</span><span class="sub">${m.ago}</span></div><div class="sub">${esc(m.from)}${m.org ? ' · ' + esc(m.org) : ''}</div>${m.act ? `<div class="act">→ ${esc(m.act)}</div>` : ''}</div>`).join('') || '<p class="empty">Nothing here. 👏</p>'}</div>
     <p class="sub">Personal Gmail and company Zoho in one list. Promotions are kept out of your way.</p>`;
@@ -385,16 +385,16 @@ SB.mail = () => {
   $$('[data-m]').forEach((r) => (r.onclick = () => { S.openMail = r.dataset.m; render(); scrollTo({ top: 0 }); }));
   const q = $('#ms2'); if (q) q.oninput = () => { const v = q.value.toLowerCase(); const hits = D.mail.filter((m) => (m.subj + m.from + (m.org || '') + m.body).toLowerCase().includes(v)); $('#ml').innerHTML = v ? hits.map((m) => `<div class="item click" data-m="${m.id}"><span class="ttl">${esc(m.subj)}</span><div class="sub">${esc(m.from)} · ${m.box}</div></div>`).join('') || '<p class="empty">No match.</p>' : ''; $$('[data-m]').forEach((r) => (r.onclick = () => { S.openMail = r.dataset.m; render(); })); if (!v) render(); };
   const bk = $('[data-back]'); if (bk) bk.onclick = () => { S.openMail = null; render(); };
-  const s = $('#ms'); if (s) s.onclick = () => { S.done.add(S.openMail); render(); toast('Demo: sent once ✓ — removed from Me and Mail'); };
+  const s = $('#ms'); if (s) s.onclick = () => { S.done.add(S.openMail); render(); toast('Demo: sent once ✓, removed from Me and Mail'); };
   const nn = $('[data-nn2]'); if (nn) nn.onclick = () => { S.notNeeded.add(nn.dataset.nn2); S.openMail = null; render(); toast('Won’t suggest this again'); };
   const a = $('#ma'); if (a) a.onclick = () => { $('#pick').innerHTML = `<div class="item">${S.files.slice(0, 6).map((f, i) => `<button class="ghost" data-pf="${i}" style="justify-content:flex-start;text-align:left">📎 ${esc(f.n)} <span class="sub">· ${esc(f.f)}</span></button>`).join('')}</div>`; $$('[data-pf]').forEach((b) => (b.onclick = () => { $('#atts').insertAdjacentHTML('beforeend', `<span class="file">📎 ${esc(S.files[+b.dataset.pf].n)}</span>`); $('#pick').innerHTML = ''; })); };
 };
 
 // Calendar
 SV.cal = () => `<div class="panel" style="margin-top:14px"><h2>Today · Sunday 15 Nov</h2>
-  ${D.cal.map((c) => `<div class="item" style="${c.done ? 'opacity:.45' : ''}"><div class="row"><span class="when">${c.t}</span><div class="grow"><div class="ttl">${esc(c.title)}</div><div class="sub">${c.t}–${c.end} · ${esc(c.where)}</div></div>
+  ${D.cal.map((c) => `<div class="item" style="${c.done ? 'opacity:.45' : ''}"><div class="row"><span class="when">${c.t}</span><div class="grow"><div class="ttl">${esc(c.title)}</div><div class="sub">${c.t} to ${c.end} · ${esc(c.where)}</div></div>
     ${c.link && !c.done ? `<button class="ghost" data-join="${c.link}">Join ${c.link === 'teams' ? 'Teams' : 'Meet'}</button>` : c.map ? '<button class="ghost" data-mapb>Map ↗</button>' : c.personal ? '<span class="pill">Can move</span>' : ''}</div></div>`).join('')}</div>
-  ${S.done.has('meet') ? '<div class="panel"><p class="done">✓ Tuesday 11:00 at Harbor Foods added, and Daniel has a reply waiting for your OK in Mail.</p></div>' : `<div class="appr"><div class="tag">Meeting request · found in Mail</div><div><b>Daniel Moore · Harbor Foods</b> wants to meet on Tuesday.</div><div class="sub">You’re free 11:00–12:00 and 15:00–16:00. You prefer to meet in person — their office is in DIP.</div><div class="row"><button class="btn" id="acc">Accept 11:00 in person</button><button class="ghost" id="acc2">Suggest 15:00</button></div></div>`}
+  ${S.done.has('meet') ? '<div class="panel"><p class="done">✓ Tuesday 11:00 at Harbor Foods added, and Daniel has a reply waiting for your OK in Mail.</p></div>' : `<div class="appr"><div class="tag">Meeting request · found in Mail</div><div><b>Daniel Moore · Harbor Foods</b> wants to meet on Tuesday.</div><div class="sub">You’re free 11:00 to 12:00 and 15:00 to 16:00. You prefer to meet in person, their office is in DIP.</div><div class="row"><button class="btn" id="acc">Accept 11:00 in person</button><button class="ghost" id="acc2">Suggest 15:00</button></div></div>`}
   <p class="sub">Business meetings never move without your OK. Personal things like the gym can be moved to make room.</p>`;
 SB.cal = () => {
   $$('[data-join]').forEach((b) => (b.onclick = () => toast('Demo: would open the meeting link')));
@@ -409,7 +409,7 @@ SV.biz = () => {
   const sub = D.invLines.reduce((s, l) => s + l[1] * l[2], 0), vat = sub * 0.05;
   const steps = ['Found the email from Sky Mart', 'Opened October Trip Details.xlsx', 'Counted 10 trips', 'Found Sky Mart in your Books', 'Added 5% VAT'];
   return `<div class="panel" style="margin-top:14px"><h2>Email in, invoice out</h2>
-    <div class="item"><span class="ttl">Sky Mart: October trip details — please invoice</span><div class="sub">accounts@skymart.example · 5h ago</div><span class="file">📎 October Trip Details.xlsx</span></div>
+    <div class="item"><span class="ttl">Sky Mart: October trip details, please invoice</span><div class="sub">accounts@skymart.example · 5h ago</div><span class="file">📎 October Trip Details.xlsx</span></div>
     ${S.inv === 0 ? '<button class="btn" id="mk">Create the invoice</button>' : ''}
     <div class="steps" id="steps">${S.inv >= 1 ? steps.map((t) => `<div class="step">${t}</div>`).join('') : ''}</div>
     ${S.inv >= 1 ? `<div class="appr"><div class="tag">Invoice INV-${S.invNo} · draft · waiting for your OK</div><pre>To: Sky Mart (accounts@skymart.example)
@@ -417,7 +417,7 @@ ${D.invLines.map((l) => `• ${l[0]}: ${l[1]} × ${l[2]} = ${(l[1] * l[2]).toLoc
 Subtotal: AED ${sub.toLocaleString()}
 VAT 5%: AED ${vat.toFixed(2)}
 <b>Total: AED ${(sub + vat).toLocaleString(undefined, { minimumFractionDigits: 2 })}</b></pre>
-      ${S.inv === 1 ? '<div class="row"><button class="btn" id="ok">Approve &amp; email PDF</button><button class="ghost" id="no">Cancel</button></div>' : '<div class="done">✓ INV-' + S.invNo + ' emailed to Sky Mart as PDF (demo — nothing really sent)</div>'}</div>` : ''}</div>
+      ${S.inv === 1 ? '<div class="row"><button class="btn" id="ok">Approve &amp; email PDF</button><button class="ghost" id="no">Cancel</button></div>' : '<div class="done">✓ INV-' + S.invNo + ' emailed to Sky Mart as PDF (demo, nothing really sent)</div>'}</div>` : ''}</div>
   <div class="panel"><div class="row sp"><h2>Money owed to you</h2><span class="pill">AED 18.4k</span></div>
     ${D.owed.map(([n, v, d]) => `<div class="row"><span class="grow">${n}</span><span class="pill ${d > 14 ? 'bad' : d > 0 ? 'y' : ''}">${d > 0 ? d + ' days late' : 'due in ' + -d + ' days'}</span><b style="width:80px;text-align:right">${v.toLocaleString()}</b></div>`).join('')}
     <button class="ghost" id="chase">Write a polite reminder to Sky Mart</button><div id="chaseOut"></div></div>
@@ -434,22 +434,22 @@ SB.biz = () => {
 
 // Ask
 const ANS = {
-  'How does my day look?': '• 11:00 site visit at Harbor Foods (leave by 10:25)\n• 14:00 Falcon Freight call — they want December rates; the reply is drafted\n• Ahmed is waiting on WhatsApp about truck 3\n• Gym 18:30 can move if needed',
-  'Who owes me money?': '• Sky Mart: AED 9,200 — 18 days late\n• Bright Kids: AED 5,700 — 9 days late\n• Harbor Foods: AED 3,500 — due in 3 days\nWant me to write a polite reminder to Sky Mart?',
+  'How does my day look?': '• 11:00 site visit at Harbor Foods (leave by 10:25)\n• 14:00 Falcon Freight call, they want December rates; the reply is drafted\n• Ahmed is waiting on WhatsApp about truck 3\n• Gym 18:30 can move if needed',
+  'Who owes me money?': '• Sky Mart: AED 9,200, 18 days late\n• Bright Kids: AED 5,700, 9 days late\n• Harbor Foods: AED 3,500, due in 3 days\nWant me to write a polite reminder to Sky Mart?',
   'Find my Emirates ID': 'Found it in Files › Personal › IDs: “Emirates ID.jpg” (640 KB). I can attach it to any email or WhatsApp.',
-  'Remind me to call the bank tomorrow': 'Done — added “Call the bank” to your to-do for tomorrow.',
-  'Write a LinkedIn post about our new trucks': 'Cold chain doesn’t take a day off. This week we added two new chiller trucks to keep fresh food moving across the UAE — on time and at the right temperature.\n\nThank you to our clients for trusting us with what matters most.\n\n(Share it? I won’t post without your OK.)',
+  'Remind me to call the bank tomorrow': 'Done, added “Call the bank” to your to-do for tomorrow.',
+  'Write a LinkedIn post about our new trucks': 'Cold chain doesn’t take a day off. This week we added two new chiller trucks to keep fresh food moving across the UAE, on time and at the right temperature.\n\nThank you to our clients for trusting us with what matters most.\n\n(Share it? I won’t post without your OK.)',
 };
 SV.ai = () => `<div class="panel" style="margin-top:14px"><div class="chat" id="chat">${S.chat.length ? S.chat.map((m) => `<div class="msg ${m.me ? 'me' : 'ai'}">${esc(m.t)}</div>`).join('') : '<div class="msg ai">Hi Sara, I’m Dioma. Ask me anything about your day, your money or your files.</div>'}</div>
   <div class="quick">${Object.keys(ANS).map((q) => `<button data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>
   <form class="row" id="askf"><input class="field grow" id="askq" placeholder="Type a question…"><button class="btn">Ask</button></form></div>
-  <p class="sub">In your own Dioma, answers come from your real mail, chats, calendar and files — by typing or voice.</p>`;
+  <p class="sub">In your own Dioma, answers come from your real mail, chats, calendar and files, by typing or voice.</p>`;
 SB.ai = () => {
   const ask = (q) => { S.chat.push({ me: true, t: q }); render(); const c = $('#chat'); c.insertAdjacentHTML('beforeend', '<div class="msg ai" id="typ">…</div>');
     setTimeout(() => { const k = Object.keys(ANS).find((x) => x.toLowerCase() === q.toLowerCase()) || Object.keys(ANS).find((x) => q.toLowerCase().split(/\W+/).filter((w) => w.length > 3).some((w) => x.toLowerCase().includes(w)));
       const rm = q.match(/remind me to\s+(.+)/i); const task = rm ? rm[1].replace(/\s*tomorrow\s*$/i, '').replace(/^\w/, (c) => c.toUpperCase()) : '';
       if (rm) S.todos.unshift({ id: Date.now(), t: task, due: 'Tomorrow', done: false });
-      S.chat.push({ t: rm ? `Done — added “${task}” to your to-do for tomorrow.` : k ? ANS[k] : 'In the demo I only know Sara’s sample day. In your own Dioma I’d answer that from your real mail, chats and files.' }); render(); $('#askq')?.focus(); }, 700); };
+      S.chat.push({ t: rm ? `Done, added “${task}” to your to-do for tomorrow.` : k ? ANS[k] : 'In the demo I only know Sara’s sample day. In your own Dioma I’d answer that from your real mail, chats and files.' }); render(); $('#askq')?.focus(); }, 700); };
   $$('[data-q]').forEach((b) => (b.onclick = () => ask(b.dataset.q)));
   $('#askf').onsubmit = (e) => { e.preventDefault(); const v = $('#askq').value.trim(); if (v) ask(v); };
 };
@@ -457,13 +457,13 @@ SB.ai = () => {
 // ---------- Pulse ----------
 V.pulse = () => `<div class="eyebrow">Pulse · picked for your work</div><h1>What <span>matters</span> today</h1>
   <div class="panel">${D.pulse.map(([c, h, w]) => `<div class="item"><span class="pill" style="justify-self:start">${c}</span><span class="ttl">${esc(h)}</span><div class="act">${esc(w)}</div></div>`).join('')}</div>
-  <p class="sub">Demo headlines are samples. Your Pulse picks real news for your industry, your clients and your money — and says why each one matters to you.</p>`;
+  <p class="sub">Demo headlines are samples. Your Pulse picks real news for your industry, your clients and your money, and says why each one matters to you.</p>`;
 
 // ---------- Wealth ----------
 V.wealth = () => `<div class="eyebrow">Wealth · November</div><h1>Where your money <span>goes</span></h1>
   <div class="stats"><div class="stat"><b>48.2k</b><span>AED in</span></div><div class="stat"><b>31.8k</b><span>AED out</span></div><div class="stat"><b style="color:var(--y)">16.4k</b><span>kept</span></div></div>
   <div class="panel"><h2>Spending</h2><div class="bars">${[['Salaries', 12400], ['Vehicle lease', 7800], ['Fuel', 4300], ['Rent', 3500], ['Salik & fines', 1650], ['Software', 1100], ['Other', 1000]].map(([n, v]) => `<div class="bl"><span>${n}</span><span class="b"><i data-w="${Math.round((v / 12400) * 100)}"></i></span><em>${v.toLocaleString()}</em></div>`).join('')}</div>
-    <div class="item"><span class="act">Tip: Salik and fines are up 40% this month — mostly truck 2. Want a list of the fines?</span></div></div>
+    <div class="item"><span class="act">Tip: Salik and fines are up 40% this month, mostly truck 2. Want a list of the fines?</span></div></div>
   <div class="panel"><h2>Bills due</h2>${[['DEWA', '820', 'in 4 days'], ['du business', '399', 'in 6 days'], ['Truck lease', '7,800', 'on the 1st']].map(([n, v, d]) => `<div class="row"><span class="grow">${n}</span><span class="sub">${d}</span><b style="width:70px;text-align:right">${v}</b></div>`).join('')}</div>
   <div class="panel"><h2>Savings goal</h2><div class="row sp"><span>Second chiller truck</span><span class="sub">62%</span></div><div class="bl" style="grid-template-columns:1fr"><span class="b"><i data-w="62"></i></span></div><p class="sub" style="margin:0">At this month’s pace you reach it in about 4 months.</p></div>
   <p class="sub">Dioma reads your bank statements (PDF or Excel) and sorts every line for you.</p>`;
@@ -472,7 +472,7 @@ V.wealth = () => `<div class="eyebrow">Wealth · November</div><h1>Where your mo
 V.more = () => {
   if (S.more === 'files') return filesView();
   if (S.more === 'settings') return settingsView();
-  if (S.more === 'career') return `<button class="back" data-mb>‹ More</button><h1>Career</h1><div class="panel"><h2>This week</h2>${['Polish your LinkedIn headline — draft ready', 'Ops Director roles: 3 new matches in Dubai', 'Learn: AI for route planning · 20 min'].map((t) => `<div class="item"><span class="ttl">${t}</span></div>`).join('')}</div>`;
+  if (S.more === 'career') return `<button class="back" data-mb>‹ More</button><h1>Career</h1><div class="panel"><h2>This week</h2>${['Polish your LinkedIn headline, draft ready', 'Ops Director roles: 3 new matches in Dubai', 'Learn: AI for route planning · 20 min'].map((t) => `<div class="item"><span class="ttl">${t}</span></div>`).join('')}</div>`;
   if (S.more === 'grow') return `<button class="back" data-mb>‹ More</button><h1>Grow</h1><div class="panel"><h2>Habits</h2>${[['Walk 8,000 steps', 70], ['Read 20 minutes', 40], ['Gym 3× this week', 66]].map(([n, p]) => `<div class="row sp"><span>${n}</span><span class="sub">${p}%</span></div><div class="bl" style="grid-template-columns:1fr"><span class="b"><i data-w="${p}"></i></span></div>`).join('')}</div>`;
   return `<div class="eyebrow">More</div><h1>Everything <span>else</span></h1>
     <div class="grid2">${[['files', 'Files', `${S.files.length} documents`], ['career', 'Career', 'Jobs and learning'], ['grow', 'Grow', 'Habits and health'], ['settings', 'Settings', 'Colour, apps, account']].map(([k, l, d]) => `<button class="tile" data-mo="${k}"><svg class="ico" viewBox="0 0 24 24">${IC[k === 'settings' ? 'set' : k]}</svg><b>${l}</b><span class="sub">${d}</span></button>`).join('')}</div>`;
@@ -490,12 +490,12 @@ function filesView() {
   const crumbs = ['', ...cur.split('/').filter(Boolean).map((_, i, a) => a.slice(0, i + 1).join('/'))];
   return `<button class="back" data-mb>‹ More</button><h1>Files</h1>
     <div class="row" style="font-size:14px">${crumbs.map((c) => `<button class="back" data-fo="${esc(c)}" style="color:${c === cur ? 'var(--fg)' : 'var(--mute)'}">${c ? esc(c.split('/').pop()) : 'All files'}</button>`).join('<span class="sub">/</span>')}</div>
-    <div class="row" style="margin:10px 0"><label class="btn" style="display:inline-flex;align-items:center">Upload<input type="file" id="fup" multiple hidden></label><span class="sub">Stays on this page — demo only</span></div>
+    <div class="row" style="margin:10px 0"><label class="btn" style="display:inline-flex;align-items:center">Upload<input type="file" id="fup" multiple hidden></label><span class="sub">Stays on this page, demo only</span></div>
     <div class="panel" style="padding:6px 12px">
       ${subs.map((f) => `<div class="row" data-fo="${esc(f)}" style="padding:11px 0;border-bottom:1px solid var(--line);cursor:pointer"><span class="fic"><svg class="ico" viewBox="0 0 24 24" style="width:17px;height:17px">${IC.files}</svg></span><span class="ttl grow">${esc(f.split('/').pop())}</span><span class="sub">${S.files.filter((x) => x.f === f || x.f.startsWith(f + '/')).length}</span></div>`).join('')}
       ${here.map((f) => `<div class="row" style="padding:11px 0;border-bottom:1px solid var(--line)"><span class="fic">${esc((f.n.split('.').pop() || 'file').slice(0, 4))}</span><div class="grow"><div class="ttl">${esc(f.n)}</div><div class="sub">${esc(f.s)}</div></div><button class="ghost" data-share="${esc(f.n)}">Send</button></div>`).join('')}
       ${!subs.length && !here.length ? '<p class="empty">Empty folder.</p>' : ''}</div>
-    <p class="sub">Keep passports, IDs, licences and contracts here. Dioma attaches them when someone asks — on WhatsApp or email.</p>`;
+    <p class="sub">Keep passports, IDs, licences and contracts here. Dioma attaches them when someone asks, on WhatsApp or email.</p>`;
 }
 function filesBind() {
   $$('[data-fo]').forEach((b) => (b.onclick = () => { S.folder = b.dataset.fo; render(); }));
