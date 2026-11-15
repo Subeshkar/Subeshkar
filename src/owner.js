@@ -6,6 +6,8 @@
 // Only OWNER_EMAIL can reach any of it. The app file itself is uploaded by the owner and kept on the
 // private volume (never in the public repo), because it contains his contacts and business details.
 import fs from 'node:fs';
+import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { DIR, one, run } from './db.js';
 import * as G from './google.js';
@@ -16,6 +18,33 @@ fs.mkdirSync(path.dirname(APP_FILE), { recursive: true });
 run('CREATE TABLE IF NOT EXISTS owner_docs (path TEXT PRIMARY KEY, body TEXT NOT NULL, at INTEGER NOT NULL)');
 
 export const isOwner = (u) => !!u && !!process.env.OWNER_EMAIL && u.email === process.env.OWNER_EMAIL.trim().toLowerCase();
+// The owner's app can also ship inside the repo, encrypted to this server's own key (owner/dioma.enc).
+// The private key is created here, on the private volume, and never leaves it, so the public repo only holds ciphertext.
+const KEY_FILE = path.join(DIR, 'owner', 'key.pem');
+if (!fs.existsSync(KEY_FILE)) {
+  const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 3072 });
+  fs.writeFileSync(KEY_FILE, privateKey.export({ type: 'pkcs8', format: 'pem' }), { mode: 0o600 });
+}
+const PRIV = crypto.createPrivateKey(fs.readFileSync(KEY_FILE));
+export const publicKey = () => crypto.createPublicKey(PRIV).export({ type: 'spki', format: 'pem' });
+const BUNDLE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'owner', 'dioma.enc');
+function loadBundle() {
+  try {
+    if (!fs.existsSync(BUNDLE)) return;
+    const raw = fs.readFileSync(BUNDLE, 'utf8');
+    const sig = crypto.createHash('sha256').update(raw).digest('hex');
+    const mark = APP_FILE + '.bundle';
+    if (fs.existsSync(APP_FILE) && fs.existsSync(mark) && fs.readFileSync(mark, 'utf8') === sig) return;
+    const b = JSON.parse(raw);
+    const key = crypto.privateDecrypt({ key: PRIV, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha256' }, Buffer.from(b.k, 'base64'));
+    const d = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(b.iv, 'base64')); d.setAuthTag(Buffer.from(b.tag, 'base64'));
+    fs.writeFileSync(APP_FILE, Buffer.concat([d.update(Buffer.from(b.data, 'base64')), d.final()]));
+    fs.writeFileSync(mark, sig);
+    console.log('Owner app loaded from bundle');
+  } catch (e) { console.error('Owner bundle not loaded:', e.message); }
+}
+loadBundle();
+console.log('Owner key: ' + crypto.createPublicKey(PRIV).export({ type: 'spki', format: 'der' }).toString('base64'));
 export const hasApp = () => fs.existsSync(APP_FILE);
 export const saveApp = (buf) => {
   const html = buf.toString('utf8');
