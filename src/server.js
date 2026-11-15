@@ -16,6 +16,7 @@ import * as A from './apps.js';
 import * as WL from './wealth.js';
 import * as BR from './browser.js';
 import * as P from './push.js';
+import * as V from './voice.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT || 8080);
@@ -115,7 +116,7 @@ const routes = [];
 const on = (method, pattern, fn, opts = {}) => routes.push({ method, re: new RegExp('^' + pattern.replace(/:(\w+)/g, '(?<$1>[^/]+)') + '$'), fn, ...opts });
 
 on('GET', '/api/owner/pubkey', (req, res) => send(res, 200, O.publicKey(), { 'content-type': 'text/plain' }), { open: true });
-on('GET', '/api/health', (req, res) => send(res, 200, { ok: true, ai: !!process.env.ANTHROPIC_API_KEY, google: G.enabled(), mail: !!process.env.RESEND_API_KEY, apps: A.enabled(), browser: BR.available() }), { open: true });
+on('GET', '/api/health', (req, res) => send(res, 200, { ok: true, ai: !!process.env.ANTHROPIC_API_KEY, google: G.enabled(), mail: !!process.env.RESEND_API_KEY, apps: A.enabled(), browser: BR.available(), voice: V.enabled() }), { open: true });
 
 on('POST', '/api/auth/start', async (req, res) => {
   const { email: raw } = await json(req);
@@ -188,7 +189,7 @@ on('GET', '/api/me', (req, res, u) => {
   const g = one(`SELECT account FROM connections WHERE user_id = ? AND kind = 'google'`, u.id);
   const used = one('SELECT COALESCE(SUM(size),0) s FROM files WHERE user_id = ?', u.id).s;
   send(res, 200, { email: u.email, name: u.name, about: u.about, role: u.role, tz: u.tz, onboarded: !!u.onboarded, plan: u.plan,
-    owner: O.isOwner(u), ownerPath: O.isOwner(u) ? '/' + O.ownerSlug() : null, whatsapp: W.status(u.id).status, nav: navOf(u), mailbox: M.account(u.id), google: g ? { account: g.account } : null, googleAvailable: G.enabled(), ai: { used: usedToday(u), cap: CAP, live: !!process.env.ANTHROPIC_API_KEY }, storage: { used, quota: QUOTA } });
+    owner: O.isOwner(u), ownerPath: O.isOwner(u) ? '/' + O.ownerSlug() : null, voice: V.enabled(), whatsapp: W.status(u.id).status, nav: navOf(u), mailbox: M.account(u.id), google: g ? { account: g.account } : null, googleAvailable: G.enabled(), ai: { used: usedToday(u), cap: CAP, live: !!process.env.ANTHROPIC_API_KEY }, storage: { used, quota: QUOTA } });
 });
 on('POST', '/api/me', async (req, res, u) => {
   const b = await json(req);
@@ -349,6 +350,18 @@ on('POST', '/api/wealth/import', async (req, res, u) => {
   send(res, 200, await WL.importStatement(u.id, Number(q.get('account')), q.get('name'), buf));
 }, { raw: true });
 
+// Voice
+on('POST', '/api/voice/listen', async (req, res, u) => {
+  if (limited('listen:' + u.id, 300, DAY)) return fail(res, 429, 'That is a lot of talking for one day. Try again tomorrow.');
+  const buf = await readBody(req, 12 * 1024 * 1024); if (buf.length < 800) return fail(res, 400, 'I did not catch anything. Hold the mic a little longer.');
+  send(res, 200, { text: await V.listen(buf, String(req.headers['content-type'] || '')) });
+}, { raw: true });
+on('POST', '/api/voice/speak', async (req, res, u) => {
+  if (limited('speak:' + u.id, 300, DAY)) return fail(res, 429, 'Dioma has spoken a lot today. Try again tomorrow.');
+  const b = await json(req); const text = String(b.text || '').trim(); if (!text) return fail(res, 400, 'Nothing to say.');
+  const mp3 = await V.speak(text); res.writeHead(200, { 'content-type': 'audio/mpeg', 'cache-control': 'no-store' }); res.end(mp3);
+});
+
 // Notifications (pop-up + vibration, also on a locked phone)
 on('GET', '/api/push/key', (req, res, u) => send(res, 200, { key: P.publicKey(), devices: P.count(u.id) }));
 on('POST', '/api/push/sub', async (req, res, u) => { P.subscribe(u.id, await json(req)); send(res, 200, { ok: true, devices: P.count(u.id) }); });
@@ -468,7 +481,7 @@ const STATIC = { '/': 'app.html', '/privacy': 'privacy.html', '/terms': 'terms.h
 const MIME = { '.js': 'text/javascript; charset=utf-8', '.html': 'text/html; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json' };
 const SEC = {
   'x-content-type-options': 'nosniff', 'referrer-policy': 'strict-origin-when-cross-origin', 'x-frame-options': 'DENY',
-  'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+  'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
 };
 if (secure()) SEC['strict-transport-security'] = 'max-age=31536000';
 

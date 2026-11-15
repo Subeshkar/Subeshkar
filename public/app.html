@@ -78,6 +78,7 @@ main{padding-block:22px calc(110px + env(safe-area-inset-bottom,0px))}
 nav.bot{position:fixed;left:0;right:0;bottom:0;z-index:10;background:rgba(0,0,0,.9);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
 nav.bot .wrap{display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
 #tabs{padding-top:14px}
+.btn.mic{width:48px;height:48px;padding:0;flex:none}.btn.mic.rec{background:var(--bad);border-color:var(--bad);color:#000;animation:lpulse 1.2s infinite}
 .live{font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.14em;color:var(--accink);background:var(--acc);border-radius:999px;padding:3px 9px;display:inline-flex;align-items:center;gap:6px}
 .live i{width:6px;height:6px;border-radius:50%;background:var(--accink);animation:lpulse 1.6s infinite}
 @keyframes lpulse{50%{opacity:.25}}
@@ -356,7 +357,7 @@ async function viewHome(refresh) {
   const steps = [['wa', 'Connect WhatsApp', 'Scan a QR code'], ['mail', 'Connect your mail', 'Gmail, Outlook, Zoho or any email'], ['cal', 'Connect your calendar', 'Google, Outlook or Zoho'], ['social', 'Connect social', 'Instagram, Facebook, LinkedIn…'], ['biz', 'Connect business apps', 'Zoho Books, CRM, QuickBooks…'], ['wealth', 'Add your bank accounts', 'Personal, business, family, cards'], ['me', 'Connect your phone', 'Pop-ups and vibration, even when locked']];
   const nConn = steps.filter(([k]) => has[k]).length;
   const brief = nConn
-    ? `<div class="row" style="justify-content:space-between;align-items:flex-start"><p class="eyebrow">Your brief</p><button class="btn sm" id="rf">${d.stale ? 'Update' : 'Refresh'}</button></div><p class="bt">${esc(d.brief)}</p>`
+    ? `<div class="row" style="justify-content:space-between;align-items:flex-start"><p class="eyebrow">Your brief</p><div class="row" style="gap:6px">${S.me.voice ? '<button class="btn sm" id="lis">Listen</button>' : ''}<button class="btn sm" id="rf">${d.stale ? 'Update' : 'Refresh'}</button></div></div><p class="bt">${esc(d.brief)}</p>`
     : `<p class="eyebrow">Your brief</p><p class="bt">Welcome${name ? ', ' + esc(name.split(' ')[0]) : ''}. Connect your apps and Dioma writes your brief here every day: what is next, what needs a reply, who is waiting and where your money goes.</p>`;
   const todo = steps.filter(([k]) => !has[k]);
   main.innerHTML = top + `<div class="ycard">${brief}${todo.length ? `<div class="go">${todo.map(([k, t, sub]) => `<a href="#${k}"><span style="font-family:inherit;font-size:15px;letter-spacing:0">${t}<br><small style="opacity:.7;font-weight:400">${sub}</small></span><span>CONNECT ›</span></a>`).join('')}</div>` : ''}</div>
@@ -367,6 +368,7 @@ async function viewHome(refresh) {
     <section class="sec"><h2>Your Dioma</h2><div class="morel">${KEYS.filter((k) => k !== 'home').map((k) => `<a href="#${k}"><svg viewBox="0 0 24 24">${I[ICON[k]]}</svg>${LABEL[k]}</a>`).join('')}</div>
       <p class="note" style="margin-top:12px">Change what sits in the top and bottom bars in <a href="#me" style="color:var(--acc)">Me → Top and bottom bars</a>.</p></section>`;
   $('#rf')?.addEventListener('click', (e) => { e.target.disabled = true; e.target.textContent = 'Updating…'; viewHome(true); });
+  $('#lis')?.addEventListener('click', (e) => { e.target.textContent = 'Speaking…'; say(`${hello}${name ? ', ' + name.split(' ')[0] : ''}. ${d.brief}`).finally(() => { if ($('#lis')) $('#lis').textContent = 'Listen'; }); });
   wireTodos($('#ht'), () => viewHome());
 }
 
@@ -395,34 +397,70 @@ async function viewTodo() {
 }
 
 // ---------- Ask ----------
+// ---------- Voice: talk to Dioma, Dioma talks back ----------
+let SPEAK = (() => { try { return localStorage.getItem('dioma-speak') !== '0'; } catch { return true; } })();
+let AUD = null;
+async function say(text) {
+  try {
+    if (AUD) { AUD.pause(); AUD = null; }
+    const r = await fetch('/api/voice/speak', { method: 'POST', headers: { 'content-type': 'application/json', 'x-dioma': '1' }, body: JSON.stringify({ text }) });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Could not speak');
+    AUD = new Audio(URL.createObjectURL(await r.blob())); await AUD.play();
+  } catch (x) { if (window.speechSynthesis) { const u = new SpeechSynthesisUtterance(text); u.lang = 'en-GB'; speechSynthesis.speak(u); } }
+}
+let REC = null;
+async function micToggle(btn, onText) {
+  if (REC) { REC.stop(); return; }
+  let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch { return toast('Allow the microphone to talk to Dioma.'); }
+  const type = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg'].find((t) => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
+  const rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined), parts = [];
+  REC = rec; btn.classList.add('rec'); btn.setAttribute('aria-label', 'Stop'); btn.innerHTML = '■';
+  rec.ondataavailable = (e) => e.data.size && parts.push(e.data);
+  rec.onstop = async () => {
+    stream.getTracks().forEach((t) => t.stop()); REC = null; btn.classList.remove('rec'); btn.innerHTML = MIC; btn.disabled = true;
+    try {
+      const blob = new Blob(parts, { type: rec.mimeType || type || 'audio/webm' });
+      const r = await fetch('/api/voice/listen', { method: 'POST', headers: { 'content-type': blob.type, 'x-dioma': '1' }, body: blob });
+      const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'Could not hear that.');
+      if (j.text) onText(j.text); else toast('I did not catch that. Try again.');
+    } catch (x) { toast(x.message); }
+    btn.disabled = false;
+  };
+  rec.start();
+  setTimeout(() => { if (REC === rec) rec.stop(); }, 60e3);
+}
+const MIC = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
+
 async function viewAsk() {
   const main = $('#main');
   if (!S.chat) S.chat = await api('GET', '/api/chat').catch(() => ({ messages: [], used: 0, cap: 30 }));
   if (cur() !== 'ask') return;
   const draw = () => {
-    main.innerHTML = `${stabs()}<div class="row" style="justify-content:space-between"><h1>Ask Dioma</h1>${S.chat.messages.length ? '<button class="btn sm" id="clr">Clear</button>' : ''}</div>
+    main.innerHTML = `${stabs()}<div class="row" style="justify-content:space-between"><h1>Ask Dioma</h1><div class="row" style="gap:6px"><button class="btn sm" id="spk" aria-pressed="${SPEAK}">${SPEAK ? 'Voice on' : 'Voice off'}</button>${S.chat.messages.length ? '<button class="btn sm" id="clr">Clear</button>' : ''}</div></div>
       <div class="chat" id="chat" style="margin-top:20px">${S.chat.messages.length ? S.chat.messages.map((m) => `<div class="msg ${m.role}">${esc(m.text)}</div>`).join('') : `<p class="dim">Ask about your day, your mail, or tell Dioma what to remember.</p><div class="chips">${['What should I do first today?', 'Summarise my unread email', 'Remind me to call the bank tomorrow', 'What meetings do I have today?'].map((c) => `<button class="chip">${esc(c)}</button>`).join('')}</div>`}
       ${S.busy ? '<div class="msg assistant"><span class="typing"><i></i><i></i><i></i></span></div>' : ''}</div>
       <p class="note mono" style="margin-top:14px;font-size:11.5px">${S.chat.used} of ${S.chat.cap} asks today${S.me.ai.live ? '' : ' · test mode'}</p>`;
     $('#clr')?.addEventListener('click', async () => { await api('DELETE', '/api/chat'); S.chat.messages = []; draw(); });
+    $('#spk').addEventListener('click', () => { SPEAK = !SPEAK; try { localStorage.setItem('dioma-speak', SPEAK ? '1' : '0'); } catch {} if (!SPEAK && AUD) AUD.pause(); draw(); });
     main.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', () => ask(c.textContent)));
     window.scrollTo(0, document.body.scrollHeight);
   };
   const ask = async (q) => {
     q = q.trim(); if (!q || S.busy) return;
     S.chat.messages.push({ role: 'user', text: q }); S.busy = true; draw();
-    try { const r = await api('POST', '/api/chat', { text: q }); S.chat.messages.push({ role: 'assistant', text: r.reply }); S.chat.used = r.used; if (r.changed) toast('To-do list updated'); }
+    try { const r = await api('POST', '/api/chat', { text: q }); S.chat.messages.push({ role: 'assistant', text: r.reply }); S.chat.used = r.used; if (r.changed) toast('To-do list updated'); if (SPEAK && S.me.voice) say(r.reply); }
     catch (x) { S.chat.messages.push({ role: 'assistant', text: x.message }); }
     S.busy = false; if (cur() === 'ask') draw();
   };
   draw();
   const c = document.createElement('div'); c.className = 'composer';
-  c.innerHTML = `<form class="wrap row" id="cf"><textarea class="field grow" id="q" rows="1" placeholder="Ask Dioma…" maxlength="4000"></textarea><button class="btn pri" aria-label="Send">Send</button></form>`;
+  c.innerHTML = `<form class="wrap row" id="cf"><button type="button" class="btn mic" id="mic" aria-label="Talk to Dioma">${MIC}</button><textarea class="field grow" id="q" rows="1" placeholder="Ask Dioma, or tap the mic and talk…" maxlength="4000"></textarea><button class="btn pri" aria-label="Send">Send</button></form>`;
   document.body.appendChild(c);
   const q = $('#q');
   q.addEventListener('input', () => { q.style.height = 'auto'; q.style.height = Math.min(q.scrollHeight, 140) + 'px'; });
   q.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 600) { e.preventDefault(); $('#cf').requestSubmit(); } });
   $('#cf').addEventListener('submit', (e) => { e.preventDefault(); const v = q.value; q.value = ''; q.style.height = 'auto'; ask(v); });
+  $('#mic').addEventListener('click', (e) => { if (!S.me.voice) return toast('Voice is being switched on.'); micToggle(e.currentTarget, (t) => ask(t)); });
   main.style.paddingBottom = '190px';
 }
 
