@@ -113,6 +113,46 @@ export async function events(uid) {
   EVC.set(uid, { ev, at: Date.now() }); return ev;
 }
 
+// Zoho Mail needs the account id and folder ids first; parameter names are read from the tool's own schema.
+const SCHEMA = new Map(), ZACC = new Map();
+async function params(tool) { if (SCHEMA.has(tool)) return SCHEMA.get(tool); let p = {}; try { const r = await call('GET', `/tools/${tool}`); p = r.input_parameters?.properties || r.parameters?.properties || {}; } catch {} SCHEMA.set(tool, p); return p; }
+const keyLike = (props, re) => Object.keys(props).find((k) => re.test(k));
+export async function zohoAccount(uid) {
+  const c = ZACC.get(uid); if (c && Date.now() - c.at < 30 * 60e3) return c;
+  const data = await exec(uid, 'ZOHO_MAIL_ACCOUNTS_LIST_ACCOUNTS', {});
+  const a = (firstArray(data) || [])[0] || {};
+  const v = { id: String(a.accountId || a.account_id || a.id || ''), email: String(a.primaryEmailAddress || a.mailboxAddress || a.emailAddress?.[0]?.mailId || a.incomingUserName || ''), folders: null, at: Date.now() };
+  ZACC.set(uid, v); return v;
+}
+async function zohoFolders(uid, acc) {
+  if (acc.folders) return acc.folders;
+  const props = await params('ZOHO_MAIL_FOLDERS_LIST_FOLDERS'), k = keyLike(props, /account/i) || 'account_id';
+  const data = await exec(uid, 'ZOHO_MAIL_FOLDERS_LIST_FOLDERS', { [k]: acc.id });
+  acc.folders = (firstArray(data) || []).map((f) => ({ id: String(f.folderId || f.id), type: String(f.folderType || f.folderName || '').toLowerCase(), name: String(f.folderName || '') }));
+  return acc.folders;
+}
+async function zohoMailbox(uid, folder, q) {
+  const acc = await zohoAccount(uid); if (!acc.id) return [];
+  let data;
+  if (q) {
+    const props = await params('ZOHO_MAIL_SEARCH_MESSAGES');
+    data = await exec(uid, 'ZOHO_MAIL_SEARCH_MESSAGES', { [keyLike(props, /account/i) || 'account_id']: acc.id, [keyLike(props, /search/i) || 'searchKey']: `entire:${q}`, [keyLike(props, /limit/i) || 'limit']: 30 });
+  } else {
+    const props = await params('ZOHO_MAIL_MESSAGES_LIST_EMAILS'), args = { [keyLike(props, /account/i) || 'account_id']: acc.id, [keyLike(props, /limit/i) || 'limit']: 30 };
+    const want = { inbox: /inbox/, unread: /inbox/, sent: /sent/, drafts: /draft/ }[folder] || /inbox/;
+    const f = (await zohoFolders(uid, acc).catch(() => [])).find((x) => want.test(x.type) || want.test(x.name.toLowerCase()));
+    const fk = keyLike(props, /folder/i); if (f && fk) args[fk] = f.id;
+    const sk = keyLike(props, /^status$/i); if (folder === 'unread' && sk) args[sk] = 'unread';
+    data = await exec(uid, 'ZOHO_MAIL_MESSAGES_LIST_EMAILS', args);
+  }
+  return (firstArray(data) || []).map((m) => {
+    const at = Number(m.receivedTime || m.sentDateInGMT || m.date) || +new Date(m.receivedTime || 0) || 0;
+    const unread = m.status === '0' || m.status === 0 || m.isRead === false || String(m.status2 || '') === '0';
+    const from = String(m.sender || m.fromAddress || ''), to = String(m.toAddress || '').replace(/&lt;|&gt;/g, '');
+    return { id: 'zm:' + (m.messageId || m.id), from: from.replace(/<.*>/, '').trim(), fromAddr: String(m.fromAddress || '').toLowerCase(), to: to.replace(/<.*>/, '').replace(/"/g, '').trim(), toAddr: (to.match(/<([^>]+)>/)?.[1] || to).toLowerCase(), subject: m.subject || '(no subject)', snippet: String(m.summary || '').slice(0, 200), at, unread: folder === 'unread' ? true : unread };
+  }).filter((m) => folder !== 'unread' || m.unread);
+}
+
 // A folder from a connected Gmail / Outlook / Zoho Mail, simple shape.
 export async function mailbox(uid, slug, folder = 'inbox', q = '') {
   if (slug === 'gmail') {
@@ -126,6 +166,7 @@ export async function mailbox(uid, slug, folder = 'inbox', q = '') {
       return { id: 'gm:' + (m.messageId || m.id), thread: m.threadId || m.thread_id || '', from: from.replace(/<.*>/, '').replace(/"/g, '').trim(), fromAddr: (from.match(/<([^>]+)>/)?.[1] || from).toLowerCase(), to: to.replace(/<.*>/, '').trim(), toAddr: (to.match(/<([^>]+)>/)?.[1] || to).toLowerCase(), subject: pick(m, 'subject') || '(no subject)', snippet: String(m.preview?.body || m.snippet || m.messageText || '').slice(0, 200), at: at < 1e12 ? at * 1000 : at, unread: lab.includes('UNREAD') };
     });
   }
+  if (slug === 'zoho_mail') return zohoMailbox(uid, folder, q);
   if (folder !== 'inbox' && folder !== 'unread') return [];
   const list = await inbox(uid, slug);
   return list.filter((m) => !q || (m.from + ' ' + m.subject).toLowerCase().includes(q.toLowerCase())).map((m, i) => ({ id: `${slug}:${m.at}:${i}`, ...m, fromAddr: '', unread: folder === 'unread' ? true : !!m.unread, snippet: '' }));

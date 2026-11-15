@@ -436,7 +436,7 @@ const AUTO_SENDER = /no-?reply|newsletter|notification|notify|mailer|bounce|mark
 const label = (k, email) => { const d = String(email || '').split('@')[1] || ''; if (/gmail|googlemail|outlook|hotmail|live|yahoo|icloud|me\.com/.test(d) || (!d && /gmail|outlook/.test(k))) return 'Personal'; if (d) { const n = d.split('.')[0]; return n.charAt(0).toUpperCase() + n.slice(1); } return { zoho_mail: 'Zoho Mail', outlook: 'Outlook', gmail: 'Gmail' }[k] || 'Mail'; };
 async function mailAccounts(u) {
   const out = [];
-  if (A.enabled()) { const on = (await A.connected(u.id).catch(() => [])).map((x) => x.slug); for (const k of ['gmail', 'outlook', 'zoho_mail']) if (on.includes(k)) out.push({ key: k, label: label(k) }); }
+  if (A.enabled()) { const on = (await A.connected(u.id).catch(() => [])).map((x) => x.slug); for (const k of ['gmail', 'outlook', 'zoho_mail']) if (on.includes(k)) { let em = ''; if (k === 'zoho_mail') em = (await A.zohoAccount(u.id).catch(() => ({}))).email || ''; out.push({ key: k, label: label(k, em), email: em }); } }
   const im = M.account(u.id); if (im) out.push({ key: 'imap', label: label('imap', im) });
   const g = one(`SELECT account FROM connections WHERE user_id = ? AND kind = 'google'`, u.id); if (g && !out.some((x) => x.key === 'gmail')) out.push({ key: 'google', label: label('google', g.account) });
   const seen = {}; for (const a of out) { seen[a.label] = (seen[a.label] || 0) + 1; if (seen[a.label] > 1) a.label += ' ' + seen[a.label]; }
