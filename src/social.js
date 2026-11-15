@@ -93,3 +93,50 @@ export async function post(uid, net, text, imageUrl) {
   }
   throw err('Posting to this network is coming soon.', 400);
 }
+
+// Direct messages (Instagram business inbox, Facebook Page inbox). Read, and reply only when the customer taps Send.
+export async function dms(uid) {
+  const on = (await A.connected(uid)).map((x) => x.slug), out = { threads: [], errors: [] };
+  const c = C.get(uid + ':dms'); if (c && Date.now() - c.at < 2 * 60e3) return c.data;
+  const norm = (net, t, meId) => {
+    const msgs = arr(t.messages || t).slice(0, 6).map((m) => ({ from: m.from?.username || m.from?.name || '', fromId: String(m.from?.id || ''), text: m.message || m.text || '', at: +new Date(m.created_time || m.timestamp || 0) }));
+    const other = (t.participants?.data || t.participants || []).find((p) => String(p.id) !== String(meId)) || {};
+    return { net, id: String(t.id || ''), who: other.username || other.name || msgs.find((m) => m.fromId !== String(meId))?.from || 'Someone', whoId: String(other.id || msgs.find((m) => m.fromId !== String(meId))?.fromId || ''), at: +new Date(t.updated_time || msgs[0]?.at || 0), messages: msgs };
+  };
+  if (on.includes('instagram')) {
+    try { const u = await igUser(uid); const d = await A.runFill(uid, 'INSTAGRAM_LIST_ALL_CONVERSATIONS', { 'ig_user_id|user_id': u.id || 'me', 'limit': 20, 'fields': 'id,updated_time,participants,messages{message,from,created_time}' }); out.threads.push(...arr(d).map((t) => norm('instagram', t, u.id))); }
+    catch (e) { out.errors.push('Instagram messages: ' + e.message); }
+  }
+  if (on.includes('facebook')) {
+    try { const pg = await fbPage(uid); if (pg.id) { const d = await A.runFill(uid, 'FACEBOOK_GET_PAGE_CONVERSATIONS', { 'page_id': pg.id, 'limit': 20, 'fields': 'id,updated_time,participants,messages{message,from,created_time}' }); out.threads.push(...arr(d).map((t) => norm('facebook', t, pg.id))); } }
+    catch (e) { out.errors.push('Facebook messages: ' + e.message); }
+  }
+  out.threads.sort((a, b) => b.at - a.at);
+  C.set(uid + ':dms', { at: Date.now(), data: out }); return out;
+}
+export async function dmSend(uid, net, to, text) {
+  C.delete(uid + ':dms');
+  if (net === 'instagram') { const u = await igUser(uid); return A.runFill(uid, 'INSTAGRAM_SEND_TEXT_MESSAGE', { 'ig_user_id|user_id': u.id, 'recipient_id|recipient': to, 'text|message': text }); }
+  if (net === 'facebook') { const pg = await fbPage(uid); return A.runFill(uid, 'FACEBOOK_SEND_MESSAGE', { 'page_id': pg.id, 'recipient_id|recipient': to, 'message|text': text }); }
+  throw err('Messages for this network are coming soon.', 400);
+}
+
+// Trending now: Google Trends for the UAE, the GCC (Saudi) and the world, with the news behind each trend.
+const TR = new Map();
+export async function trending() {
+  const c = TR.get('t'); if (c && Date.now() - c.at < 30 * 60e3) return c.data;
+  const dec = (t) => String(t || '').replace(/<!\[CDATA\[|\]\]>/g, '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
+  const tag = (x, n) => dec((x.match(new RegExp(`<${n}[^>]*>([\\s\\S]*?)</${n}>`)) || [])[1]);
+  const regions = [];
+  for (const [id, label, geo] of [['uae', 'UAE', 'AE'], ['gcc', 'GCC', 'SA'], ['world', 'World', 'US']]) {
+    try {
+      const x = await (await fetch('https://trends.google.com/trending/rss?geo=' + geo, { signal: AbortSignal.timeout(12e3) })).text();
+      const items = [...x.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 12).map(([, i]) => {
+        const news = [...i.matchAll(/<ht:news_item>([\s\S]*?)<\/ht:news_item>/g)].map(([, n]) => ({ title: tag(n, 'ht:news_item_title'), url: tag(n, 'ht:news_item_url'), source: tag(n, 'ht:news_item_source') })).filter((n) => /^https:\/\//.test(n.url));
+        return { topic: tag(i, 'title'), traffic: tag(i, 'ht:approx_traffic'), title: news[0]?.title || tag(i, 'title'), url: news[0]?.url || '', source: news[0]?.source || '' };
+      }).filter((t) => t.topic);
+      regions.push({ id, tag: label, items });
+    } catch { regions.push({ id, tag: label, items: [], error: 'Could not load trends right now.' }); }
+  }
+  const data = { regions, at: Date.now() }; TR.set('t', { at: Date.now(), data }); return data;
+}

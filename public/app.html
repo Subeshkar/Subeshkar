@@ -84,6 +84,7 @@ nav.bot .wrap{display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
 .wsug{display:flex;gap:6px;margin-top:8px;align-items:center}.wsug .field{flex:1;min-width:0;min-height:36px;padding:6px 10px;font-size:14px}.wsug .btn{flex:none}
 .wexp{margin:-2px 0 10px;padding:12px}.wexm{display:flex;flex-direction:column;gap:6px;max-height:300px;overflow:auto}
 .vnote{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.vnote audio{height:36px;max-width:240px}.vnote .vtx{flex:1 1 100%;white-space:pre-wrap}.btn.rec{background:#e5484d;color:#fff;border-color:#e5484d}
+.sacts{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-top:14px}.sacts button{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 4px;border-radius:14px;border:1px solid var(--line2);background:var(--card);color:var(--fg);font:500 13px var(--sans);cursor:pointer;min-width:0}.sacts button span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}.sacts svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.sacts button.on{background:var(--acc);color:var(--accink);border-color:var(--acc)}@media (max-width:620px){.sacts{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.sacts button{padding:8px 4px;font-size:12px;gap:4px}.sacts svg{width:19px;height:19px}}
 .wtop{position:sticky;z-index:5;background:var(--bg);padding:8px 0;gap:8px;border-bottom:1px solid var(--line)}
 .wstats{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px}
 @media (max-width:620px){#cst.wstats{grid-template-columns:repeat(3,minmax(0,1fr))!important}.wstats{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.wst{padding:5px 3px;border-radius:10px}.wst b{font-size:15px}.wst span{font-size:10px}.wsug{flex-wrap:wrap}.wsug .field{flex:1 1 100%}}
@@ -811,28 +812,32 @@ async function shortcutCard() {
 }
 // ---------- Social: comments, posts, create (nothing goes out until you tap Post / Send) ----------
 let SOT = 'comments', SOD = null, SOPRE = '', SONET = 'all';
+const SACTS = [['trending', 'Trending', '<path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/>'], ['comments', 'Comments', '<path d="M4 5h16v11H9l-5 4z"/>'], ['messages', 'Messages', '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>'], ['create', 'New post', '<path d="M12 5v14M5 12h14"/>'], ['posts', 'My posts', '<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1.6"/><path d="m20 15-5-5-9 9"/>'], ['search', 'Search', '<circle cx="11" cy="11" r="6.5"/><path d="m16 16 5 5"/>']];
+const SSEARCH = { instagram: 'https://www.instagram.com/explore/search/keyword/?q=', facebook: 'https://www.facebook.com/search/top/?q=', linkedin: 'https://www.linkedin.com/search/results/content/?keywords=', twitter: 'https://x.com/search?q=', youtube: 'https://www.youtube.com/results?search_query=', tiktok: 'https://www.tiktok.com/search?q=', snapchat: 'https://www.snapchat.com/explore/' };
+const SINBOX = { instagram: 'https://www.instagram.com/direct/inbox/', facebook: 'https://business.facebook.com/latest/inbox/all', linkedin: 'https://www.linkedin.com/messaging/', twitter: 'https://x.com/messages', tiktok: 'https://www.tiktok.com/messages' };
 const NETN = { instagram: 'Instagram', facebook: 'Facebook', linkedin: 'LinkedIn', twitter: 'X', youtube: 'YouTube', tiktok: 'TikTok' };
 const aiw = (kind, input) => api('POST', '/api/ai/write', { kind, input });
 async function viewSocial() {
   const main = $('#main');
   await loadApps(true); if (cur() !== 'social') return;
   const on = ((APPS && APPS.catalog.social) || []).filter(([k]) => appOn(k));
-  if (!on.length && SOT !== 'weekly') { main.innerHTML = connBlock('social', 'social', 'Add account') + '<button class="btn" id="sowk" style="margin-top:14px">Write this week\'s posts without connecting</button>'; $('#sowk').onclick = () => { SOT = 'weekly'; viewSocial(); }; return; }
   const nets = [['all', 'All'], ...((APPS && APPS.catalog.social) || []).map(([k, n]) => [k, n]), ['snapchat', 'Snapchat']];
   main.innerHTML = `<div class="row" style="gap:8px;align-items:center"><div class="seg wtabs grow" id="sonet" style="display:flex;overflow-x:auto;scrollbar-width:none;min-width:0">${nets.map(([k, n]) => `<button data-n="${k}" class="${SONET === k ? 'on' : ''}" style="white-space:nowrap;flex:none">${n}${k !== 'all' && appOn(k) ? ' <span style="color:#3ecf6e">●</span>' : ''}</button>`).join('')}</div><button class="btn sm pri" data-addmore="social" style="flex:none">+ Add</button></div>
     <div id="more-social" hidden style="margin-top:10px">${appList('social', 'social')}</div>
-    <div class="seg wtabs" id="sot" style="margin-top:14px">${[['comments', 'Comments'], ['posts', 'Posts'], ['create', 'Create post'], ['weekly', 'Write this week\'s posts']].map(([k, l]) => `<button data-t="${k}" class="${SOT === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+    <div class="sacts" id="sot">${SACTS.map(([k, l, ic]) => `<button type="button" data-t="${k}" class="${SOT === k || (k === 'create' && SOT === 'weekly') ? 'on' : ''}"><svg viewBox="0 0 24 24">${ic}</svg><span>${l}</span></button>`).join('')}</div>
     <div id="sov" style="margin-top:14px"><div class="empty">Loading…</div></div>`;
   $('#sonet').onclick = (e) => { const b = e.target.closest('[data-n]'); if (!b) return; SONET = b.dataset.n; $('#sonet').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); drawSo(on); };
   $('#sot').onclick = (e) => { const b = e.target.closest('[data-t]'); if (!b) return; SOT = b.dataset.t; $('#sot').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); drawSo(on); };
-  if (SOT !== 'create' && SOT !== 'weekly') SOD = await api('GET', '/api/social/feed').catch((x) => ({ posts: [], errors: [x.message] }));
+  if (SOT === 'comments' || SOT === 'posts') SOD = await api('GET', '/api/social/feed').catch((x) => ({ posts: [], errors: [x.message] }));
   drawSo(on);
 }
 async function drawSo(on) {
   const v = $('#sov'); if (!v) return;
-  if (SONET !== 'all' && SOT !== 'weekly' && !appOn(SONET)) { v.innerHTML = SONET === 'snapchat' ? '<div class="empty">Snapchat has no connection for apps. Dioma writes your posts (Write this week\'s posts) and you post them from the Snapchat app.</div>' : `<p class="note">${esc(NETN[SONET] || SONET)} is not connected yet.</p>${appList('social', 'social', ((APPS && APPS.catalog.social) || []).map(([k]) => k).filter((k) => k !== SONET))}`; return; }
-  if (SOT === 'create') return drawCreate(SONET === 'all' ? on : on.filter(([k]) => k === SONET));
-  if (SOT === 'weekly') return drawWeekly();
+  if (SOT === 'trending') return drawTrend();
+  if (SOT === 'search') return drawSearch();
+  if (SONET !== 'all' && SOT !== 'weekly' && SOT !== 'create' && !appOn(SONET)) { v.innerHTML = SONET === 'snapchat' ? '<div class="empty">Snapchat has no connection for apps. Dioma writes your posts (Write this week\'s posts) and you post them from the Snapchat app.</div>' : `<p class="note">${esc(NETN[SONET] || SONET)} is not connected yet.</p>${appList('social', 'social', ((APPS && APPS.catalog.social) || []).map(([k]) => k).filter((k) => k !== SONET))}`; return; }
+  if (SOT === 'messages') return drawDms();
+  if (SOT === 'create' || SOT === 'weekly') { v.innerHTML = '<div id="soc1"></div><div id="sov2" style="margin-top:18px"></div>'; drawCreate(SONET === 'all' ? on : on.filter(([k]) => k === SONET), $('#soc1')); return drawWeekly($('#sov2')); }
   if (!SOD) SOD = await api('GET', '/api/social/feed').catch((x) => ({ posts: [], errors: [x.message] }));
   const PS = SOD.posts.filter((p) => SONET === 'all' || p.net === SONET);
   const errs = (SOD.errors || []).map((e) => `<p class="err">${esc(e)}</p>`).join('');
@@ -849,8 +854,8 @@ async function drawSo(on) {
     if (sd) { const i = +sd.dataset.send, c = cm[i], t = $('#cr' + i).value.trim(); if (!t) return toast('Write a reply first.'); sd.disabled = true; try { await api('POST', '/api/social/reply', { net: c.net, id: c.id, text: t }); toast('Reply posted'); sd.textContent = 'Sent ✓'; } catch (x) { toast(x.message); sd.disabled = false; } }
   };
 }
-async function drawWeekly() {
-  const v = $('#sov'); await kvLoad(); const posts = KVS.posts || [];
+async function drawWeekly(tgt) {
+  const v = tgt || $('#sov'); await kvLoad(); const posts = KVS.posts || [];
   v.onclick = null;
   v.innerHTML = `<div class="card stack"><div class="row" style="gap:6px;flex-wrap:wrap"><select class="field" id="wbr" style="width:auto">${['Personal brand (LinkedIn)', 'RedexGo', 'New business idea', 'Other'].map((b) => `<option>${b}</option>`).join('')}</select><span class="note">Facebook · Instagram · LinkedIn</span></div>
     <textarea class="field" id="wtp" rows="3" placeholder="What should this week's posts be about?">${esc(SOPRE)}</textarea><button class="btn pri" id="wgo" style="justify-self:start">Write my posts</button></div>
@@ -858,16 +863,51 @@ async function drawWeekly() {
   SOPRE = '';
   $('#wgo').onclick = (e) => { const t = $('#wtp').value.trim(); if (!t) return toast('Tell Dioma what to post about.'); busyB(e.target, 'Writing…', async () => {
     const a = await aiAsk(`You are a social media manager for UAE brands. Brand: ${$('#wbr').value}\nTopic: ${t}\nToday: ${tday()}\nReply with only a JSON array of 3 posts, one each for Facebook, Instagram and LinkedIn: {"platform": "Facebook"|"Instagram"|"LinkedIn", "text": the post (Instagram with line breaks and 5-8 hashtags; LinkedIn professional, 80-150 words; Facebook friendly), "image_idea": one line, "best_time": "YYYY-MM-DDTHH:MM" this week in Dubai time}`);
-    if (!Array.isArray(a.data)) throw new Error('Try again.'); await kvSave('posts', [...a.data.map((p) => ({ ...p, brand: $('#wbr').value, at: Date.now() })), ...posts].slice(0, 30)); drawWeekly(); }); };
+    if (!Array.isArray(a.data)) throw new Error('Try again.'); await kvSave('posts', [...a.data.map((p) => ({ ...p, brand: $('#wbr').value, at: Date.now() })), ...posts].slice(0, 30)); drawWeekly(v); }); };
   v.onclick = async (e) => {
     const r = e.target.closest('[data-wr]'), x = e.target.closest('[data-wx]'), pb = e.target.closest('[data-wpub]');
     if (r) { const p = posts[+r.dataset.wr]; await addTodo(`Post on ${p.platform} (${String(p.best_time).replace('T', ' ').slice(0, 16)})`, String(p.best_time).slice(0, 10)); toast('Added to To-do'); }
-    if (x) { posts.splice(+x.dataset.wx, 1); await kvSave('posts', posts); drawWeekly(); }
+    if (x) { posts.splice(+x.dataset.wx, 1); await kvSave('posts', posts); drawWeekly(v); }
     if (pb) { const p = posts[+pb.dataset.wpub]; if (pb.dataset.sure !== '1') { pb.dataset.sure = '1'; pb.textContent = 'Tap again to post'; return; } pb.disabled = true; try { await api('POST', '/api/social/post', { net: String(p.platform).toLowerCase(), text: p.text }); pb.textContent = 'Posted ✓'; } catch (y) { toast(y.message); pb.disabled = false; pb.dataset.sure = ''; pb.textContent = 'Post to ' + p.platform; } }
   };
 }
-function drawCreate(on) {
-  const v = $('#sov'), nets = on.map(([k]) => k).filter((k) => ['linkedin', 'facebook', 'instagram'].includes(k));
+async function drawTrend() {
+  const v = $('#sov'); v.onclick = null; v.innerHTML = '<div class="empty">Loading what is trending…</div>';
+  const d = await api('GET', '/api/social/trending').catch((x) => ({ regions: [], error: x.message })); if (SOT !== 'trending' || !$('#sov')) return;
+  const net = SONET === 'all' ? 'linkedin' : SONET, nm = NETN[net] || 'LinkedIn', L = [];
+  v.innerHTML = (d.error ? `<p class="err">${esc(d.error)}</p>` : '') + d.regions.map((r) => `<div class="row" style="gap:8px;margin:14px 0 6px"><span class="srcb" style="background:var(--acc);color:var(--accink);border-color:var(--acc)">${r.tag}</span><span class="note">${{ UAE: 'United Arab Emirates', GCC: 'Saudi Arabia and the Gulf', World: 'Worldwide' }[r.tag]}</span></div>${r.items.length ? `<div class="list">${r.items.slice(0, 8).map((t) => { const i = L.push(t) - 1; return `<div class="item" style="flex-direction:column;align-items:stretch;gap:6px"><div class="note">${esc(t.topic)}${t.traffic ? ' · ' + esc(t.traffic) + ' searches' : ''}</div><div class="t">${esc(t.title)}</div>${t.source ? `<div class="s">${esc(t.source)}</div>` : ''}<div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm pri" data-tc="${i}">AI post</button>${t.url ? `<a class="btn sm" href="${esc(t.url)}" target="_blank" rel="noopener">Read ↗</a>` : ''}<a class="btn sm" href="${(SSEARCH[net] || SSEARCH.linkedin) + encodeURIComponent(t.topic)}" target="_blank" rel="noopener">On ${esc(nm)} ↗</a></div><div id="tco${i}"></div></div>`; }).join('')}</div>` : `<div class="empty">${esc(r.error || 'Nothing right now.')}</div>`}`).join('') + `<p class="note" style="margin-top:12px">Apps cannot like or comment under other people's posts. Dioma writes your take as your own post; tap Post or Copy.</p>`;
+  v.onclick = async (e) => {
+    const b = e.target.closest('[data-tc]'), pb = e.target.closest('[data-tpost]'); if (pb) return;
+    if (!b) return; const i = +b.dataset.tc, t = L[i];
+    busyB(b, 'Writing…', async () => { const a = await aiAsk(`Write a short ${nm} post (2-4 sentences) from me on this trending story: "${t.title}" (topic: ${t.topic}). Insightful, add my angle from my work, no hashtags spam (max 3), end with a question. Reply with only the post.`);
+      $('#tco' + i).innerHTML = `<div class="card stack"><textarea class="field" id="tct${i}" rows="5">${esc(a.text + (t.url ? '\n\n' + t.url : ''))}</textarea><div class="row" style="gap:6px;flex-wrap:wrap">${copyBtnH('tct' + i)}${['linkedin', 'facebook'].filter((n) => appOn(n)).map((n) => `<button class="btn sm pri" data-tp="${i}|${n}">Post on ${NETN[n]}</button>`).join('')}</div></div>`;
+      $('#tco' + i).querySelectorAll('[data-tp]').forEach((x) => { const [, n] = x.dataset.tp.split('|'); twoTap(x, 'Post on ' + NETN[n], async () => { await api('POST', '/api/social/post', { net: n, text: $('#tct' + i).value }); x.textContent = 'Posted ✓'; toast('Posted'); }); });
+    });
+  };
+}
+async function drawDms() {
+  const v = $('#sov'); v.onclick = null; v.innerHTML = '<div class="empty">Loading your messages…</div>';
+  const d = await api('GET', '/api/social/dms').catch((x) => ({ threads: [], errors: [x.message] })); if (SOT !== 'messages' || !$('#sov')) return;
+  const T = d.threads.filter((t) => SONET === 'all' || t.net === SONET);
+  const links = Object.entries(SINBOX).filter(([k]) => SONET === 'all' ? appOn(k) : k === SONET).map(([k, u]) => `<a class="btn sm" href="${u}" target="_blank" rel="noopener">${NETN[k]} inbox ↗</a>`).join('');
+  v.innerHTML = (d.errors || []).map((e) => `<p class="err">${esc(e)}</p>`).join('') + (T.length ? `<div class="list">${T.map((t, i) => `<div class="item" style="flex-direction:column;align-items:stretch;gap:6px"><div class="row" style="justify-content:space-between"><b style="font-weight:500">${esc(t.who)}</b><span class="note">${NETN[t.net]} · ${t.at ? ago(t.at) : ''}</span></div>${t.messages.slice(0, 3).reverse().map((m) => `<div class="s">${esc(m.from || '')}: ${esc(m.text)}</div>`).join('')}<textarea class="field" rows="2" id="dm${i}" placeholder="Your reply…"></textarea><div class="row" style="gap:6px"><button class="btn sm" data-dai="${i}">AI reply</button><button class="btn sm pri" data-dsend="${i}">Send</button></div></div>`).join('')}</div>` : '<div class="empty">No messages to show here. Instagram and Facebook Page messages appear here once those accounts are connected.</div>') + (links ? `<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:12px">${links}</div>` : '');
+  v.onclick = async (e) => {
+    const a = e.target.closest('[data-dai]'), sd = e.target.closest('[data-dsend]');
+    if (a) { const t = T[+a.dataset.dai]; busyB(a, 'Writing…', async () => { const r = await aiAsk(`Write a short, friendly reply (1-2 sentences, same language) to this ${NETN[t.net]} direct message thread. Reply with only the message.\n${t.messages.slice(0, 6).reverse().map((m) => `${m.from}: ${m.text}`).join('\n')}`); $('#dm' + a.dataset.dai).value = r.text; }); }
+    if (sd) { const i = +sd.dataset.dsend, t = T[i], x = $('#dm' + i).value.trim(); if (!x) return toast('Write a reply first.'); busyB(sd, 'Sending…', async () => { await api('POST', '/api/social/dm', { net: t.net, to: t.whoId, text: x }); toast('Sent'); $('#dm' + i).value = ''; }); }
+  };
+}
+function drawSearch() {
+  const v = $('#sov'); v.onclick = null;
+  v.innerHTML = `<form class="row" id="ssf" style="gap:6px"><input class="field grow" id="ssq" placeholder="#hashtag, @account or any topic" value="${esc(SSQ)}"><button class="btn pri">Search</button></form><div id="sso" style="margin-top:12px"></div>`;
+  const run = () => { const q = $('#ssq').value.trim(); SSQ = q; if (!q) return ($('#sso').innerHTML = '<div class="empty">Search a hashtag, account or topic on every network.</div>');
+    const mine = (SOD ? SOD.posts : []).flatMap((p) => [{ net: p.net, t: p.text, kind: 'Your post' }, ...p.comments.map((c) => ({ net: p.net, t: c.who + ': ' + c.text, kind: 'Comment' }))]).filter((x) => x.t.toLowerCase().includes(q.toLowerCase()));
+    $('#sso').innerHTML = `<div class="list">${Object.entries(SSEARCH).filter(([k]) => SONET === 'all' || k === SONET).map(([k, u]) => `<a class="item" href="${u}${encodeURIComponent(q)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none"><div class="grow t">Search "${esc(q)}" on ${esc(NETN[k] || 'Snapchat')}</div><span class="note">Open ↗</span></a>`).join('')}</div>${mine.length ? `<b style="display:block;margin:14px 0 6px;font-weight:600">In your posts and comments</b><div class="list">${mine.slice(0, 20).map((x) => `<div class="item"><div class="grow"><div class="s">${NETN[x.net]} · ${x.kind}</div><div class="t">${esc(x.t.slice(0, 200))}</div></div></div>`).join('')}</div>` : ''}`; };
+  $('#ssf').onsubmit = (e) => { e.preventDefault(); run(); }; run();
+}
+let SSQ = '';
+function drawCreate(on, tgt) {
+  const v = tgt || $('#sov'), nets = on.map(([k]) => k).filter((k) => ['linkedin', 'facebook', 'instagram'].includes(k));
   if (!nets.length) { v.innerHTML = '<div class="empty">Connect LinkedIn, Facebook or Instagram to post from Dioma.</div>'; return; }
   v.innerHTML = `<div class="stack"><textarea class="field" id="stopic" rows="2" placeholder="What do you want to post about? e.g. RedexGo just started chilled delivery for Amazon in Dubai"></textarea>
     <button class="btn pri" id="swrite">Write with AI</button>
