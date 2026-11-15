@@ -176,7 +176,7 @@ on('POST', '/api/me', async (req, res, u) => {
   let nav = u.nav;
   if (b.nav && Array.isArray(b.nav.top) && Array.isArray(b.nav.bottom)) {
     const clean = (a) => [...new Set(a.filter((k) => NAVKEYS.includes(k)))];
-    const bottom = clean(b.nav.bottom).slice(0, 4), top = clean(b.nav.top).filter((k) => !bottom.includes(k));
+    const bottom = clean(b.nav.bottom).slice(0, 6), top = clean(b.nav.top).filter((k) => !bottom.includes(k));
     nav = JSON.stringify({ top, bottom, known: Array.isArray(b.nav.known) ? clean(b.nav.known) : NAVKEYS });
   }
   run('UPDATE users SET name = ?, about = ?, tz = ?, role = ?, nav = ?, onboarded = ? WHERE id = ?', name, about, tz, role, nav ?? null, b.onboarded ? 1 : u.onboarded, u.id);
@@ -246,6 +246,13 @@ on('POST', '/api/chat', async (req, res, u) => {
 });
 
 // Home: brief + today
+// Little counts on the icons (open to-dos, unread WhatsApp), and what is connected yet.
+on('GET', '/api/badges', (req, res, u) => {
+  const todo = one('SELECT COUNT(*) n FROM todos WHERE user_id = ? AND done = 0', u.id)?.n || 0;
+  let wa = 0; try { wa = one('SELECT COALESCE(SUM(unread),0) n FROM wa_chats WHERE user_id = ?', u.id)?.n || 0; } catch {}
+  let wealth = 0; try { wealth = one('SELECT COUNT(*) n FROM w_accounts WHERE user_id = ?', u.id)?.n || 0; } catch {}
+  send(res, 200, { todo, wa, wealth });
+});
 on('GET', '/api/home', async (req, res, u) => {
   const ctx = await context(u);
   const sig = sha(ctx.text.replace(/^Now:.*$/m, '')).slice(0, 16);
