@@ -81,8 +81,9 @@ nav.bot .wrap{display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
 [hidden]{display:none!important}
 #tabs{padding-top:14px}
 .srcb{display:inline-block;margin-top:3px;font:500 10.5px var(--mono);letter-spacing:.04em;color:var(--acc);border:1px solid rgba(var(--accrgb),.4);border-radius:999px;padding:1px 7px}
-.wstats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;margin-top:14px}
-@media (max-width:620px){.wstats{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.wtop{position:sticky;z-index:5;background:var(--bg);padding:10px 0 10px;gap:10px;border-bottom:1px solid var(--line);margin:-10px 0 0}
+.wstats{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px}
+@media (max-width:620px){.wstats{grid-template-columns:repeat(4,minmax(0,1fr))}.wst{padding:6px 4px}.wst b{font-size:17px}}
 .wst{cursor:pointer;background:transparent;color:var(--fg);font:inherit;border:1px solid var(--line2);border-radius:12px;padding:8px 6px;text-align:center;display:flex;flex-direction:column;gap:2px}
 .wst b{font-size:20px;font-weight:600;line-height:1.1}.wst span{font-size:11px;color:var(--dim);line-height:1.2}
 .wst.hi{background:var(--acc);border-color:var(--acc)}.wst.hi b,.wst.hi span{color:var(--accink)}
@@ -1257,21 +1258,22 @@ async function viewWa() {
   if (waOpen) return waChat(waOpen);
   const midnight = new Date(); midnight.setHours(0, 0, 0, 0); WAF.midnight = midnight.getTime();
   const FL = [['action', 'Action'], ['priority', 'Priority'], ['follow', 'Follow-up'], ['unread', 'Unread'], ['all', 'All'], ['groups', 'Groups'], ['noise', 'Noise']];
-  main.innerHTML = `<a href="#home" class="back" style="color:var(--acc);text-decoration:none;font-weight:500">← Home</a>
-    <div class="row" style="justify-content:flex-end;margin-top:-22px"><div class="row" style="gap:6px"><button class="btn sm" id="wref">Refresh</button><button class="btn sm" id="wd">Disconnect</button></div></div>
-    <div class="wstats" id="wst"></div>
-    <div class="card stack" style="margin-top:14px">
+  main.innerHTML = `<div id="wtop" class="wtop stack">
+      <div class="row" style="justify-content:space-between;align-items:center;gap:8px"><a href="#home" class="back" style="color:var(--acc);text-decoration:none;font-weight:500">← Home</a><div class="row" style="gap:6px"><button class="btn sm" id="wref">Refresh</button><button class="btn sm" id="wd">Disconnect</button></div></div>
+      <div class="wstats" id="wst"></div>
       <div class="seg wtabs" id="wtab">${[['personal', 'Personal'], ['business', 'Business'], ['other', 'Other']].map(([k, l]) => `<button data-t="${k}" class="${WAF.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       <form class="row" id="wsf" style="gap:8px"><input class="field grow" id="wq" placeholder="Search name or number" value="${esc(WAF.q)}"><button class="btn sm" style="height:48px">Search</button></form>
-      <div class="wfil" id="wfl"></div>
-      <div class="list" id="wl"><div class="empty">Loading your chats…</div></div>
-    </div>`;
+      <div id="wfl" hidden></div>
+    </div>
+    <div class="list" id="wl" style="margin-top:6px"><div class="empty">Loading your chats…</div></div>`;
+  const pin = () => { const h = document.querySelector('header.top'); if (h && $('#wtop')) $('#wtop').style.top = Math.round(h.getBoundingClientRect().height) + 'px'; };
+  pin(); addEventListener('resize', pin, { passive: true });
   const draw = (d) => {
     if (cur() !== 'wa' || !$('#wl')) return;
     const g = waGroups(d);
     const sel = WAF.tab === 'business' ? 'business' : WAF.f;
-    $('#wst').innerHTML = [[g.stats.reply, 'Need your reply', 'action'], [g.stats.unread, 'Unread chats', 'dunread'], [g.stats.groups, 'Groups unread', 'gunread'], [g.stats.priority, 'Priority', 'priority'], [0, 'Business unread', 'business'], [g.stats.sent, 'Sent today', 'sent']].map(([n, l, k]) => `<button type="button" class="wst ${sel === k ? 'hi' : ''}" data-st="${k}"><b>${n}</b><span>${l}</span></button>`).join('');
-    $('#wfl').innerHTML = WAF.tab === 'business' ? '' : FL.map(([k, l]) => `<button data-f="${k}" class="${WAF.f === k ? 'on' : ''}">${l}${g.counts[k] && ['action', 'priority', 'noise', 'follow'].includes(k) ? ' ' + g.counts[k] : ''}</button>`).join('');
+    $('#wst').innerHTML = [[g.stats.reply, 'Need reply', 'action'], [g.stats.priority, 'Priority', 'priority'], [g.counts.follow || 0, 'Follow-up', 'follow'], [g.stats.unread, 'Unread', 'dunread'], [g.stats.groups, 'Groups', 'gunread'], [g.counts.noise || 0, 'Noise', 'noise'], [g.counts.all || 0, 'All', 'all'], [g.stats.sent, 'Sent today', 'sent']].map(([n, l, k]) => `<button type="button" class="wst ${sel === k ? 'hi' : ''}" data-st="${k}"><b>${n}</b><span>${l}</span></button>`).join('');
+    if (false) $('#wfl').innerHTML = FL.map(([k, l]) => `<button data-f="${k}" class="${WAF.f === k ? 'on' : ''}">${l}${g.counts[k] && ['action', 'priority', 'noise', 'follow'].includes(k) ? ' ' + g.counts[k] : ''}</button>`).join('');
     if (WAF.tab === 'business') { $('#wl').innerHTML = '<div class="empty">Business WhatsApp (your company number) is coming soon. Your personal chats are in Personal.</div>'; return; }
     $('#wl').innerHTML = g.list.length ? g.list.slice(0, 120).map((c) => `<div class="item" data-jid="${esc(c.jid)}" data-name="${esc(c.name)}" style="cursor:pointer"><span class="ficon mono">${esc((c.name || '?').replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase() || '#')}</span><div class="grow"><div class="t">${esc(c.name)}${c.is_group ? ' <span class="soon">Group</span>' : ''}</div><div class="s">${c.last_from_me ? 'You: ' : ''}${esc(c.last_text || '')}</div></div><div style="text-align:right;flex:none"><div class="when">${ago(c.last_at)}</div>${c.unread ? `<b class="wun">${c.unread}</b>` : ''}</div></div>`).join('') : `<div class="empty">${WAF.f === 'action' ? 'Nobody is waiting for your reply.' : 'Nothing here.'}</div>`;
   };
@@ -1284,7 +1286,7 @@ async function viewWa() {
     const k = b.dataset.st;
     if (k === 'business') WAF.tab = 'business'; else { WAF.tab = 'personal'; WAF.f = k; }
     $('#wtab').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x.dataset.t === WAF.tab));
-    D && draw(D); $('#wl').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    D && draw(D); scrollTo({ top: 0, behavior: 'smooth' });
   });
   $('#wfl').addEventListener('click', (e) => { const b = e.target.closest('[data-f]'); if (!b) return; WAF.f = b.dataset.f; D && draw(D); });
   $('#wsf').addEventListener('submit', (e) => { e.preventDefault(); WAF.q = $('#wq').value; D && draw(D); });
