@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DIR, one, run } from './db.js';
 import * as G from './google.js';
+import { seal, open as unseal } from './crypto.js';
 
 const APP_FILE = path.join(DIR, 'owner', 'dioma.html');
 fs.mkdirSync(path.dirname(APP_FILE), { recursive: true });
@@ -46,8 +47,14 @@ const DIOMA = 'Dioma WhatsApp', GMAIL = 'Gmail', CAL = 'Google Calendar';
 const err = (code, message) => Object.assign(new Error(message), { code });
 let rpcId = 0;
 
+// The owner's Dioma server link: pasted inside Dioma (stored encrypted) or set as DIOMA_MCP_URL.
+export function serverLink() { try { const d = one(`SELECT body FROM owner_docs WHERE path = '__link__'`); if (d) return unseal(JSON.parse(d.body)); } catch {} return process.env.DIOMA_MCP_URL || ''; }
+export function setServerLink(url) {
+  if (!/^https:\/\/[^\s/]+\/mcp\/[A-Za-z0-9_-]{16,}$/.test(url)) throw Object.assign(new Error('That link should look like https://…/mcp/… (copy it exactly).'), { status: 400 });
+  run('INSERT INTO owner_docs (path, body, at) VALUES (?, ?, ?) ON CONFLICT(path) DO UPDATE SET body = excluded.body, at = excluded.at', '__link__', JSON.stringify(seal(url)), Date.now());
+}
 async function diomaServer(tool, args) {
-  const url = process.env.DIOMA_MCP_URL;
+  const url = serverLink();
   if (!url) throw err('server_not_connected', 'Your Dioma server is not linked yet.');
   const r = await fetch(url, {
     method: 'POST',
