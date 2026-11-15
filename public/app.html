@@ -137,7 +137,8 @@ const NAV = [['home','Home'],['ask','Ask'],['todo','To-do'],['files','Files'],['
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 const S = { me: null, folder: '', newFolders: [], chat: null, busy: false };
-try { if (localStorage.getItem('dioma-tone') === 'sun') document.documentElement.dataset.tone = 'sun'; } catch {}
+document.documentElement.dataset.tone = 'sun';
+try { if (localStorage.getItem('dioma-tone') === 'mono') delete document.documentElement.dataset.tone; } catch {}
 
 async function api(method, url, body, raw) {
   const opts = { method, headers: { 'x-dioma': '1' } };
