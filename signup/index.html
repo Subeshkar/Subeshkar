@@ -35,11 +35,16 @@ h1{font-weight:400;font-size:34px;letter-spacing:-.025em;line-height:1.1;margin:
 .note{font-size:13px;color:var(--dim)}
 .plan{font:500 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--line2);border-radius:999px;padding:4px 10px;color:var(--dim);justify-self:start}
 ul{margin:0;padding-left:18px;color:var(--dim);font-size:14.5px}li{margin:3px 0}
+.brandrow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.tg{display:inline-flex;gap:2px;background:#111;border:1px solid #1c1c1c;border-radius:999px;padding:2px;flex:none}
+.tg button{border:0;background:transparent;border-radius:999px;padding:5px 10px;font:500 11px 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.06em;color:#8b8b8b;display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+.tg button i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.tg button[aria-pressed=true]{background:#fff;color:#000}
 </style>
 </head>
 <body>
 <main class="wrap">
-  <a class="logo" href="https://dioma.life"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle class="ring" cx="10" cy="10" r="8.5" stroke="currentColor" stroke-width="1.4" stroke-dasharray="46 7.4" stroke-linecap="round"/><circle cx="10" cy="10" r="2.8" fill="var(--acc)"/></svg>DIOMA</a>
+  <div class="brandrow"><a class="logo" href="https://dioma.life"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle class="ring" cx="10" cy="10" r="8.5" stroke="currentColor" stroke-width="1.4" stroke-dasharray="46 7.4" stroke-linecap="round"/><circle cx="10" cy="10" r="2.8" fill="var(--acc)"/></svg>DIOMA</a><div class="tg" role="group" aria-label="Colour"><button type="button" data-tone="mono" aria-pressed="true"><i style="background:#fff"></i>Mono</button><button type="button" data-tone="sun" aria-pressed="false"><i style="background:#ffb547"></i>Sunrise</button></div></div>
   <div style="display:grid;gap:10px"><h1 id="h">Create your Dioma</h1><p class="dim" id="p">Just your email. We send you a 6-digit code, no password.</p></div>
   <div class="seg" role="group" aria-label="Sign up or sign in"><button type="button" data-m="up" aria-pressed="true">Sign up</button><button type="button" data-m="in" aria-pressed="false">Sign in</button></div>
   <form class="card" id="f" novalidate>
@@ -66,9 +71,12 @@ ul{margin:0;padding-left:18px;color:var(--dim);font-size:14.5px}li{margin:3px 0}
   <p class="note">By continuing you agree to the <a href="https://app.dioma.life/terms">terms</a> and <a href="https://app.dioma.life/privacy">privacy policy</a>. <a href="https://dioma.life">Back to dioma.life</a></p>
 </main>
 <script>
+(function(){const set=(t)=>{if(t==='sun')document.documentElement.dataset.tone='sun';else delete document.documentElement.dataset.tone;document.querySelectorAll('.tg button').forEach((b)=>b.setAttribute('aria-pressed',String(b.dataset.tone===t)));try{localStorage.setItem('dioma-tone',t)}catch(e){}};
+let t='mono';try{t=localStorage.getItem('dioma-tone')==='sun'?'sun':'mono'}catch(e){}set(t);
+document.querySelectorAll('.tg button').forEach((b)=>b.addEventListener('click',()=>set(b.dataset.tone)));})();
+
 const APP = 'https://app.dioma.life';
 const q = new URLSearchParams(location.search);
-try { if (localStorage.getItem('dioma-tone') === 'sun') document.documentElement.dataset.tone = 'sun'; } catch {}
 let mode = q.get('mode') === 'in' ? 'in' : 'up';
 const plan = (q.get('plan') || '').replace(/[^a-z]/gi, '').slice(0, 20);
 if (plan) { const el = document.getElementById('plan'); el.hidden = false; el.textContent = plan + ' plan'; }
