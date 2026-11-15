@@ -116,8 +116,6 @@ document.getElementById('f').addEventListener('submit', async (e) => {
   const email = document.getElementById('email').value.trim();
   const err = document.getElementById('err');
   if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(email)) { err.textContent = 'Please enter a valid email address.'; return; }
-  const mine = await founder(email);
-  if (mine) { showMine(mine); return; }
   err.textContent = ''; const go = document.getElementById('go'); go.disabled = true; go.textContent = 'One moment…';
   if (await live) { location.href = `${APP}/?email=${encodeURIComponent(email)}${plan ? '&plan=' + plan : ''}`; return; }
   document.getElementById('f').hidden = true; document.getElementById('soon').hidden = false;
