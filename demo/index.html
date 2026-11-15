@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Try Dioma</title>
+<meta name="description" content="Try Dioma with sample data: your mail, WhatsApp, invoices and money in one assistant. Nothing is sent.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Figtree:wght@400;500;600;700;800&display=swap">
+<style>
+:root{--bg:#000000;--s1:#0B0B0B;--s2:#141414;--line:#1F1F1F;--line2:#2C2C2C;--fg:#FFFFFF;--mute:#9A9A9A;--y:#FFB547;--ys:rgba(255,181,71,.14);--ink:#1A0F00;--ok:#7FD8C4;
+--display:'Oswald','Arial Narrow',Impact,sans-serif;--body:'Figtree',system-ui,-apple-system,'Segoe UI',sans-serif;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg)}
+body{font:15px/1.5 var(--body);-webkit-font-smoothing:antialiased;padding-bottom:calc(88px + env(safe-area-inset-bottom,0px))}
+button{font:inherit;color:inherit;cursor:pointer}
+a{color:var(--y)}
+.wrap{max-width:480px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.demo{background:var(--y);color:var(--ink);font-size:12.5px;font-weight:700;text-align:center;padding:8px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px));padding-top:calc(8px + env(safe-area-inset-top,0px))}
+.demo a{color:var(--ink)}
+.top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+.bar{display:flex;align-items:center;justify-content:space-between;padding:12px 0 10px}
+.brand{display:flex;align-items:center;gap:9px;font-family:var(--display);font-weight:700;font-size:23px;letter-spacing:1px}
+.live{font:800 10.5px var(--body);letter-spacing:2px;background:var(--y);color:var(--ink);border-radius:99px;padding:3px 9px;display:inline-flex;gap:6px;align-items:center}
+.live i{width:6px;height:6px;border-radius:50%;background:var(--ink);animation:p 1.6s infinite}@keyframes p{50%{opacity:.25}}
+.join{background:var(--y);color:var(--ink);border:0;border-radius:99px;padding:8px 14px;font-weight:800;font-size:13px;text-decoration:none}
+h1{font-family:var(--display);font-weight:600;text-transform:uppercase;font-size:40px;line-height:1.02;margin:22px 0 14px}
+h1 span{color:var(--y)}
+h2{font-family:var(--display);font-weight:600;font-size:18px;letter-spacing:1px;text-transform:uppercase;margin:0}
+.panel{background:var(--s1);border:1px solid var(--line);border-radius:20px;padding:16px;margin:14px 0;display:grid;gap:12px}
+.ycard{background:var(--y);color:var(--ink);border-radius:22px;padding:18px}
+.ycard .lbl{font-size:11px;letter-spacing:2px;font-weight:800}
+.ycard ul{margin:8px 0 0;padding-left:18px}
+.ycard li{margin:4px 0}
+.item{background:var(--s2);border:1px solid var(--line);border-radius:14px;padding:12px;display:grid;gap:6px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sp{justify-content:space-between}
+.sub{font-size:12.5px;color:var(--mute)}
+.ttl{font-weight:700}
+.act{font-size:13px;color:var(--y)}
+.pill{font-size:10px;font-weight:800;letter-spacing:1px;border-radius:99px;padding:2px 8px;border:1px solid currentColor}
+.pill.y{background:var(--y);color:var(--ink);border-color:var(--y)}
+.btn{background:var(--y);color:var(--ink);border:0;border-radius:12px;min-height:40px;padding:0 16px;font-weight:800}
+.ghost{background:transparent;border:1px solid var(--line2);border-radius:12px;min-height:38px;padding:0 13px;font-weight:700;font-size:13.5px}
+.seg{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;background:var(--bg);border-radius:12px;padding:4px}
+.seg button{border:0;background:transparent;border-radius:9px;min-height:34px;font-weight:700;font-size:12px;padding:0 2px}
+.seg button[aria-pressed=true]{background:var(--y);color:var(--ink)}
+.seg2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.appr{border:1.5px solid var(--y);border-radius:16px;padding:12px 14px;display:grid;gap:10px;background:var(--s2)}
+.appr .tag{font-size:11px;letter-spacing:2px;font-weight:800;color:var(--y);text-transform:uppercase}
+.appr pre{margin:0;white-space:pre-wrap;font:14px/1.5 var(--body)}
+.done{color:var(--ok);font-weight:800;font-size:13px}
+.steps{display:grid;gap:6px}
+.step{font-size:13px;color:var(--mute);display:flex;gap:8px;align-items:center;opacity:0;transform:translateY(4px);transition:all .35s}
+.step.on{opacity:1;transform:none}
+.step:before{content:"";width:6px;height:6px;border-radius:50%;background:var(--y)}
+.chat{display:grid;gap:10px;min-height:220px}
+.msg{max-width:88%;border-radius:18px;padding:10px 13px;white-space:pre-wrap;line-height:1.5}
+.me{justify-self:end;background:var(--y);color:var(--ink);font-weight:600;border-bottom-right-radius:4px}
+.ai{justify-self:start;background:var(--s2);border:1px solid var(--line);border-bottom-left-radius:4px}
+.quick{display:flex;gap:8px;flex-wrap:wrap}
+.quick button{background:var(--s2);border:1px solid var(--line2);border-radius:99px;min-height:36px;padding:6px 12px;font-size:13px;font-weight:600}
+.bars{display:grid;gap:8px}
+.bl{display:grid;grid-template-columns:110px 1fr 72px;gap:8px;align-items:center;font-size:13px}
+.bl .b{height:8px;background:#222222;border-radius:99px;overflow:hidden}
+.bl .b i{display:block;height:100%;background:var(--y);border-radius:99px;width:0;transition:width 1s}
+.bl em{font-style:normal;text-align:right;font-variant-numeric:tabular-nums}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stat{background:var(--s2);border:1px solid var(--line);border-radius:14px;padding:10px}
+.stat b{font-family:var(--display);font-size:24px;display:block;line-height:1.1}
+.stat span{font-size:11.5px;color:var(--mute)}
+.file{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;border:1px solid var(--line2);border-radius:10px;padding:5px 9px;background:var(--bg)}
+textarea{width:100%;min-height:84px;border-radius:12px;border:1px solid var(--line2);background:var(--bg);color:var(--fg);padding:10px;font:14px/1.5 var(--body);resize:vertical}
+.bnav{position:fixed;left:0;right:0;bottom:0;z-index:8;background:#000000;border-top:1px solid var(--line);padding:6px max(6px,env(safe-area-inset-right,0px)) calc(8px + env(safe-area-inset-bottom,0px)) max(6px,env(safe-area-inset-left,0px))}
+.bnav .in{max-width:520px;margin:0 auto;display:grid;grid-template-columns:repeat(6,minmax(0,1fr))}
+.bnav button{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;color:#9A978C;font-size:11px;font-weight:700;min-height:52px;justify-content:center;position:relative}
+.bnav button .ic{width:38px;height:28px;border-radius:99px;display:grid;place-items:center}
+.bnav button[aria-current=true]{color:var(--y)}
+.bnav button[aria-current=true] .ic{background:var(--ys)}
+.bnav svg{width:20px;height:20px}
+.badge{position:absolute;top:4px;left:calc(50% + 6px);background:var(--y);color:var(--ink);font-size:10px;font-weight:800;border-radius:99px;min-width:16px;height:16px;padding:0 4px;display:grid;place-items:center}
+.hide{display:none}
+.toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--ink);font-weight:700;font-size:13.5px;border-radius:99px;padding:9px 16px;z-index:20;opacity:0;transition:opacity .3s;pointer-events:none;max-width:calc(100vw - 32px);text-align:center}
+.toast.on{opacity:1}
+.eyebrow{font-size:12px;letter-spacing:3px;color:var(--mute);text-transform:uppercase;margin-top:18px}
+</style>
+</head>
+<body>
+<div class="demo">Demo with sample people and data. Nothing is sent. <a href="https://dioma.life">Back to dioma.life</a></div>
+<div class="top"><div class="wrap bar">
+  <div class="brand"><svg width="26" height="30" viewBox="0 0 64 72" aria-hidden="true"><path d="M20 10 Q32 2 44 10" stroke="#8E8B80" stroke-width="3" fill="none" stroke-linecap="round"/><ellipse cx="32" cy="42" rx="22" ry="26" fill="#FFB547"/><circle cx="24" cy="38" r="6" fill="#121210"/><circle cx="40" cy="38" r="6" fill="#121210"/><circle cx="24" cy="38" r="2.4" fill="#F5F3EC"/><circle cx="40" cy="38" r="2.4" fill="#F5F3EC"/><path d="M27 50 Q32 54 37 50" stroke="#121210" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>DIOMA <span class="live"><i></i>DEMO</span></div>
+  <a class="join" id="join" target="_blank" rel="noopener">Get Dioma</a>
+</div></div>
+
+<main class="wrap" id="view"></main>
+
+<nav class="bnav" aria-label="Demo sections"><div class="in" id="nav"></div></nav>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const WA = 'https://wa.me/971585155559?text=' + encodeURIComponent("Hi Dioma! I tried the demo and I'm ready to change my life. I'd like early access.");
+document.getElementById('join').href = WA;
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const toast = (t) => { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 2200); };
+const ICONS = {
+  home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
+  mail: '<rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 6.5l8.5 6 8.5-6" fill="none" stroke="currentColor" stroke-width="1.8"/>',
+  wa: '<path d="M4 20l1.3-3.8A8 8 0 1 1 8 19z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
+  biz: '<rect x="3" y="7" width="18" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 7V5h6v2" fill="none" stroke="currentColor" stroke-width="1.8"/>',
+  wealth: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+  ai: '<path d="M12 3l1.8 4.7L18.5 9.5 13.8 11.3 12 16l-1.8-4.7L5.5 9.5l4.7-1.8z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" fill="currentColor"/>'
+};
+const TABS = [['home', 'Home'], ['mail', 'Mail'], ['wa', 'WhatsApp'], ['biz', 'Business'], ['wealth', 'Wealth'], ['ai', 'Ask']];
+
+// ---- sample data (all fictional) ----
+const D = {
+  mail: {
+    action: [
+      { id: 'm1', from: 'Noor Al Hashimi · Falcon Freight', subj: 'Rates for December chilled trips', act: 'Send the December rate card and confirm the 2 extra trucks', urgent: true, snip: 'Hi, can you share December rates and confirm if two extra chillers are possible from the 3rd?', draft: 'Hi Noor,\n\nThanks for reaching out. Our December chilled rates are attached (same as November). Two extra trucks from 3 December are confirmed.\n\nBest regards' },
+      { id: 'm2', from: 'Daniel Moore · Harbor Foods', subj: 'Meeting on Tuesday?', act: 'Reply with a time: you are free Tuesday 11:00 and 15:00', snip: 'Would Tuesday work for a quick catch-up at our office in DIP?', draft: 'Hi Daniel,\n\nTuesday works. I can come to DIP at 11:00 or 15:00, whichever suits you.\n\nBest regards' },
+      { id: 'm3', from: 'Accounts · Sky Mart', subj: 'Missing PO number on INV-1042', act: 'Add PO 77812 to the invoice and resend', snip: 'Please add our PO number 77812 to the invoice so we can process payment.', draft: 'Hello,\n\nThank you. I have added PO 77812 and attached the updated invoice.\n\nBest regards' }
+    ],
+    unread: [
+      { from: 'Emirates NBD', subj: 'Your statement is ready', snip: 'Your November statement is now available.' },
+      { from: 'Lina · Student Council', subj: 'Guest talk next week', snip: 'Would you speak to our business students on Thursday?' }
+    ],
+    inbox: [
+      { from: 'Noor Al Hashimi', subj: 'Rates for December chilled trips', snip: 'Hi, can you share December rates…' },
+      { from: 'Daniel Moore', subj: 'Meeting on Tuesday?', snip: 'Would Tuesday work for a quick…' },
+      { from: 'Accounts · Sky Mart', subj: 'Missing PO number on INV-1042', snip: 'Please add our PO number…' },
+      { from: 'LinkedIn', subj: '5 people viewed your profile', snip: 'See who is interested in you.' }
+    ],
+    sent: [{ from: 'To: Omar · Desert Cold', subj: 'Re: Proposal signed', snip: 'Great, we start on the 1st.' }],
+    drafts: [{ from: 'To: Harbor Foods', subj: 'Quotation for weekly trips', snip: 'Dear team, please find…' }]
+  },
+  wa: [
+    { name: 'Ahmed (driver)', last: 'Truck 3 tyre is low, can I go to the garage first?', ago: '9m', draft: 'Yes, go to the garage first and send me the bill photo. Tell the client you will be 30 min late.' },
+    { name: 'Mum', last: 'Are you coming for dinner on Friday?', ago: '1h', draft: 'Yes Amma, I will be there by 8. Do you need anything from the shop?' },
+    { name: 'Priya · Bright Kids', last: 'Can we get the invoice copy again?', ago: '3h', draft: 'Sure Priya, sending the invoice copy now. Let me know if you need anything else.' }
+  ]
+};
+let tab = 'home', folder = 'action', done = {}, sent = {}, invState = 0, chatLog = [];
+
+function render() {
+  $('#nav').innerHTML = TABS.map(([id, l]) => `<button type="button" data-t="${id}" aria-current="${tab === id}"><span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[id]}</svg></span>${l}${id === 'mail' && left() ? `<span class="badge">${left()}</span>` : ''}${id === 'wa' && waLeft() ? `<span class="badge">${waLeft()}</span>` : ''}</button>`).join('');
+  document.querySelectorAll('#nav button').forEach((b) => b.onclick = () => { tab = b.dataset.t; render(); scrollTo({ top: 0, behavior: 'smooth' }); });
+  $('#view').innerHTML = VIEWS[tab]();
+  (BIND[tab] || (() => {}))();
+}
+const left = () => D.mail.action.filter((m) => !done[m.id]).length;
+const waLeft = () => D.wa.filter((c) => !sent[c.name]).length;
+
+const VIEWS = {
+  home: () => `<div class="eyebrow">Sunday · demo</div><h1>Good morning, <span>Sara</span></h1>
+    <div class="ycard"><div class="lbl">YOUR BRIEF · HOW DOES MY DAY LOOK?</div>
+      <ul><li><b>${left()} emails</b> need your reply, 1 urgent (Falcon Freight rates).</li>
+      <li><b>${waLeft()} WhatsApp chats</b> are waiting, Ahmed needs an answer now.</li>
+      <li>Harbor Foods wants to meet: you are free Tuesday 11:00.</li>
+      <li>New trip sheet attached by Sky Mart: an invoice of <b>AED 5,764.50</b> is ready to check.</li>
+      <li>This month: AED 48,200 in, AED 31,750 out.</li></ul></div>
+    <div class="panel"><h2>Try it</h2>
+      <div class="quick"><button data-go="mail">Reply to my emails</button><button data-go="biz">Create the invoice</button><button data-go="wa">Answer WhatsApp</button><button data-go="wealth">My money</button><button data-go="ai">Ask Dioma</button></div>
+      <p class="sub" style="margin:0">This demo uses made-up people. In your own Dioma, it reads your real Gmail, Outlook, Zoho, WhatsApp and calendar, and nothing is sent until you tap Approve.</p></div>`,
+  mail: () => {
+    const F = [['action', 'To reply'], ['unread', 'Unread'], ['inbox', 'Inbox'], ['sent', 'Sent'], ['drafts', 'Drafts']];
+    let list = '';
+    if (folder === 'action') {
+      const L = D.mail.action.filter((m) => !done[m.id]);
+      list = L.length ? L.map((m) => `<div class="item"><div class="row">${m.urgent ? '<span class="pill y">URGENT</span>' : ''}<span class="ttl">${esc(m.subj)}</span></div><div class="act">→ ${esc(m.act)}</div><div class="sub">${esc(m.from)} · ${esc(m.snip)}</div>
+        <div class="appr hide" id="d-${m.id}"><div class="tag">Reply written by Dioma</div><textarea>${esc(m.draft)}</textarea><div class="row"><button class="btn" data-send="${m.id}">Approve &amp; send</button><button class="ghost" data-cancel="${m.id}">Cancel</button></div></div>
+        <div class="row"><button class="ghost" data-draft="${m.id}">Write reply</button><button class="ghost" data-done="${m.id}">Already replied ✓</button></div></div>`).join('') : '<p class="sub">Nothing waiting on you. 👏</p>';
+    } else list = D.mail[folder].map((m) => `<div class="item"><span class="ttl">${esc(m.subj)}</span><div class="sub">${esc(m.from)} · ${esc(m.snip)}</div></div>`).join('');
+    return `<div class="eyebrow">Mail · personal and business</div><h1>Your <span>mail</span></h1>
+      <div class="panel"><div class="seg">${F.map(([id, l]) => `<button type="button" data-f="${id}" aria-pressed="${folder === id}">${l}${id === 'action' && left() ? ' ' + left() : ''}</button>`).join('')}</div>${list}</div>`;
+  },
+  wa: () => `<div class="eyebrow">WhatsApp</div><h1>Need your <span>reply</span></h1><div class="panel">${D.wa.map((c, i) => `<div class="item"><div class="row sp"><span class="ttl">${esc(c.name)}</span><span class="sub">${c.ago}</span></div><div class="sub">“${esc(c.last)}”</div>${sent[c.name] ? `<div class="done">✓ Sent: ${esc(sent[c.name])}</div>` : `<div class="appr"><div class="tag">Dioma suggests</div><textarea id="w-${i}">${esc(c.draft)}</textarea><div class="row"><button class="btn" data-wa="${i}">Approve &amp; send</button></div></div>`}</div>`).join('')}</div>`,
+  biz: () => {
+    const lines = [['Abu Dhabi trips', 4, 665], ['Dubai trips', 4, 475], ['Dubai additional trip', 1, 80], ['Dubai special trip', 1, 850]];
+    const sub = lines.reduce((a, l) => a + l[1] * l[2], 0), vat = sub * 0.05;
+    return `<div class="eyebrow">Business · invoices</div><h1>Email in, <span>invoice out</span></h1>
+    <div class="panel"><div class="item"><span class="ttl">Sky Mart: October trip details</span><div class="sub">accounts@skymart.example · “Please find attached the trip details for October and share the invoice.”</div><span class="file">📎 October Trip Details.xlsx</span></div>
+      ${invState === 0 ? `<button class="btn" id="mk">Ask Dioma: “Read the file and create the invoice”</button>` : ''}
+      <div class="steps" id="steps">${invState ? ['Found the email from Sky Mart', 'Opened October Trip Details.xlsx', 'Totalled 10 trips', 'Found Sky Mart in Zoho Books', 'Added 5% VAT'].map((t) => `<div class="step on">${t}</div>`).join('') : ''}</div>
+      ${invState >= 1 ? `<div class="appr"><div class="tag">Invoice · Zoho Books · waiting for your OK</div><pre>To: Sky Mart (accounts@skymart.example)
+${lines.map((l) => `• ${l[0]}: ${l[1]} × ${l[2]} = ${(l[1] * l[2]).toLocaleString()}`).join('\n')}
+Subtotal: AED ${sub.toLocaleString()}
+VAT 5%: AED ${vat.toFixed(2)}
+Total: AED ${(sub + vat).toLocaleString(undefined, { minimumFractionDigits: 2 })}</pre>${invState === 1 ? `<div class="row"><button class="btn" id="ok">Approve &amp; send</button><button class="ghost" id="no">Cancel</button></div>` : `<div class="done">✓ INV-1043 created and emailed to Sky Mart, CC your accounts mailbox</div>`}</div>` : ''}
+    </div>
+    <div class="panel"><h2>Money owed to you</h2><div class="stats"><div class="stat"><b>3</b><span>overdue invoices</span></div><div class="stat"><b>18.4k</b><span>AED owed</span></div><div class="stat"><b>12</b><span>days average late</span></div></div><button class="ghost" id="chase">Chase the oldest one</button></div>`;
+  },
+  wealth: () => `<div class="eyebrow">Wealth · this month</div><h1>Where your money <span>goes</span></h1>
+    <div class="panel"><div class="stats"><div class="stat"><b>48.2k</b><span>AED in</span></div><div class="stat"><b>31.8k</b><span>AED out</span></div><div class="stat"><b style="color:var(--y)">16.4k</b><span>kept</span></div></div>
+    <div class="bars">${[['Salaries', 12400], ['Vehicle lease', 7800], ['Fuel', 4300], ['Rent', 3500], ['Salik & fines', 1650], ['Software', 1100], ['Other', 1000]].map(([n, v]) => `<div class="bl"><span>${n}</span><span class="b"><i data-w="${Math.round(v / 12400 * 100)}"></i></span><em>${v.toLocaleString()}</em></div>`).join('')}</div>
+    <p class="sub" style="margin:0">Dioma reads your bank statements (PDF or Excel) and sorts every line. Tip it gives you: Salik and fines are up 40% this month, check which truck.</p></div>`,
+  ai: () => `<div class="eyebrow">Ask Dioma</div><h1>Tell me what <span>you want</span></h1>
+    <div class="panel"><div class="chat" id="chat">${chatLog.length ? chatLog.map((m) => `<div class="msg ${m.me ? 'me' : 'ai'}">${esc(m.t)}</div>`).join('') : '<div class="msg ai">Hi Sara, I am Dioma (demo). Pick a question below.</div>'}</div>
+    <div class="quick">${Object.keys(ANS).map((q) => `<button data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>
+    <p class="sub" style="margin:0">In your own Dioma you can ask anything by typing or voice. The answers come from your own mail, chats, calendar and files.</p></div>`
+};
+const ANS = {
+  'How does my day look?': '• 10:00 Call with Falcon Freight (they want December rates)\n• 3 emails need replies, 1 urgent\n• Ahmed is waiting on WhatsApp about truck 3\n• Free from 14:00: good time to finish the Harbor Foods quote',
+  'Who owes me money?': '• Sky Mart: AED 9,200, 18 days late\n• Bright Kids: AED 5,700, 9 days late\n• Harbor Foods: AED 3,500, due Friday\nShall I write a polite reminder to Sky Mart?',
+  'Write a LinkedIn post about our new chiller trucks': 'Cold chain does not take a day off. 🚚❄️\nThis week we added two new chiller trucks to keep fresh food moving across the UAE, on time and at the right temperature.\nThank you to our clients for trusting us with what matters most.\n\n(Shall I post it? Approve to publish.)',
+  'What should I learn this week?': 'Based on your work: 20 minutes a day on AI for logistics planning.\nMonday: what AI can predict (demand, delays)\nWednesday: write better prompts for quotes\nFriday: build one small route plan with AI'
+};
+const BIND = {
+  home: () => document.querySelectorAll('[data-go]').forEach((b) => b.onclick = () => { tab = b.dataset.go; render(); scrollTo({ top: 0 }); }),
+  mail: () => {
+    document.querySelectorAll('[data-f]').forEach((b) => b.onclick = () => { folder = b.dataset.f; render(); });
+    document.querySelectorAll('[data-draft]').forEach((b) => b.onclick = () => $('#d-' + b.dataset.draft).classList.toggle('hide'));
+    document.querySelectorAll('[data-cancel]').forEach((b) => b.onclick = () => $('#d-' + b.dataset.cancel).classList.add('hide'));
+    document.querySelectorAll('[data-done]').forEach((b) => b.onclick = () => { done[b.dataset.done] = 1; render(); toast('Marked as replied'); });
+    document.querySelectorAll('[data-send]').forEach((b) => b.onclick = () => { done[b.dataset.send] = 1; render(); toast('Demo: reply sent ✓ (nothing really sent)'); });
+  },
+  wa: () => document.querySelectorAll('[data-wa]').forEach((b) => b.onclick = () => { const i = +b.dataset.wa; sent[D.wa[i].name] = $('#w-' + i).value; render(); toast('Demo: WhatsApp sent ✓ (nothing really sent)'); }),
+  biz: () => {
+    const mk = $('#mk'); if (mk) mk.onclick = () => { mk.disabled = true; mk.textContent = 'Dioma is working…'; const st = $('#steps'); const S = ['Found the email from Sky Mart', 'Opened October Trip Details.xlsx', 'Totalled 10 trips', 'Found Sky Mart in Zoho Books', 'Added 5% VAT']; S.forEach((t, i) => setTimeout(() => { const d = document.createElement('div'); d.className = 'step'; d.textContent = t; st.append(d); requestAnimationFrame(() => d.classList.add('on')); if (i === S.length - 1) setTimeout(() => { invState = 1; render(); }, 600); }, 550 * (i + 1))); };
+    const ok = $('#ok'); if (ok) ok.onclick = () => { invState = 2; render(); toast('Demo: invoice sent ✓ (nothing really sent)'); };
+    const no = $('#no'); if (no) no.onclick = () => { invState = 0; render(); };
+    const ch = $('#chase'); if (ch) ch.onclick = () => { tab = 'ai'; chatLog.push({ me: true, t: 'Who owes me money?' }, { t: ANS['Who owes me money?'] }); render(); };
+  },
+  wealth: () => requestAnimationFrame(() => document.querySelectorAll('.bl i').forEach((i) => i.style.width = i.dataset.w + '%')),
+  ai: () => document.querySelectorAll('[data-q]').forEach((b) => b.onclick = () => { const q = b.dataset.q; chatLog.push({ me: true, t: q }); render(); setTimeout(() => { chatLog.push({ t: ANS[q] }); render(); const c = $('#chat'); c && c.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 700); })
+};
+render();
+</script>
+</body>
+</html>
