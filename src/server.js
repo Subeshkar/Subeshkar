@@ -114,7 +114,7 @@ const routes = [];
 const on = (method, pattern, fn, opts = {}) => routes.push({ method, re: new RegExp('^' + pattern.replace(/:(\w+)/g, '(?<$1>[^/]+)') + '$'), fn, ...opts });
 
 on('GET', '/api/owner/pubkey', (req, res) => send(res, 200, O.publicKey(), { 'content-type': 'text/plain' }), { open: true });
-on('GET', '/api/health', (req, res) => send(res, 200, { ok: true, ai: !!process.env.ANTHROPIC_API_KEY, google: G.enabled(), mail: !!process.env.RESEND_API_KEY, apps: A.enabled() }), { open: true });
+on('GET', '/api/health', (req, res) => send(res, 200, { ok: true, ai: !!process.env.ANTHROPIC_API_KEY, google: G.enabled(), mail: !!process.env.RESEND_API_KEY, apps: A.enabled(), browser: BR.available() }), { open: true });
 
 on('POST', '/api/auth/start', async (req, res) => {
   const { email: raw } = await json(req);
