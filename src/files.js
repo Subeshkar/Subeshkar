@@ -32,3 +32,17 @@ export function mountFiles(app) {
     res.sendFile(path.resolve(path.join(DIR(), f.id)));
   });
 }
+
+// Big files arrive in pieces (the connector limits one call's size). Pieces are kept until the last one, then saved.
+const parts = new Map(); // uploadId -> { name, mime, folder, total, got: [] , at }
+export function fileSaveChunk(uploadId, index, total, name, mime, folder, b64) {
+  const id = String(uploadId).replace(/[^a-z0-9]/gi, '').slice(0, 40); const i = Number(index), n = Number(total);
+  if (!id || !(n >= 1) || !(i >= 0 && i < n) || n > 400) throw new Error('Bad upload piece');
+  for (const [k, v] of parts) if (Date.now() - v.at > 30 * 60e3) parts.delete(k);
+  const u = parts.get(id) || { name, mime, folder, total: n, got: new Array(n).fill(null), at: Date.now() };
+  u.got[i] = String(b64 || ''); u.at = Date.now(); parts.set(id, u);
+  const have = u.got.filter((x) => x !== null).length;
+  if (have < n) return { ok: true, received: have, total: n };
+  parts.delete(id);
+  return fileSave(u.name, u.mime, u.got.join(''), u.folder);
+}

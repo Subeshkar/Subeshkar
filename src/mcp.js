@@ -9,7 +9,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { SUPPORTED_PROTOCOL_VERSIONS, LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js';
 import * as P from './wa-personal.js';
 import { saveMedia, mediaFile } from './media.js';
-import { fileSave, fileList, fileGet, fileData, fileDelete, fileRename } from './files.js';
+import { fileSave, fileSaveChunk, fileList, fileGet, fileData, fileDelete, fileRename } from './files.js';
 import * as B from './wa-business.js';
 import { newsToday, moneyToday, trendsToday, trendPosts } from './feeds.js';
 import { transcribe } from './transcribe.js';
@@ -126,6 +126,7 @@ function buildServer() {
     if (chat_id.startsWith('__booksmailinv__|')) { try { return json(await booksEmailInvoice(JSON.parse(decodeURIComponent(chat_id.slice(17))))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__fileget__|')) { const f = fileGet(chat_id.split('|')[1]); if (!f) return json({ error: 'File not found' }); return json({ name: f.name, mime: f.mime, bytes: f.bytes, b64: fileData(f).toString('base64') }); }
     if (chat_id.startsWith('__zohosend__|')) { try { const o = JSON.parse(Buffer.from(chat_id.slice(13), 'base64').toString('utf8')); const files = []; for (const id of o.fileIds || []) { const f = fileGet(id); if (!f) throw new Error('File not found: ' + id); files.push({ name: f.name, buf: fileData(f) }); } return json(await zohoSendWithFiles({ to: o.to, cc: o.cc, subject: o.subject, body: o.body, files })); } catch (e) { return json({ error: String(e.message || e), scope: !!e.scope }); } }
+    if (chat_id.startsWith('__fileupc__|')) { const [, uid, idx, tot, name, mime, folder, b64] = chat_id.split('|'); try { return json(fileSaveChunk(uid, idx, tot, decodeURIComponent(name), mime, decodeURIComponent(folder || ''), b64)); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__fileup__|')) { const [, name, mime, folder, b64] = chat_id.split('|'); try { return json(fileSave(decodeURIComponent(name), mime, b64, decodeURIComponent(folder || ''))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__filedel__|')) return json(fileDelete(chat_id.slice(12)));
     if (chat_id.startsWith('__fileren__|')) { const [, id, name, folder] = chat_id.split('|'); try { return json(fileRename(id, decodeURIComponent(name || ''), decodeURIComponent(folder || ''))); } catch (e) { return json({ error: String(e.message || e) }); } }
