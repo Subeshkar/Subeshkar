@@ -89,3 +89,26 @@ export async function inbox(uid, slug) {
     return { from: String(pick(m, 'sender', 'from', 'fromAddress', 'from.emailAddress.name', 'sender.emailAddress.name')).replace(/<.*>/, '').trim(), subject: pick(m, 'subject', 'Subject') || '(no subject)', at: at ? (isNaN(+at) ? +new Date(at) : +at) : 0 };
   });
 }
+
+// Today's and tomorrow's events from a calendar connected by Allow (Google or Outlook), simple shape, cached 5 minutes.
+const EVC = new Map();
+export async function events(uid) {
+  if (!enabled()) return [];
+  const c = EVC.get(uid); if (c && Date.now() - c.at < 5 * 60e3) return c.ev;
+  let ev = [];
+  try {
+    const on = (await connected(uid)).map((x) => x.slug);
+    const now = new Date(), end = new Date(Date.now() + 36 * 3600e3);
+    for (const slug of ['googlecalendar', 'outlook'].filter((s) => on.includes(s))) {
+      const tool = await findTool(slug, /(LIST|FIND).*EVENTS?$/) || await findTool(slug, /(LIST|FIND|GET).*EVENT/); if (!tool) continue;
+      const args = slug === 'googlecalendar' ? { timeMin: now.toISOString(), timeMax: end.toISOString(), singleEvents: true, orderBy: 'startTime', maxResults: 25 } : { start_datetime: now.toISOString(), end_datetime: end.toISOString(), top: 25 };
+      const data = await exec(uid, tool, args).catch(() => exec(uid, tool, {}));
+      for (const e of firstArray(data) || []) {
+        const st = e.start?.dateTime || e.start?.date || e.start || e.startDateTime;
+        const where = typeof e.location === 'string' ? e.location : e.location?.displayName || e.location?.address?.street || '';
+        if (st) ev.push({ id: String(e.id || e.iCalUId || st), title: e.summary || e.subject || '(no title)', start: st, allDay: !!e.start?.date && !e.start?.dateTime || !!e.isAllDay, where });
+      }
+    }
+  } catch (x) { console.error('events', x.message); }
+  EVC.set(uid, { ev, at: Date.now() }); return ev;
+}

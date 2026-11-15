@@ -17,6 +17,7 @@ import * as WL from './wealth.js';
 import * as BR from './browser.js';
 import * as P from './push.js';
 import * as V from './voice.js';
+import * as MP from './maps.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT || 8080);
@@ -116,7 +117,7 @@ const routes = [];
 const on = (method, pattern, fn, opts = {}) => routes.push({ method, re: new RegExp('^' + pattern.replace(/:(\w+)/g, '(?<$1>[^/]+)') + '$'), fn, ...opts });
 
 on('GET', '/api/owner/pubkey', (req, res) => send(res, 200, O.publicKey(), { 'content-type': 'text/plain' }), { open: true });
-on('GET', '/api/health', (req, res) => send(res, 200, { ok: true, ai: !!process.env.ANTHROPIC_API_KEY, google: G.enabled(), mail: !!process.env.RESEND_API_KEY, apps: A.enabled(), browser: BR.available(), voice: V.enabled() }), { open: true });
+on('GET', '/api/health', (req, res) => send(res, 200, { ok: true, ai: !!process.env.ANTHROPIC_API_KEY, google: G.enabled(), mail: !!process.env.RESEND_API_KEY, apps: A.enabled(), browser: BR.available(), voice: V.enabled(), maps: MP.enabled() }), { open: true });
 
 on('POST', '/api/auth/start', async (req, res) => {
   const { email: raw } = await json(req);
@@ -173,9 +174,22 @@ async function reminders() {
       if (due.length) await P.once(u.id, 'todo:' + ymd, { title: `${due.length} to-do${due.length > 1 ? 's' : ''} due today`, body: due.slice(0, 3).map((t) => '• ' + t.text).join('\n'), url: '/#todo' });
     }
     const g = await G.snapshot(u.id).catch(() => null);
-    for (const e of (g?.events || [])) {
+    const evs = g?.events?.length ? g.events : await A.events(u.id).catch(() => []);
+    for (const e of evs) {
       if (e.allDay || !e.start) continue;
       const mins = (Date.parse(e.start) - Date.now()) / 60e3;
+      // Leave now: live drive time from where the phone last was (within 3 hours).
+      const loc = e.where && MP.enabled() ? one('SELECT lat, lng, at FROM locations WHERE user_id = ? AND at > ?', u.id, Date.now() - 3 * 3600e3) : null;
+      if (loc && mins > 0 && mins <= 180) {
+        const drive = await MP.driveMinutes(loc.lat, loc.lng, e.where).catch(() => null);
+        if (drive && drive >= 8) {
+          const leaveIn = Math.round(mins - drive - 5);
+          if (leaveIn <= 5) {
+            const t = new Intl.DateTimeFormat('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: tz }).format(new Date(e.start));
+            await P.once(u.id, 'leave:' + e.id + ':' + e.start, { title: `${u.name ? u.name.split(' ')[0] + ', ' : ''}${leaveIn > 0 ? `leave in ${leaveIn} minutes` : 'leave now'}`, body: `${e.title} at ${t}, ${e.where}. Drive time from where you are: ${drive} minutes with traffic.`, urgent: true, url: '/#cal' });
+          }
+        }
+      }
       if (mins > 0 && mins <= 30) {
         const t = new Intl.DateTimeFormat('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: tz }).format(new Date(e.start));
         await P.once(u.id, 'ev:' + e.id + ':' + e.start, { title: `${u.name ? u.name.split(' ')[0] + ', ' : ''}${e.title} at ${t}`, body: `Starts in ${Math.round(mins)} minutes.${e.where ? ' Place: ' + e.where + '.' : ''} Please be ready.`, urgent: true, url: '/#cal' });
@@ -362,6 +376,15 @@ on('POST', '/api/voice/speak', async (req, res, u) => {
   const mp3 = await V.speak(text); res.writeHead(200, { 'content-type': 'audio/mpeg', 'cache-control': 'no-store' }); res.end(mp3);
 });
 
+// Phone location (only while Dioma is open), for leave-now alerts. Only the latest point is kept.
+on('POST', '/api/loc', async (req, res, u) => {
+  const b = await json(req), lat = Number(b.lat), lng = Number(b.lng);
+  if (!(Math.abs(lat) <= 90 && Math.abs(lng) <= 180)) return fail(res, 400, 'Bad location');
+  run('INSERT INTO locations (user_id, lat, lng, acc, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET lat = excluded.lat, lng = excluded.lng, acc = excluded.acc, at = excluded.at', u.id, lat, lng, Number(b.acc) || null, Date.now());
+  send(res, 200, { ok: true });
+});
+on('DELETE', '/api/loc', (req, res, u) => { run('DELETE FROM locations WHERE user_id = ?', u.id); send(res, 200, { ok: true }); });
+
 // Notifications (pop-up + vibration, also on a locked phone)
 on('GET', '/api/push/key', (req, res, u) => send(res, 200, { key: P.publicKey(), devices: P.count(u.id) }));
 on('POST', '/api/push/sub', async (req, res, u) => { P.subscribe(u.id, await json(req)); send(res, 200, { ok: true, devices: P.count(u.id) }); });
@@ -399,6 +422,7 @@ on('GET', '/connect/done', (req, res) => {
 }, { open: true });
 on('DELETE', '/api/apps', async (req, res, u) => { const b = await json(req); if (!slugOk(b.slug)) return fail(res, 400, 'Unknown app.'); await A.disconnect(u.id, b.slug); send(res, 200, { ok: true }); });
 on('GET', '/api/apps/inbox', async (req, res, u) => { const slug = new URL(req.url, 'http://x').searchParams.get('slug'); if (!slugOk(slug)) return fail(res, 400, 'Unknown app.'); send(res, 200, { mail: await A.inbox(u.id, slug) }); });
+on('GET', '/api/apps/events', async (req, res, u) => send(res, 200, { events: await A.events(u.id) }));
 on('POST', '/api/apps/run', async (req, res, u) => { const b = await json(req); if (!/^[A-Z0-9_]{3,80}$/.test(b.tool || '')) return fail(res, 400, 'Unknown action.'); send(res, 200, { data: await A.exec(u.id, b.tool, b.args || {}) }); });
 
 // Google connect

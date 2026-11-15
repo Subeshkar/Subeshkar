@@ -22,6 +22,7 @@ try { db.exec('ALTER TABLE users ADD COLUMN nav TEXT'); } catch { /* already the
 try { db.exec('ALTER TABLE users ADD COLUMN plan TEXT'); } catch { /* already there */ }
 try { db.exec('ALTER TABLE users ADD COLUMN plan_status TEXT'); } catch { /* already there */ }
 db.exec('CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)');
+db.exec('CREATE TABLE IF NOT EXISTS locations (user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, lat REAL, lng REAL, acc REAL, at INTEGER)');
 export const one = (sql, ...a) => db.prepare(sql).get(...a);
 export const all = (sql, ...a) => db.prepare(sql).all(...a);
 export const run = (sql, ...a) => db.prepare(sql).run(...a);

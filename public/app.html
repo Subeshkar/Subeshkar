@@ -326,7 +326,7 @@ function shell() {
       <div class="wrap" id="tabs"></div><main class="wrap" id="main"></main>
       <nav class="bot"><div class="wrap" id="botw"></div></nav></div>`;
   }
-  if (!BADGE.__loaded) { BADGE.__loaded = 1; loadBadges(); }
+  if (!BADGE.__loaded) { BADGE.__loaded = 1; loadBadges(); locLoop(); }
   drawNav();
   $('.composer')?.remove(); $('#main').style.paddingBottom = '';
   const c = cur();
@@ -541,7 +541,7 @@ async function viewMe() {
       <textarea class="field" id="pa" rows="2" placeholder="What you do, helps Dioma prioritise" maxlength="300">${esc(m.about || '')}</textarea>
       <button class="btn sm" style="justify-self:start">Save</button></form></section>
     <section class="sec"><h2>Your plan</h2><div id="plansec"><div class="empty">Loading…</div></div></section>
-    <section class="sec"><h2>Your phone</h2>${phoneCard()}</section>
+    <section class="sec"><h2>Your phone</h2>${phoneCard()}${locCard()}</section>
     <section class="sec"><h2>Top and bottom bars</h2>${navPicker()}</section>
     <section class="sec"><h2>Look</h2><div class="seg" id="tone"><button data-t="mono" class="${tone === 'mono' ? 'on' : ''}">Mono</button><button data-t="sun" class="${tone === 'sun' ? 'on' : ''}">Sunrise</button></div></section>
     <section class="sec"><h2>Plan</h2><p>Early access · free</p><p class="note">${m.ai.used} of ${m.ai.cap} asks used today · ${kb(m.storage.used)} of ${kb(m.storage.quota)} storage</p></section>
@@ -703,7 +703,18 @@ function phoneCard() {
   return `<div class="stack"><p class="dim">${st === 'granted' ? 'Notifications are on for this phone.' : st === 'denied' ? 'Notifications are blocked. On iPhone: Settings → Notifications → Dioma → Allow. On Android: tap the lock next to the address → Notifications → Allow.' : 'Dioma will pop up with sound and vibration for meetings, deadlines and anything waiting, even when your phone is locked.'}</p>
     <div class="row" style="gap:8px;flex-wrap:wrap">${st !== 'denied' ? `<button class="btn pri" id="pushon">${st === 'granted' ? 'Connect this phone again' : 'Turn on notifications'}</button>` : ''}${st === 'granted' ? '<button class="btn" id="pushtest">Send me a test</button>' : ''}</div></div>`;
 }
+// Location for leave-now alerts: sent only while Dioma is open, latest point only.
+let LOCON = (() => { try { return localStorage.getItem('dioma-loc') === '1'; } catch { return false; } })(), LOCT = null;
+function sendLoc() { if (!LOCON || !navigator.geolocation || document.hidden) return; navigator.geolocation.getCurrentPosition((p) => api('POST', '/api/loc', { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }).catch(() => {}), () => {}, { enableHighAccuracy: false, maximumAge: 120e3, timeout: 20e3 }); }
+function locLoop() { clearInterval(LOCT); if (LOCON) { sendLoc(); LOCT = setInterval(sendLoc, 5 * 60e3); } }
+document.addEventListener('visibilitychange', () => { if (!document.hidden) sendLoc(); });
+const locCard = () => `<div class="item" style="margin-top:10px"><div class="grow"><div class="t">Leave-now alerts</div><div class="s">${LOCON ? 'On. Dioma checks where you are and the live drive time to your next meeting.' : 'Dioma uses your location and live traffic to tell you when to leave for meetings.'}</div></div><button class="btn sm ${LOCON ? '' : 'pri'}" id="locbtn">${LOCON ? 'Turn off' : 'Turn on'}</button></div>`;
 function wirePhone(again) {
+  $('#locbtn')?.addEventListener('click', async () => {
+    if (LOCON) { LOCON = false; try { localStorage.setItem('dioma-loc', '0'); } catch {} clearInterval(LOCT); await api('DELETE', '/api/loc').catch(() => {}); toast('Location off'); return again(); }
+    if (!navigator.geolocation) return toast('This browser cannot share location.');
+    navigator.geolocation.getCurrentPosition(async (p) => { LOCON = true; try { localStorage.setItem('dioma-loc', '1'); } catch {} await api('POST', '/api/loc', { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }).catch(() => {}); locLoop(); toast('Leave-now alerts on'); again(); }, () => toast('Location was not allowed. On iPhone: Settings → Privacy → Location Services → Safari Websites (or Dioma) → While Using.'), { timeout: 20e3 });
+  });
   $('#pushon')?.addEventListener('click', async (e) => {
     const b = e.target; b.disabled = true; b.textContent = 'Connecting…';
     try {
@@ -846,6 +857,13 @@ async function viewMail() {
 async function viewCal() {
   const main = $('#main');
   await loadApps(true); if (cur() !== 'cal') return;
+  const calApps = ((APPS.catalog.cal) || []).filter(([k]) => appOn(k));
+  if (!gOK() && calApps.length) {
+    main.innerHTML = `<h1>Calendar</h1><p class="dim" style="margin:8px 0 14px">Connected: ${calApps.map(([, n]) => esc(n)).join(', ')}</p><div class="list" id="cl"><div class="empty">Loading…</div></div><section class="sec"><h2>Add another calendar</h2>${appList('cal', 'cal')}</section>`;
+    const d = await api('GET', '/api/apps/events').catch(() => ({ events: [] }));
+    if ($('#cl')) $('#cl').innerHTML = d.events.length ? d.events.map((e) => `<div class="item"><span class="when">${e.allDay ? 'All day' : new Date(e.start).toLocaleString('en-GB', { weekday: 'short', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: S.me.tz })}</span><div class="grow"><div class="t">${esc(e.title)}</div>${e.where ? `<div class="s">${esc(e.where)}</div>` : ''}</div></div>`).join('') : '<div class="empty">Nothing in the next day and a half.</div>';
+    return;
+  }
   if (!gOK()) {
     main.innerHTML = `<h1>Calendar</h1><p class="dim" style="margin:8px 0 18px">Connect your calendar. Dioma plans your day around it and adds meetings when you approve.</p>
       ${APPS.enabled ? appList('cal', 'cal') : prov([['Google Calendar', 'Personal or Google Workspace', gHref()], ['Outlook Calendar', 'Outlook.com or Microsoft 365', ''], ['Zoho Calendar', 'Business calendar on Zoho', '']])}`;
