@@ -47,7 +47,7 @@ export async function zcalEvents(startIso, endIso) {
   for (const k of cals.slice(0, 6)) {
     try {
       const j = await zcal(`/calendars/${encodeURIComponent(k.uid)}/events?` + new URLSearchParams({ range }));
-      for (const e of j.events || []) { const d = e.dateandtime || {}; out.push({ id: e.uid, title: e.title || '(no title)', start: zcalTime(d.start), end: zcalTime(d.end), allDay: !!e.isallday, location: e.location || '', calendar: k.name || 'Zoho', attendees: (e.attendees || []).length }); }
+      for (const e of j.events || []) { const d = e.dateandtime || {}; const link = (JSON.stringify(e).replace(/\\\//g, '/').match(/https?:\/\/(?:[\w-]+\.)*(?:meet\.google\.com|teams\.microsoft\.com|teams\.live\.com|zoom\.us|webex\.com|meeting\.zoho\.[a-z]+|whereby\.com|gotomeeting\.com)[^\s"'<>\\]*/i) || [''])[0]; out.push({ id: e.uid, title: e.title || '(no title)', start: zcalTime(d.start), end: zcalTime(d.end), allDay: !!e.isallday, location: e.location || '', link, calendar: k.name || 'Zoho', attendees: (e.attendees || []).length }); }
     } catch {}
   }
   return { linked: true, events: out.sort((a, b) => String(a.start).localeCompare(String(b.start))) };
