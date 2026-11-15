@@ -81,7 +81,7 @@ nav.bot .wrap{display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
 #tabs{padding-top:14px}
 .wstats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;margin-top:14px}
 @media (max-width:620px){.wstats{grid-template-columns:repeat(3,minmax(0,1fr))}}
-.wst{border:1px solid var(--line2);border-radius:12px;padding:8px 6px;text-align:center;display:flex;flex-direction:column;gap:2px}
+.wst{cursor:pointer;background:transparent;color:var(--fg);font:inherit;border:1px solid var(--line2);border-radius:12px;padding:8px 6px;text-align:center;display:flex;flex-direction:column;gap:2px}
 .wst b{font-size:20px;font-weight:600;line-height:1.1}.wst span{font-size:11px;color:var(--dim);line-height:1.2}
 .wst.hi{background:var(--acc);border-color:var(--acc)}.wst.hi b,.wst.hi span{color:var(--accink)}
 .wtabs{display:grid;grid-template-columns:repeat(3,1fr);border-radius:12px}.wtabs button{border-radius:9px}.seg.wtabs button.on{background:var(--acc);color:var(--accink)}.wtabs button{padding:10px 6px;font-size:14px}
@@ -942,6 +942,9 @@ function waGroups(d) {
     all: () => true,
     groups: (c) => !!c.is_group,
     noise: (c) => !!c.is_group && !c.last_from_me && (!c.my_at || c.my_at < now - 30 * DAYMS),
+    dunread: (c) => !c.is_group && c.unread > 0,
+    gunread: (c) => !!c.is_group && c.unread > 0,
+    sent: (c) => !!c.my_at && c.my_at >= WAF.midnight,
   };
   const named = C.filter((c) => tabOf(c) === 'personal');
   const stats = {
@@ -950,7 +953,8 @@ function waGroups(d) {
   };
   const counts = Object.fromEntries(Object.keys(F).map((k) => [k, inTab.filter(F[k]).length]));
   const q = WAF.q.trim().toLowerCase();
-  const list = inTab.filter(F[WAF.f] || F.all).filter((c) => !q || (c.name + ' ' + c.jid).toLowerCase().includes(q));
+  const pool = ['dunread', 'gunread', 'sent'].includes(WAF.f) ? C : inTab;
+  const list = pool.filter(F[WAF.f] || F.all).filter((c) => !q || (c.name + ' ' + c.jid).toLowerCase().includes(q));
   return { stats, counts, list, other: C.filter((c) => tabOf(c) === 'other').length };
 }
 async function viewWa() {
@@ -960,7 +964,7 @@ async function viewWa() {
   if (cur() !== 'wa') return;
   if (st.status !== 'open') return waConnect(st);
   if (waOpen) return waChat(waOpen);
-  const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+  const midnight = new Date(); midnight.setHours(0, 0, 0, 0); WAF.midnight = midnight.getTime();
   const FL = [['action', 'Action'], ['priority', 'Priority'], ['follow', 'Follow-up'], ['unread', 'Unread'], ['all', 'All'], ['groups', 'Groups'], ['noise', 'Noise']];
   main.innerHTML = `<a href="#home" class="back" style="color:var(--acc);text-decoration:none;font-weight:500">← Home</a>
     <div class="row" style="justify-content:space-between;margin-top:8px;align-items:flex-end;flex-wrap:wrap;gap:10px"><h1 style="text-transform:uppercase;font-weight:600;letter-spacing:-.02em;font-size:28px">Your chats <span class="eyebrow" style="font-size:12px">WhatsApp</span></h1><div class="row" style="gap:6px"><button class="btn sm" id="wref">Refresh</button><button class="btn sm" id="wd">Disconnect</button></div></div>
@@ -974,7 +978,8 @@ async function viewWa() {
   const draw = (d) => {
     if (cur() !== 'wa' || !$('#wl')) return;
     const g = waGroups(d);
-    $('#wst').innerHTML = [[g.stats.reply, 'Need your reply', 1], [g.stats.unread, 'Unread chats'], [g.stats.groups, 'Groups unread'], [g.stats.priority, 'Priority'], [0, 'Business unread'], [g.stats.sent, 'Sent today']].map(([n, l, hi]) => `<div class="wst ${hi ? 'hi' : ''}"><b>${n}</b><span>${l}</span></div>`).join('');
+    const sel = WAF.tab === 'business' ? 'business' : WAF.f;
+    $('#wst').innerHTML = [[g.stats.reply, 'Need your reply', 'action'], [g.stats.unread, 'Unread chats', 'dunread'], [g.stats.groups, 'Groups unread', 'gunread'], [g.stats.priority, 'Priority', 'priority'], [0, 'Business unread', 'business'], [g.stats.sent, 'Sent today', 'sent']].map(([n, l, k]) => `<button type="button" class="wst ${sel === k ? 'hi' : ''}" data-st="${k}"><b>${n}</b><span>${l}</span></button>`).join('');
     $('#wfl').innerHTML = WAF.tab === 'business' ? '' : FL.map(([k, l]) => `<button data-f="${k}" class="${WAF.f === k ? 'on' : ''}">${l}${g.counts[k] && ['action', 'priority', 'noise', 'follow'].includes(k) ? ' ' + g.counts[k] : ''}</button>`).join('');
     if (WAF.tab === 'business') { $('#wl').innerHTML = '<div class="empty">Business WhatsApp (your company number) is coming soon. Your personal chats are in Personal.</div>'; return; }
     $('#wl').innerHTML = g.list.length ? g.list.slice(0, 120).map((c) => `<div class="item" data-jid="${esc(c.jid)}" data-name="${esc(c.name)}" style="cursor:pointer"><span class="ficon mono">${esc((c.name || '?').replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase() || '#')}</span><div class="grow"><div class="t">${esc(c.name)}${c.is_group ? ' <span class="soon">Group</span>' : ''}</div><div class="s">${c.last_from_me ? 'You: ' : ''}${esc(c.last_text || '')}</div></div><div style="text-align:right;flex:none"><div class="when">${ago(c.last_at)}</div>${c.unread ? `<b class="wun">${c.unread}</b>` : ''}</div></div>`).join('') : `<div class="empty">${WAF.f === 'action' ? 'Nobody is waiting for your reply.' : 'Nothing here.'}</div>`;
@@ -983,6 +988,13 @@ async function viewWa() {
   const load = async () => { D = await api('GET', '/api/wa/overview?since=' + midnight.getTime()).catch(() => ({ chats: [], sentToday: 0 })); draw(D); };
   await load();
   $('#wtab').addEventListener('click', (e) => { const b = e.target.closest('[data-t]'); if (!b) return; WAF.tab = b.dataset.t; WAF.f = WAF.tab === 'other' ? 'all' : 'action'; $('#wtab').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); D && draw(D); });
+  $('#wst').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-st]'); if (!b) return;
+    const k = b.dataset.st;
+    if (k === 'business') WAF.tab = 'business'; else { WAF.tab = 'personal'; WAF.f = k; }
+    $('#wtab').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x.dataset.t === WAF.tab));
+    D && draw(D); $('#wl').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
   $('#wfl').addEventListener('click', (e) => { const b = e.target.closest('[data-f]'); if (!b) return; WAF.f = b.dataset.f; D && draw(D); });
   $('#wsf').addEventListener('submit', (e) => { e.preventDefault(); WAF.q = $('#wq').value; D && draw(D); });
   $('#wq').addEventListener('input', () => { WAF.q = $('#wq').value; D && draw(D); });
