@@ -6,60 +6,62 @@
 <title>Try Dioma</title>
 <meta name="description" content="Try Dioma with sample data: your mail, WhatsApp, invoices and money in one assistant. Nothing is sent.">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Figtree:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 :root{--bg:#000000;--s1:#0B0B0B;--s2:#141414;--line:#1F1F1F;--line2:#2C2C2C;--fg:#FFFFFF;--mute:#9A9A9A;--y:#FFB547;--ys:rgba(255,181,71,.14);--ink:#1A0F00;--ok:#7FD8C4;
---display:'Oswald','Arial Narrow',Impact,sans-serif;--body:'Figtree',system-ui,-apple-system,'Segoe UI',sans-serif;color-scheme:dark}
+--display:'Inter Tight',ui-sans-serif,system-ui,sans-serif;--body:'Inter Tight',ui-sans-serif,system-ui,sans-serif;--mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;color-scheme:dark}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--fg)}
 body{font:15px/1.5 var(--body);-webkit-font-smoothing:antialiased;padding-bottom:calc(88px + env(safe-area-inset-bottom,0px))}
 button{font:inherit;color:inherit;cursor:pointer}
 a{color:var(--y)}
 .wrap{max-width:480px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-.demo{background:var(--y);color:var(--ink);font-size:12.5px;font-weight:700;text-align:center;padding:8px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px));padding-top:calc(8px + env(safe-area-inset-top,0px))}
+.demo{background:var(--y);color:var(--ink);font-size:12.5px;font-weight:500;text-align:center;padding:8px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px));padding-top:calc(8px + env(safe-area-inset-top,0px))}
 .demo a{color:var(--ink)}
 .top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
 .bar{display:flex;align-items:center;justify-content:space-between;padding:12px 0 10px}
-.brand{display:flex;align-items:center;gap:9px;font-family:var(--display);font-weight:700;font-size:23px;letter-spacing:1px}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--body);font-weight:500;font-size:17px;letter-spacing:.32em}
+.dlogo .ring{transform-origin:10px 10px;animation:dspin 6s linear infinite}@keyframes dspin{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.dlogo .ring{animation:none}}
+b,strong{font-weight:500}
 .live{font:800 10.5px var(--body);letter-spacing:2px;background:var(--y);color:var(--ink);border-radius:99px;padding:3px 9px;display:inline-flex;gap:6px;align-items:center}
 .live i{width:6px;height:6px;border-radius:50%;background:var(--ink);animation:p 1.6s infinite}@keyframes p{50%{opacity:.25}}
-.join{background:var(--y);color:var(--ink);border:0;border-radius:99px;padding:8px 14px;font-weight:800;font-size:13px;text-decoration:none}
-h1{font-family:var(--display);font-weight:600;text-transform:uppercase;font-size:40px;line-height:1.02;margin:22px 0 14px}
+.join{background:var(--y);color:var(--ink);border:0;border-radius:99px;padding:8px 14px;font-weight:500;font-size:13px;text-decoration:none}
+h1{font-family:var(--display);font-weight:500;letter-spacing:-.025em;font-size:40px;line-height:1.04;margin:22px 0 14px}
 h1 span{color:var(--y)}
-h2{font-family:var(--display);font-weight:600;font-size:18px;letter-spacing:1px;text-transform:uppercase;margin:0}
+h2{font-family:var(--mono);font-weight:500;font-size:13px;letter-spacing:.12em;text-transform:uppercase;margin:0}
 .panel{background:var(--s1);border:1px solid var(--line);border-radius:20px;padding:16px;margin:14px 0;display:grid;gap:12px}
 .ycard{background:var(--y);color:var(--ink);border-radius:22px;padding:18px}
-.ycard .lbl{font-size:11px;letter-spacing:2px;font-weight:800}
+.ycard .lbl{font-family:var(--mono);font-size:11px;letter-spacing:.1em;font-weight:500}
 .ycard ul{margin:8px 0 0;padding-left:18px}
 .ycard li{margin:4px 0}
 .item{background:var(--s2);border:1px solid var(--line);border-radius:14px;padding:12px;display:grid;gap:6px}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .sp{justify-content:space-between}
 .sub{font-size:12.5px;color:var(--mute)}
-.ttl{font-weight:700}
+.ttl{font-weight:500}
 .act{font-size:13px;color:var(--y)}
-.pill{font-size:10px;font-weight:800;letter-spacing:1px;border-radius:99px;padding:2px 8px;border:1px solid currentColor}
+.pill{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:1px;border-radius:99px;padding:2px 8px;border:1px solid currentColor}
 .pill.y{background:var(--y);color:var(--ink);border-color:var(--y)}
-.btn{background:var(--y);color:var(--ink);border:0;border-radius:12px;min-height:40px;padding:0 16px;font-weight:800}
-.ghost{background:transparent;border:1px solid var(--line2);border-radius:12px;min-height:38px;padding:0 13px;font-weight:700;font-size:13.5px}
+.btn{background:var(--y);color:var(--ink);border:0;border-radius:12px;min-height:40px;padding:0 16px;font-weight:500}
+.ghost{background:transparent;border:1px solid var(--line2);border-radius:12px;min-height:38px;padding:0 13px;font-weight:500;font-size:13.5px}
 .seg{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;background:var(--bg);border-radius:12px;padding:4px}
-.seg button{border:0;background:transparent;border-radius:9px;min-height:34px;font-weight:700;font-size:12px;padding:0 2px}
+.seg button{border:0;background:transparent;border-radius:9px;min-height:34px;font-weight:500;font-size:12px;padding:0 2px}
 .seg button[aria-pressed=true]{background:var(--y);color:var(--ink)}
 .seg2{grid-template-columns:repeat(2,minmax(0,1fr))}
 .appr{border:1.5px solid var(--y);border-radius:16px;padding:12px 14px;display:grid;gap:10px;background:var(--s2)}
-.appr .tag{font-size:11px;letter-spacing:2px;font-weight:800;color:var(--y);text-transform:uppercase}
+.appr .tag{font-size:11px;letter-spacing:2px;font-weight:500;color:var(--y);text-transform:uppercase}
 .appr pre{margin:0;white-space:pre-wrap;font:14px/1.5 var(--body)}
-.done{color:var(--ok);font-weight:800;font-size:13px}
+.done{color:var(--ok);font-weight:500;font-size:13px}
 .steps{display:grid;gap:6px}
 .step{font-size:13px;color:var(--mute);display:flex;gap:8px;align-items:center;opacity:0;transform:translateY(4px);transition:all .35s}
 .step.on{opacity:1;transform:none}
 .step:before{content:"";width:6px;height:6px;border-radius:50%;background:var(--y)}
 .chat{display:grid;gap:10px;min-height:220px}
 .msg{max-width:88%;border-radius:18px;padding:10px 13px;white-space:pre-wrap;line-height:1.5}
-.me{justify-self:end;background:var(--y);color:var(--ink);font-weight:600;border-bottom-right-radius:4px}
+.me{justify-self:end;background:var(--y);color:var(--ink);font-weight:500;border-bottom-right-radius:4px}
 .ai{justify-self:start;background:var(--s2);border:1px solid var(--line);border-bottom-left-radius:4px}
 .quick{display:flex;gap:8px;flex-wrap:wrap}
-.quick button{background:var(--s2);border:1px solid var(--line2);border-radius:99px;min-height:36px;padding:6px 12px;font-size:13px;font-weight:600}
+.quick button{background:var(--s2);border:1px solid var(--line2);border-radius:99px;min-height:36px;padding:6px 12px;font-size:13px;font-weight:500}
 .bars{display:grid;gap:8px}
 .bl{display:grid;grid-template-columns:110px 1fr 72px;gap:8px;align-items:center;font-size:13px}
 .bl .b{height:8px;background:#222222;border-radius:99px;overflow:hidden}
@@ -73,22 +75,22 @@ h2{font-family:var(--display);font-weight:600;font-size:18px;letter-spacing:1px;
 textarea{width:100%;min-height:84px;border-radius:12px;border:1px solid var(--line2);background:var(--bg);color:var(--fg);padding:10px;font:14px/1.5 var(--body);resize:vertical}
 .bnav{position:fixed;left:0;right:0;bottom:0;z-index:8;background:#000000;border-top:1px solid var(--line);padding:6px max(6px,env(safe-area-inset-right,0px)) calc(8px + env(safe-area-inset-bottom,0px)) max(6px,env(safe-area-inset-left,0px))}
 .bnav .in{max-width:520px;margin:0 auto;display:grid;grid-template-columns:repeat(6,minmax(0,1fr))}
-.bnav button{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;color:#9A978C;font-size:11px;font-weight:700;min-height:52px;justify-content:center;position:relative}
+.bnav button{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;color:#9A978C;font-size:11px;font-weight:500;min-height:52px;justify-content:center;position:relative}
 .bnav button .ic{width:38px;height:28px;border-radius:99px;display:grid;place-items:center}
 .bnav button[aria-current=true]{color:var(--y)}
 .bnav button[aria-current=true] .ic{background:var(--ys)}
 .bnav svg{width:20px;height:20px}
-.badge{position:absolute;top:4px;left:calc(50% + 6px);background:var(--y);color:var(--ink);font-size:10px;font-weight:800;border-radius:99px;min-width:16px;height:16px;padding:0 4px;display:grid;place-items:center}
+.badge{position:absolute;top:4px;left:calc(50% + 6px);background:var(--y);color:var(--ink);font-size:10px;font-weight:500;border-radius:99px;min-width:16px;height:16px;padding:0 4px;display:grid;place-items:center}
 .hide{display:none}
-.toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--ink);font-weight:700;font-size:13.5px;border-radius:99px;padding:9px 16px;z-index:20;opacity:0;transition:opacity .3s;pointer-events:none;max-width:calc(100vw - 32px);text-align:center}
+.toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--ink);font-weight:500;font-size:13.5px;border-radius:99px;padding:9px 16px;z-index:20;opacity:0;transition:opacity .3s;pointer-events:none;max-width:calc(100vw - 32px);text-align:center}
 .toast.on{opacity:1}
-.eyebrow{font-size:12px;letter-spacing:3px;color:var(--mute);text-transform:uppercase;margin-top:18px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.1em;color:var(--mute);text-transform:uppercase;margin-top:18px}
 </style>
 </head>
 <body>
 <div class="demo">Demo with sample people and data. Nothing is sent. <a href="https://dioma.life">Back to dioma.life</a></div>
 <div class="top"><div class="wrap bar">
-  <div class="brand"><svg width="26" height="30" viewBox="0 0 64 72" aria-hidden="true"><path d="M20 10 Q32 2 44 10" stroke="#8E8B80" stroke-width="3" fill="none" stroke-linecap="round"/><ellipse cx="32" cy="42" rx="22" ry="26" fill="#FFB547"/><circle cx="24" cy="38" r="6" fill="#121210"/><circle cx="40" cy="38" r="6" fill="#121210"/><circle cx="24" cy="38" r="2.4" fill="#F5F3EC"/><circle cx="40" cy="38" r="2.4" fill="#F5F3EC"/><path d="M27 50 Q32 54 37 50" stroke="#121210" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>DIOMA <span class="live"><i></i>DEMO</span></div>
+  <div class="brand"><svg class="dlogo" width="24" height="24" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle class="ring" cx="10" cy="10" r="8.5" stroke="#fff" stroke-width="1.3" stroke-dasharray="46 7.4" stroke-linecap="round"/><circle cx="10" cy="10" r="3.2" fill="var(--y)"/></svg>DIOMA <span class="live"><i></i>DEMO</span></div>
   <a class="join" id="join" target="_blank" rel="noopener">Get Dioma</a>
 </div></div>
 
