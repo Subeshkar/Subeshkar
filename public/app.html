@@ -320,7 +320,7 @@ async function viewFiles() {
     <div class="list" style="margin-top:16px" id="fl">
       ${subs.map((f) => `<div class="item" data-folder="${esc(f)}" style="cursor:pointer"><span class="ficon"><svg viewBox="0 0 24 24">${I.files}</svg></span><div class="grow"><div class="t">${esc(f.split('/').pop())}</div><div class="s">${count(f)} file${count(f) === 1 ? '' : 's'}</div></div></div>`).join('')}
       ${here.map((f) => `<div class="item" data-id="${f.id}"><span class="ficon">${esc(ext(f.name))}</span><div class="grow"><a class="t" style="text-decoration:none;display:block" href="/api/files/${f.id}" target="_blank" rel="noopener">${esc(f.name)}</a><div class="s">${kb(f.size)} · ${new Date(f.created).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</div><div class="more"></div></div><button class="x" data-more aria-label="Options">⋯</button></div>`).join('')}
-      ${!subs.length && !here.length ? '<div class="empty">Empty folder. Upload passports, IDs, contracts — anything you want Dioma to keep.</div>' : ''}
+      ${!subs.length && !here.length ? '<div class="empty">Empty folder. Upload passports, IDs, contracts, anything you want Dioma to keep.</div>' : ''}
     </div><div id="prog" class="note" style="margin-top:10px"></div>`;
   main.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => { S.folder = b.dataset.go; viewFiles(); }));
   main.querySelectorAll('[data-folder]').forEach((b) => b.addEventListener('click', () => { S.folder = b.dataset.folder; viewFiles(); }));
@@ -373,7 +373,7 @@ async function viewMe() {
     </div></section>
     <section class="sec"><h2>About you</h2><form class="stack" id="pf">
       <input class="field" id="pn" value="${esc(m.name || '')}" placeholder="Name" maxlength="60">
-      <textarea class="field" id="pa" rows="2" placeholder="What you do — helps Dioma prioritise" maxlength="300">${esc(m.about || '')}</textarea>
+      <textarea class="field" id="pa" rows="2" placeholder="What you do, helps Dioma prioritise" maxlength="300">${esc(m.about || '')}</textarea>
       <button class="btn sm" style="justify-self:start">Save</button></form></section>
     <section class="sec"><h2>Look</h2><div class="seg" id="tone"><button data-t="mono" class="${tone === 'mono' ? 'on' : ''}">Mono</button><button data-t="sun" class="${tone === 'sun' ? 'on' : ''}">Sunrise</button></div></section>
     <section class="sec"><h2>Plan</h2><p>Early access · free</p><p class="note">${m.ai.used} of ${m.ai.cap} asks used today · ${kb(m.storage.used)} of ${kb(m.storage.quota)} storage</p></section>

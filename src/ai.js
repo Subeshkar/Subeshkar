@@ -44,13 +44,13 @@ let mockId = 0;
 function mock(messages, tools) {
   const last = messages[messages.length - 1];
   if (Array.isArray(last?.content) && last.content[0]?.type === 'tool_result') {
-    return { stop_reason: 'end_turn', content: [{ type: 'text', text: 'Done — I added that to your to-do list.' }] };
+    return { stop_reason: 'end_turn', content: [{ type: 'text', text: 'Done, I added that to your to-do list.' }] };
   }
   const q = typeof last?.content === 'string' ? last.content : '';
   const m = q.match(/^(?:remind me to|add(?: a)? (?:to-?do|task)[: ]+)\s*(.+)$/i);
   if (m && tools?.some((t) => t.name === 'add_todo')) {
     return { stop_reason: 'tool_use', content: [{ type: 'tool_use', id: `mock_${++mockId}`, name: 'add_todo', input: { text: m[1] } }] };
   }
-  if (/^BRIEF/.test(q)) return { stop_reason: 'end_turn', content: [{ type: 'text', text: 'Good morning. (Test mode — the real brief is written by the AI once the key is added.)' }] };
+  if (/^BRIEF/.test(q)) return { stop_reason: 'end_turn', content: [{ type: 'text', text: 'Good morning. (Test mode, the real brief is written by the AI once the key is added.)' }] };
   return { stop_reason: 'end_turn', content: [{ type: 'text', text: `Test mode: the AI isn't switched on yet, so this is a stand-in reply to “${q.slice(0, 120)}”.` }] };
 }

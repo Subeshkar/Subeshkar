@@ -4,19 +4,19 @@ The customer version of Dioma. People sign up at **app.dioma.life** with their e
 
 It is a **separate service with its own database**. It does not read or change the owner's live Dioma (branch `dioma-live`).
 
-No npm dependencies — Node 22.13+ only (built-in `node:sqlite`, `fetch`).
+No npm dependencies, Node 22.13+ only (built-in `node:sqlite`, `fetch`).
 
 ## Run locally (test mode)
 
 ```
-npm run dev        # http://localhost:8080 — sign-in code is filled in, AI answers with a stand-in
+npm run dev        # http://localhost:8080, sign-in code is filled in, AI answers with a stand-in
 ```
 
 ## Deploy on Railway (needs owner approval: these cost money)
 
 1. New service from this repo, branch `dioma-cloud`. Start command: `npm start`.
 2. Add a **volume** mounted at `/data`.
-3. Variables (the owner pastes the secret values — never commit them):
+3. Variables (the owner pastes the secret values, never commit them):
 
 | Variable | What |
 |---|---|
