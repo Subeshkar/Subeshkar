@@ -18,7 +18,7 @@ import { xStatus, xPost, xLike, xReply, xFollow, xSearch } from './xpost.js';
 import { liStatus, liPost, liInbox, liInboxChunk, igDmSnap, igInboxSave } from './linkedin.js';
 import { igapiStatus, igapiInbox, igapiThread, igapiSend, igapiMyPosts, igapiComments, igapiReply } from './igapi.js';
 import { igStatus, igFeed, igComments, igComment, igInbox, igThread, igSend, igImage, igLastError } from './ig.js';
-import { zohoList, zohoRead, zohoLinked, zohoSetupLink, booksSummary, booksContact, crmSummary, booksRecordPayment, booksBalances, booksInvoiceTotals, booksOrgs, booksFindContacts, booksCreateInvoice, booksEmailInvoice, booksGetInvoice, booksAddVat, zohoAttachments, zohoSendWithFiles, zcalEvents, zcalCreate, calSetupLink, zohoLastTry } from './zoho.js';
+import { zohoList, zohoRead, zohoLinked, zohoSetupLink, booksSummary, booksContact, crmSummary, booksRecordPayment, booksBalances, booksInvoiceTotals, booksOrgs, booksFindContacts, booksCreateInvoice, booksEmailInvoice, booksGetInvoice, booksAddVat, zohoAttachments, zohoSendWithFiles, booksDrafts, zcalEvents, zcalCreate, calSetupLink, zohoLastTry } from './zoho.js';
 import { anyFileText, uploadStatement, addTx, listTx, setCategory, clearAcct, fileText, clearFileTx, accounts } from './wealth.js';
 const { personalStatus, listChats, listMessages, sendPersonal, markChatRead } = P;
 
@@ -79,6 +79,7 @@ function buildServer() {
     if (q === '__txaccts__') return json({ data: accounts() });
     if (q && (q || '').startsWith('__opps__')) { const d = Number(q.split(':')[1]) || 300; return json({ data: P.findOpportunities({ days: d }) }); }
     if (q === '__zohostatus__') return json({ linked: zohoLinked(), setup: zohoSetupLink() });
+    if (q === '__booksdrafts__') { try { return json(await booksDrafts()); } catch (e) { return json({ linked: true, error: String(e.message || e) }); } }
     if (q === '__booksinv__') { try { return json(await booksInvoiceTotals()); } catch (e) { return json({ linked: true, error: String(e.message || e) }); } }
     if (q === '__booksbal__') { try { return json(await booksBalances()); } catch (e) { return json({ linked: true, error: String(e.message || e) }); } }
     if (q === '__crm__') { try { return json(await crmSummary()); } catch (e) { return json({ linked: true, error: String(e.message || e) }); } }

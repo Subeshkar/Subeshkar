@@ -321,3 +321,20 @@ export async function zohoSendWithFiles({ to, cc, subject, body, files = [] }) {
   if (!r.ok || (j.status && j.status.code >= 400)) { const why = (j.data && (j.data.errorCode || j.data.moreInfo)) || r.status; throw Object.assign(new Error('Zoho send: ' + why), { scope: /scope|INVALID_OAUTHSCOPE|401|403/i.test(String(why)) }); }
   return { ok: true, from: a.email, attached: atts.length };
 }
+// Unsent paperwork across every Books organization: draft invoices, draft purchase orders, draft quotes.
+// These are "real actions" for Dioma's Home (money and commitments waiting on him).
+export async function booksDrafts() {
+  const c = load('books'); if (!c.refresh_token) return { linked: false };
+  const { orgs } = await booksOrgs(); const out = [];
+  for (const o of orgs.slice(0, 4)) {
+    const [inv, po, est] = await Promise.all([
+      books('/invoices?status=draft&per_page=25', {}, o.id).catch(() => ({})),
+      books('/purchaseorders?status=draft&per_page=25', {}, o.id).catch(() => ({})),
+      books('/estimates?status=draft&per_page=25', {}, o.id).catch(() => ({}))
+    ]);
+    for (const i of inv.invoices || []) out.push({ kind: 'invoice', org: o.name, org_id: o.id, id: i.invoice_id, number: i.invoice_number, party: i.customer_name, total: i.total, currency: i.currency_code, date: i.date });
+    for (const p of po.purchaseorders || []) out.push({ kind: 'po', org: o.name, org_id: o.id, id: p.purchaseorder_id, number: p.purchaseorder_number, party: p.vendor_name, total: p.total, currency: p.currency_code, date: p.date });
+    for (const e of est.estimates || []) out.push({ kind: 'quote', org: o.name, org_id: o.id, id: e.estimate_id, number: e.estimate_number, party: e.customer_name, total: e.total, currency: e.currency_code, date: e.date });
+  }
+  return { linked: true, drafts: out };
+}
