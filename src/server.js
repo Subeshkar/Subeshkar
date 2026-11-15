@@ -537,7 +537,7 @@ http.createServer(async (req, res) => {
   const canon = (process.env.PUBLIC_URL || '').replace(/\/$/, ''), host = String(req.headers.host || '');
   if (canon.startsWith('https://') && host.endsWith('.up.railway.app') && !canon.includes(host) && url.pathname !== '/api/health') { res.writeHead(301, { location: canon + req.url }); return res.end(); }
   try {
-    const file = STATIC[url.pathname] || (/^\/(icon\.svg|icon-180\.png|icon-512\.png|sw\.js|manifest\.webmanifest|shim\.js)$/.test(url.pathname) ? url.pathname.slice(1) : null);
+    const file = STATIC[url.pathname] || (/^\/(icon\.svg|icon-180\.png|icon-512\.png|favicon\.ico|sw\.js|manifest\.webmanifest|shim\.js)$/.test(url.pathname) ? url.pathname.slice(1) : null);
     if (req.method === 'GET' && file) {
       const fp = path.join(ROOT, 'public', file);
       if (!fs.existsSync(fp)) return fail(res, 404, 'Not found');
