@@ -11,6 +11,7 @@ import { converse, claude } from './ai.js';
 import * as G from './google.js';
 import * as O from './owner.js';
 import * as W from './wa.js';
+import * as M from './imap.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT || 8080);
@@ -151,11 +152,13 @@ on('POST', '/api/auth/logout', (req, res) => {
   setSession(res, '', 0); send(res, 200, { ok: true });
 }, { open: true });
 
+const NAVKEYS = ['home','todo','wa','social','mail','cal','act','biz','ask','files','me'];
+const navOf = (u) => { try { return u.nav ? JSON.parse(u.nav) : null; } catch { return null; } };
 on('GET', '/api/me', (req, res, u) => {
   const g = one(`SELECT account FROM connections WHERE user_id = ? AND kind = 'google'`, u.id);
   const used = one('SELECT COALESCE(SUM(size),0) s FROM files WHERE user_id = ?', u.id).s;
   send(res, 200, { email: u.email, name: u.name, about: u.about, role: u.role, tz: u.tz, onboarded: !!u.onboarded, plan: u.plan,
-    owner: O.isOwner(u), ownerPath: O.isOwner(u) ? '/' + O.ownerSlug() : null, whatsapp: W.status(u.id).status, google: g ? { account: g.account } : null, googleAvailable: G.enabled(), ai: { used: usedToday(u), cap: CAP, live: !!process.env.ANTHROPIC_API_KEY }, storage: { used, quota: QUOTA } });
+    owner: O.isOwner(u), ownerPath: O.isOwner(u) ? '/' + O.ownerSlug() : null, whatsapp: W.status(u.id).status, nav: navOf(u), mailbox: M.account(u.id), google: g ? { account: g.account } : null, googleAvailable: G.enabled(), ai: { used: usedToday(u), cap: CAP, live: !!process.env.ANTHROPIC_API_KEY }, storage: { used, quota: QUOTA } });
 });
 on('POST', '/api/me', async (req, res, u) => {
   const b = await json(req);
@@ -163,7 +166,13 @@ on('POST', '/api/me', async (req, res, u) => {
   const about = b.about !== undefined ? String(b.about).trim().slice(0, 300) : u.about;
   const tz = b.tz && tzOk(b.tz) ? b.tz : u.tz;
   const role = ['student', 'pro', 'owner', 'other'].includes(b.role) ? b.role : u.role;
-  run('UPDATE users SET name = ?, about = ?, tz = ?, role = ?, onboarded = ? WHERE id = ?', name, about, tz, role, b.onboarded ? 1 : u.onboarded, u.id);
+  let nav = u.nav;
+  if (b.nav && Array.isArray(b.nav.top) && Array.isArray(b.nav.bottom)) {
+    const clean = (a) => [...new Set(a.filter((k) => NAVKEYS.includes(k)))];
+    const bottom = clean(b.nav.bottom).slice(0, 4), top = clean(b.nav.top).filter((k) => !bottom.includes(k));
+    nav = JSON.stringify({ top, bottom });
+  }
+  run('UPDATE users SET name = ?, about = ?, tz = ?, role = ?, nav = ?, onboarded = ? WHERE id = ?', name, about, tz, role, nav ?? null, b.onboarded ? 1 : u.onboarded, u.id);
   send(res, 200, { ok: true });
 });
 // A student who says they are under 18 during set-up: remove the new account and everything in it.
@@ -313,7 +322,7 @@ on('GET', '/auth/google/callback', async (req, res) => {
     G.forget(uid);
     if (!u) { const t = token(); run('INSERT INTO sessions (hash, user_id, expires, created) VALUES (?, ?, ?, ?)', sha(SECRET + t), uid, now() + 30 * DAY, now()); setSession(res, t, 30 * 86400); }
     const me = one('SELECT * FROM users WHERE id = ?', uid);
-    send(res, 302, '', { location: me.onboarded ? '/#assistant/mail?google=connected' : '/' });
+    send(res, 302, '', { location: me.onboarded ? '/#mail?google=connected' : '/' });
   } catch (e) { send(res, 302, '', { location: (u ? '/#me?google=' : '/?err=') + encodeURIComponent(e.message) }); }
 }, { open: true });
 on('DELETE', '/api/google', async (req, res, u) => { await G.disconnect(u.id); send(res, 200, { ok: true }); });
@@ -361,6 +370,10 @@ on('POST', '/api/wa/start', async (req, res, u) => send(res, 200, await W.start(
 on('GET', '/api/wa/status', (req, res, u) => send(res, 200, W.status(u.id)));
 on('GET', '/api/wa/chats', (req, res, u) => send(res, 200, { chats: W.chats(u.id, new URL(req.url, 'http://x').searchParams.get('q') || '') }));
 on('GET', '/api/wa/messages', (req, res, u) => { const jid = new URL(req.url, 'http://x').searchParams.get('jid') || ''; W.markRead(u.id, jid); send(res, 200, { messages: W.messages(u.id, jid) }); });
+// Mail by email + password (any provider)
+on('POST', '/api/mail/connect', async (req, res, u) => { const b = await json(req); try { send(res, 200, await M.connect(u.id, b)); } catch (e) { if (e.needHost) return send(res, e.status || 400, { error: e.message, needHost: true }); throw e; } });
+on('GET', '/api/mail/inbox', async (req, res, u) => { try { send(res, 200, { account: M.account(u.id), mail: (await M.inbox(u.id)) || [] }); } catch (e) { fail(res, 502, 'Could not open your mailbox right now. Try again, or reconnect it.'); } });
+on('DELETE', '/api/mail', (req, res, u) => { M.disconnect(u.id); send(res, 200, { ok: true }); });
 on('POST', '/api/wa/send', async (req, res, u) => { const b = await json(req); if (!String(b.text || '').trim()) return fail(res, 400, 'Write a message first.'); send(res, 200, await W.send(u.id, String(b.jid || ''), String(b.text))); });
 on('DELETE', '/api/wa', async (req, res, u) => { await W.forget(u.id); send(res, 200, { ok: true }); });
 

@@ -12,6 +12,7 @@ import path from 'node:path';
 import { DIR, one, run } from './db.js';
 import * as G from './google.js';
 import { seal, open as unseal } from './crypto.js';
+import * as W from './wa.js';
 
 const APP_FILE = path.join(DIR, 'owner', 'dioma.html');
 fs.mkdirSync(path.dirname(APP_FILE), { recursive: true });
@@ -55,7 +56,7 @@ export const saveApp = (buf) => {
 // Customers and the owner only ever see "Dioma": reword any text that names the platform underneath.
 function brand(html) {
   return html
-    .replace(/Open subeshkar-production\.up\.railway\.app\/personal, scan the QR code with WhatsApp → Linked devices, then add the connector link shown there in claude\.ai → Settings → Connectors \(name it exactly: Dioma WhatsApp\)\. Reload Dioma\./g, 'Tap the Connect apps button at the bottom, paste your Dioma server link once, then reload.')
+    .replace(/Open subeshkar-production\.up\.railway\.app\/personal, scan the QR code with WhatsApp → Linked devices, then add the connector link shown there in claude\.ai → Settings → Connectors \(name it exactly: Dioma WhatsApp\)\. Reload Dioma\./g, 'Go to your Dioma home, tap WhatsApp and scan the QR code with your phone. Then reload this page.')
     .replace(/Dioma needs permission to use Claude on this page\. Reload and choose Allow\./g, 'Dioma\u2019s AI is starting up. Try again in a moment.')
     .replace(/claude\.ai\s*→\s*Settings\s*→\s*Connectors/g, 'Dioma settings')
     .replace(/(?:the |your )?Claude (?:desktop )?app(?:'s|\\'s)? (?:built-in )?browser/g, 'the Dioma browser')
@@ -70,7 +71,7 @@ export function appPage() {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#000000"><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="manifest" href="/manifest.webmanifest">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
-<script src="/shim.js"></script></head><body>${body}${serverLink() ? '' : `<a href="/connect" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:9999;background:#ffb547;color:#1a0f00;font:600 14px system-ui,sans-serif;padding:11px 18px;border-radius:999px;text-decoration:none;box-shadow:0 8px 24px rgba(0,0,0,.5)">Connect apps: WhatsApp, Zoho, Books</a>`}</body></html>`;
+<script src="/shim.js"></script></head><body>${body}</body></html>`;
 }
 
 // ---------- tools ----------
@@ -187,8 +188,19 @@ async function calendar(uid, tz, tool, a) {
   throw err('tool_not_found', `Calendar ${tool} is not available here yet.`);
 }
 
+// No Dioma server linked: use the WhatsApp the owner linked by QR on this service.
+async function localWa(uid, tool, a) {
+  const out = (p) => ({ payload: p, content: [{ type: 'text', text: JSON.stringify(p).slice(0, 20000) }] });
+  const special = (v) => typeof v === 'string' && v.startsWith('__');
+  if (tool === 'personal_status') { const st = W.status(uid).status; return out({ status: st === 'open' ? 'connected' : st === 'qr' ? 'qr' : 'disconnected', chats: st === 'open' ? W.chats(uid).length : 0 }); }
+  if (tool === 'personal_chats' && !special(a.q)) return out({ data: W.chats(uid, a.q || '').slice(0, a.limit || 150).map((c) => ({ id: c.jid, chat_id: c.jid, name: c.name, is_group: !!c.is_group, unread: c.unread, last_text: c.last_text, last_from_me: !!c.last_from_me, last_at: c.last_at, phone: c.is_group ? '' : c.jid.split('@')[0] })) });
+  if (tool === 'personal_messages' && !special(a.chat_id)) return out({ data: W.messages(uid, a.chat_id).slice(-(a.limit || 60)).map((m) => ({ id: m.id, from_me: !!m.from_me, at: m.at, text: m.text, sender: m.sender_name })) });
+  if (tool === 'personal_send') return out(await W.send(uid, a.chat_id, a.text));
+  if (tool === 'personal_mark_read') { W.markRead(uid, a.chat_id); return out({ ok: true }); }
+  throw err('server_not_connected', 'This part of Dioma is not connected yet.');
+}
 export async function callTool(u, server, tool, input) {
-  if (server === DIOMA) return diomaServer(tool, input);
+  if (server === DIOMA) return serverLink() ? diomaServer(tool, input) : localWa(u.id, tool, input || {});
   if (server === GMAIL) { const p = await gmail(u.id, tool, input || {}); return { payload: p, content: [{ type: 'text', text: JSON.stringify(p).slice(0, 20000) }] }; }
   if (server === CAL) { const p = await calendar(u.id, u.tz, tool, input || {}); return { payload: p, content: [{ type: 'text', text: JSON.stringify(p).slice(0, 20000) }] }; }
   throw err('server_not_connected', `${server} is not connected on app.dioma.life yet.`);

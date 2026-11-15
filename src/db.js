@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS briefs (user_id INTEGER NOT NULL REFERENCES users(id)
 CREATE TABLE IF NOT EXISTS waitlist (email TEXT PRIMARY KEY, created INTEGER NOT NULL);
 `);
 try { db.exec('ALTER TABLE users ADD COLUMN role TEXT'); } catch { /* already there */ }
+try { db.exec('ALTER TABLE users ADD COLUMN nav TEXT'); } catch { /* already there */ }
 export const one = (sql, ...a) => db.prepare(sql).get(...a);
 export const all = (sql, ...a) => db.prepare(sql).all(...a);
 export const run = (sql, ...a) => db.prepare(sql).run(...a);

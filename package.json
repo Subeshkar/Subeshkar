@@ -5,10 +5,16 @@
   "description": "Dioma for customers: sign up at dioma.life, connect your own apps. Separate from the owner's live Dioma.",
   "type": "module",
   "main": "src/server.js",
-  "scripts": { "start": "node src/server.js", "dev": "DIOMA_DEV=1 APP_SECRET=dev-secret-only-for-local-tests node src/server.js" },
-  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "DIOMA_DEV=1 APP_SECRET=dev-secret-only-for-local-tests node src/server.js"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
   "dependencies": {
     "@whiskeysockets/baileys": "7.0.0-rc14",
+    "imapflow": "^1.7.8",
     "pino": "^10.4.0",
     "qrcode": "^1.5.4"
   }
