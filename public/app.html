@@ -369,7 +369,7 @@ async function viewMe() {
     <section class="sec"><h2>Connected apps</h2><div class="list">
       <div class="item"><span class="ficon mono">G</span><div class="grow"><div class="t">Google · Gmail and Calendar</div><div class="s">${m.google ? 'Connected' + (m.google.account ? ' as ' + esc(m.google.account) : '') + ' · read only' : m.googleAvailable ? 'Not connected' : 'Coming soon'}</div></div>
         ${m.google ? '<button class="btn sm" id="gd">Disconnect</button>' : m.googleAvailable ? '<a class="btn sm pri" href="/auth/google">Connect</a>' : ''}</div>
-      <div class="item"><span class="ficon mono">W</span><div class="grow"><div class="t">WhatsApp</div><div class="s">Coming soon</div></div></div>
+      ${[['W', 'WhatsApp', 'Personal and business chats'], ['O', 'Outlook', 'Microsoft 365 mail and calendar'], ['Z', 'Zoho', 'Mail, Calendar and Books'], ['in', 'LinkedIn', 'Messages and posts']].map(([i, n, d]) => `<div class="item"><span class="ficon mono">${i}</span><div class="grow"><div class="t">${n}</div><div class="s">${d} · coming soon</div></div></div>`).join('')}
     </div></section>
     <section class="sec"><h2>About you</h2><form class="stack" id="pf">
       <input class="field" id="pn" value="${esc(m.name || '')}" placeholder="Name" maxlength="60">
@@ -392,7 +392,12 @@ async function viewMe() {
 
 // ---------- boot ----------
 async function boot(force, step) {
-  try { S.me = await api('GET', '/api/me'); } catch { return renderAuth(); }
+  try { S.me = await api('GET', '/api/me'); } catch {
+    const em = new URLSearchParams(location.search).get('email');
+    renderAuth();
+    if (em) { history.replaceState(null, '', '/'); $('#email').value = em; $('#f').requestSubmit(); }
+    return;
+  }
   if (force === 'onboard' || !S.me.onboarded) return renderOnboard();
   if (step === 'connect' && !S.me.google) return renderConnectStep();
   if (route().q.get('google') === 'connected') { toast('Google connected'); history.replaceState(null, '', '#home'); }
