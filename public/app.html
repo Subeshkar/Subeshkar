@@ -85,9 +85,11 @@ nav.bot .wrap{display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
 .wexp{margin:-2px 0 10px;padding:12px}.wexm{display:flex;flex-direction:column;gap:6px;max-height:300px;overflow:auto}
 .vnote{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.vnote audio{height:36px;max-width:240px}.vnote .vtx{flex:1 1 100%;white-space:pre-wrap}.btn.rec{background:#e5484d;color:#fff;border-color:#e5484d}
 .sacts{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-top:14px}.sacts button{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 4px;border-radius:14px;border:1px solid var(--line2);background:var(--card);color:var(--fg);font:500 13px var(--sans);cursor:pointer;min-width:0}.sacts button span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}.sacts svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.sacts button.on{background:var(--acc);color:var(--accink);border-color:var(--acc)}@media (max-width:620px){.sacts{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.sacts button{padding:8px 4px;font-size:12px;gap:4px}.sacts svg{width:19px;height:19px}}
+.wmsgs{display:flex;flex-direction:column;gap:8px}.wb{max-width:82%;padding:7px 12px 6px;border-radius:16px;font-size:14.5px;line-height:1.4;white-space:pre-wrap;overflow-wrap:anywhere}.wb.me{align-self:flex-end;background:var(--acc);color:var(--accink);border-bottom-right-radius:4px}.wb.them{align-self:flex-start;background:#1c1c1c;border:1px solid var(--line2);border-bottom-left-radius:4px}.wb .wn{font-size:11px;font-weight:600;opacity:.7;margin-bottom:2px}.wb .wt{font-size:10.5px;opacity:.6;margin-top:3px;text-align:right}.wb.me .vnote .btn{color:var(--accink);border-color:rgba(0,0,0,.3)}
+#wl .item.open .wsug{display:none}
 .wtop{position:sticky;z-index:5;background:var(--bg);padding:8px 0;gap:8px;border-bottom:1px solid var(--line)}
 .wstats{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px}
-@media (max-width:620px){#cst.wstats{grid-template-columns:repeat(3,minmax(0,1fr))!important}.wstats{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.wst{padding:5px 3px;border-radius:10px}.wst b{font-size:15px}.wst span{font-size:10px}.wsug{flex-wrap:wrap}.wsug .field{flex:1 1 100%}}
+@media (max-width:620px){#wst.wstats{display:flex;overflow-x:auto;scrollbar-width:none}#wst .wst{flex:none;min-width:76px}#cst.wstats{grid-template-columns:repeat(3,minmax(0,1fr))!important}.wstats{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.wst{padding:5px 3px;border-radius:10px}.wst b{font-size:15px}.wst span{font-size:10px}.wsug{flex-wrap:wrap}.wsug .field{flex:1 1 100%}}
 .wst{cursor:pointer;background:transparent;color:var(--fg);font:inherit;border:1px solid var(--line2);border-radius:12px;padding:8px 6px;text-align:center;display:flex;flex-direction:column;gap:2px}
 .wst b{font-size:17px;font-weight:600;line-height:1.1}.wst span{font-size:10.5px;color:var(--dim);line-height:1.2}
 .wst.hi{background:var(--acc);border-color:var(--acc)}.wst.hi b,.wst.hi span{color:var(--accink)}
@@ -1593,30 +1595,35 @@ function waGroups(d) {
 // Tap a chat: it opens right here in the list (last messages + reply box). "Full chat" opens the whole conversation.
 let WEXP = null;
 async function waExpand(jid, name) {
-  document.querySelectorAll('.wexp').forEach((x) => x.remove());
+  document.querySelectorAll('.wexp').forEach((x) => x.remove()); document.querySelectorAll('#wl .item.open').forEach((x) => x.classList.remove('open'));
   if (WEXP === jid) { WEXP = null; return; }
   WEXP = jid; const row = document.querySelector(`#wl [data-jid="${CSS.escape(jid)}"]`); if (!row) return;
   const box = document.createElement('div'); box.className = 'wexp card stack'; box.dataset.jid = jid; box.dataset.name = name;
-  box.innerHTML = '<div class="note">Loading…</div>'; row.after(box);
+  box.innerHTML = '<div class="note">Loading…</div>'; row.after(box); document.querySelectorAll('#wl .item.open').forEach((x) => x.classList.remove('open')); row.classList.add('open');
   const d = await api('GET', '/api/wa/messages?jid=' + encodeURIComponent(jid)).catch(() => ({ messages: [] }));
   if (WEXP !== jid || !box.isConnected) return;
   const sk = Object.keys(WSUG).find((k) => k.startsWith(jid + ':')), pre = sk && !WSUG[sk].sent ? WSUG[sk].text : '';
-  box.innerHTML = `<div class="wexm">${d.messages.slice(-8).map((m) => `<div class="msg ${m.from_me ? 'user' : 'assistant'}" style="max-width:92%;font-size:14px;padding:8px 12px;${m.from_me ? '' : 'background:var(--card);border:1px solid var(--line2)'}">${m.audio ? vnote(jid, m) : esc(m.text)}<div class="note" style="font-size:10.5px;margin-top:2px">${new Date(m.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div></div>`).join('') || '<div class="note">No messages yet.</div>'}</div>
+  box.innerHTML = `<div class="wexm wmsgs">${d.messages.slice(-10).map((m) => wbub(jid, m, name)).join('') || '<div class="note">No messages yet.</div>'}</div>
     <textarea class="field" rows="2" placeholder="Your reply…">${esc(pre)}</textarea>
     <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm" data-x="reply">AI reply</button><button class="btn sm" data-x="fix">Fix</button><button class="btn sm pri" data-x="send">Send</button><button class="btn sm" data-x="voice">🎤 Voice</button><button class="btn sm" data-x="full" style="margin-left:auto">Full chat ↗</button></div><div class="vrec" hidden></div>`;
   const m = box.querySelector('.wexm'); m.scrollTop = m.scrollHeight;
+  const top = ($('#wtop') ? $('#wtop').getBoundingClientRect().bottom : 0) + 6; window.scrollBy({ top: row.getBoundingClientRect().top - top, behavior: 'smooth' });
 }
 async function expClick(e) {
   const box = e.target.closest('.wexp'), b = e.target.closest('[data-x]'); if (!b) return; e.stopPropagation();
   const jid = box.dataset.jid, ta = box.querySelector('textarea'), k = b.dataset.x;
-  if (k === 'voice') return voiceRec(b, box.querySelector('.vrec'), jid, () => { WEXP = null; box.remove(); });
+  if (k === 'voice') return voiceRec(b, box.querySelector('.vrec'), jid, () => waDone(jid));
   if (k === 'full') { WEXP = null; waOpen = { jid, name: box.dataset.name }; return waChat(waOpen); }
-  if (k === 'send') { const t = ta.value.trim(); if (!t) return toast('Write a message first.'); b.disabled = true; try { await api('POST', '/api/wa/send', { jid, text: t }); toast('Sent'); ta.value = ''; WEXP = null; box.remove(); } catch (x) { toast(x.message); } b.disabled = false; return; }
+  if (k === 'send') { const t = ta.value.trim(); if (!t) return toast('Write a message first.'); b.disabled = true; try { await api('POST', '/api/wa/send', { jid, text: t }); toast('Sent'); ta.value = ''; waDone(jid); } catch (x) { toast(x.message); } b.disabled = false; return; }
   if (k === 'fix' && !ta.value.trim()) return toast('Write something first.');
   b.disabled = true; const l = b.textContent; b.textContent = 'Writing…';
   try { const r = await api('POST', '/api/wa/draft', { jid, mode: k, text: ta.value }); ta.value = r.text; } catch (x) { toast(x.message); }
   b.disabled = false; b.textContent = l;
 }
+// Chat bubbles: yours on the right in colour, theirs on the left with their name.
+let WAREF = null;
+const wbub = (jid, m, name) => `<div class="wb ${m.from_me ? 'me' : 'them'}"><div class="wn">${m.from_me ? 'You' : esc(m.sender_name || name || 'Them')}</div>${m.audio ? vnote(jid, m) : esc(m.text)}<div class="wt">${new Date(m.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div></div>`;
+const waDone = (jid) => { const row = document.querySelector(`#wl [data-jid="${CSS.escape(jid)}"]`); if (row) { row.style.transition = 'opacity .3s'; row.style.opacity = '0'; setTimeout(() => row.remove(), 300); } document.querySelector('.wexp')?.remove(); WEXP = null; setTimeout(() => WAREF && WAREF(), 600); };
 // Voice notes: play them here (and turn them into text), record and send your own.
 const vnote = (jid, m) => `<div class="vnote"><audio controls preload="none" src="/api/wa/voice?jid=${encodeURIComponent(jid)}&id=${encodeURIComponent(m.id)}"></audio><button type="button" class="btn sm" data-vt="${esc(m.id)}" data-vj="${esc(jid)}">Text</button><div class="note vtx"></div></div>`;
 document.addEventListener('click', async (e) => { const b = e.target.closest('[data-vt]'); if (!b) return; e.stopPropagation(); const out = b.parentElement.querySelector('.vtx'); b.disabled = true; out.textContent = 'Listening…'; try { const r = await api('POST', '/api/wa/voicetext', { jid: b.dataset.vj, id: b.dataset.vt }); out.textContent = r.text || '(nothing heard)'; b.remove(); } catch (x) { out.textContent = x.message; b.disabled = false; } }, true);
@@ -1660,7 +1667,7 @@ async function sugClick(e) {
   if (b.dataset.sa === 'new') { b.disabled = true; inp.value = ''; inp.placeholder = 'Thinking…'; try { const r = await api('POST', '/api/wa/draft', { jid, mode: 'write', text: 'One short line, max 15 words.' }); inp.value = r.text; WSUG[k] = { text: r.text }; } catch (x) { toast(x.message); } b.disabled = false; return; }
   const t = inp.value.trim(); if (!t) return toast('Write a reply first.');
   b.disabled = true; b.textContent = 'Sending…';
-  try { await api('POST', '/api/wa/send', { jid, text: t }); WSUG[k] = { text: t, sent: 1 }; bar.innerHTML = '<span class="note">✓ Sent</span>'; toast('Sent'); } catch (x) { toast(x.message); b.disabled = false; b.textContent = 'Send'; }
+  try { await api('POST', '/api/wa/send', { jid, text: t }); WSUG[k] = { text: t, sent: 1 }; bar.innerHTML = '<span class="note">✓ Sent</span>'; toast('Sent'); waDone(jid); } catch (x) { toast(x.message); b.disabled = false; b.textContent = 'Send'; }
 }
 document.addEventListener('input', (e) => { const bar = e.target.closest && e.target.closest('.wsug'); if (bar) WSUG[bar.dataset.sk] = { text: e.target.value }; });
 async function viewWa() {
@@ -1695,6 +1702,7 @@ async function viewWa() {
   };
   let D = null;
   const load = async () => { D = await api('GET', '/api/wa/overview?since=' + midnight.getTime()).catch(() => ({ chats: [], sentToday: 0 })); draw(D); };
+  WAREF = () => { if (cur() === 'wa' && !waOpen) load(); };
   await load();
   $('#wtab').addEventListener('click', (e) => { const b = e.target.closest('[data-t]'); if (!b) return; WAF.tab = b.dataset.t; WAF.f = WAF.tab === 'other' ? 'all' : 'action'; $('#wtab').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); D && draw(D); });
   $('#wst').addEventListener('click', (e) => {
@@ -1731,11 +1739,11 @@ function waConnect(st) {
 async function waChat(c) {
   clearInterval(waPoll);
   const main = $('#main');
-  main.innerHTML = `${stabs()}<button class="btn sm" id="wb">← Chats</button><h1 style="margin-top:12px">${esc(c.name)}</h1><div class="chat" id="wm" style="margin-top:16px"><div class="empty">Loading…</div></div>`;
+  main.innerHTML = `${stabs()}<button class="btn sm" id="wb">← Chats</button><h1 style="margin-top:12px">${esc(c.name)}</h1><div class="wmsgs" id="wm" style="margin-top:16px"><div class="empty">Loading…</div></div>`;
   const load = async () => {
     const d = await api('GET', '/api/wa/messages?jid=' + encodeURIComponent(c.jid)).catch(() => ({ messages: [] }));
     if (!$('#wm')) return;
-    $('#wm').innerHTML = d.messages.map((m) => `<div class="msg ${m.from_me ? 'user' : 'assistant'}" style="${m.from_me ? '' : 'background:var(--card);border:1px solid var(--line2);padding:11px 15px'}">${m.audio ? vnote(c.jid, m) : esc(m.text)}<div class="note" style="font-size:11px;margin-top:4px">${new Date(m.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div></div>`).join('') || '<div class="empty">No messages yet.</div>';
+    $('#wm').innerHTML = d.messages.map((m) => wbub(c.jid, m, c.name)).join('') || '<div class="empty">No messages yet.</div>';
     window.scrollTo(0, document.body.scrollHeight);
   };
   await load();
