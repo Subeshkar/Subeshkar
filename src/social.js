@@ -140,3 +140,36 @@ export async function trending() {
   }
   const data = { regions, at: Date.now() }; TR.set('t', { at: Date.now(), data }); return data;
 }
+
+// Trending on one network. Instagram (when connected): real top posts for the hottest UAE hashtags.
+// Every network: what the UAE is talking about now, each with a link that opens that network's live results.
+const NTAGS = {
+  instagram: ['dubai', 'uae', 'mydubai', 'dubaifood', 'abudhabi', 'dubailife'],
+  tiktok: ['dubai', 'uae', 'dubaitiktok', 'foryou'], youtube: ['dubai', 'uae'], twitter: ['UAE', 'Dubai'], facebook: ['Dubai', 'UAE'], linkedin: ['logistics', 'uaebusiness', 'leadership', 'ai'],
+};
+export async function trendingFor(uid, net) {
+  const k = uid + ':tr:' + net, c = C.get(k); if (c && Date.now() - c.at < 20 * 60e3) return c.data;
+  const base = await trending(), uae = (base.regions.find((r) => r.id === 'uae') || {}).items || [];
+  const out = { net, posts: [], topics: uae.slice(0, 12), tags: NTAGS[net] || [], news: [], errors: [] };
+  if (net === 'instagram' && (await A.connected(uid)).some((x) => x.slug === 'instagram')) {
+    try {
+      const u = await igUser(uid);
+      const search = await A.findTool('instagram', /HASHTAG.*(SEARCH|ID)|SEARCH.*HASHTAG/), top = await A.findTool('instagram', /HASHTAG.*TOP|TOP.*MEDIA/);
+      if (search && top) for (const tag of out.tags.slice(0, 3)) {
+        const h = await A.runFill(uid, search, { 'ig_user_id|user_id': u.id, 'q|hashtag|query|hashtag_name': tag });
+        const hid = (arr(h)[0] || h?.data || h || {}).id; if (!hid) continue;
+        const m = arr(await A.runFill(uid, top, { 'ig_hashtag_id|hashtag_id|id': hid, 'ig_user_id|user_id': u.id, 'fields': 'id,caption,media_type,media_url,permalink,like_count,comments_count,timestamp', 'limit': 8 }));
+        for (const x of m.slice(0, 6)) out.posts.push({ tag, text: x.caption || '', image: x.media_type === 'VIDEO' ? '' : x.media_url, link: x.permalink, likes: x.like_count || 0, comments: x.comments_count || 0 });
+      }
+      out.posts.sort((a, b) => b.likes - a.likes);
+    } catch (e) { out.errors.push('Instagram: ' + e.message); }
+  }
+  if (net === 'linkedin') {
+    try {
+      const r = await fetch('https://news.google.com/rss/search?hl=en-AE&gl=AE&ceid=AE:en&q=' + encodeURIComponent('UAE business OR logistics OR startup when:2d'), { signal: AbortSignal.timeout(12e3) });
+      const x = await r.text(), dec = (t) => String(t || '').replace(/<!\[CDATA\[|\]\]>/g, '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim();
+      out.news = [...x.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 10).map(([, i]) => ({ title: dec((i.match(/<title>([\s\S]*?)<\/title>/) || [])[1]), url: dec((i.match(/<link>([\s\S]*?)<\/link>/) || [])[1]), source: dec((i.match(/<source[^>]*>([\s\S]*?)<\/source>/) || [])[1]) })).filter((n) => n.title);
+    } catch {}
+  }
+  C.set(k, { at: Date.now(), data: out }); return out;
+}

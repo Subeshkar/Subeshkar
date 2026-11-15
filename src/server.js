@@ -550,7 +550,7 @@ on('POST', '/api/social/reply', async (req, res, u) => { const b = await json(re
 on('POST', '/api/social/post', async (req, res, u) => { const b = await json(req); if (!String(b.text || '').trim()) return fail(res, 400, 'Write the post first.'); await SO.post(u.id, b.net, String(b.text).slice(0, 3000), b.image || ''); send(res, 200, { ok: true }); });
 on('GET', '/api/social/dms', async (req, res, u) => send(res, 200, await SO.dms(u.id)));
 on('POST', '/api/social/dm', async (req, res, u) => { const b = await json(req); if (!String(b.text || '').trim()) return fail(res, 400, 'Write a message first.'); await SO.dmSend(u.id, b.net, String(b.to || ''), String(b.text).slice(0, 1000)); send(res, 200, { ok: true }); });
-on('GET', '/api/social/trending', async (req, res, u) => send(res, 200, await SO.trending()));
+on('GET', '/api/social/trending', async (req, res, u) => { const net = new URL(req.url, 'http://x').searchParams.get('net'); send(res, 200, net && net !== 'all' ? await SO.trendingFor(u.id, net) : await SO.trending()); });
 on('POST', '/api/social/image', async (req, res, u) => { const buf = await readBody(req, 8 * 1024 * 1024); if (!buf.length) return fail(res, 400, 'Empty file.'); const id = SO.savePublicImage(buf, String(req.headers['content-type'] || '')); send(res, 200, { url: `${pub()}/p/${id}` }); }, { raw: true });
 on('GET', '/p/:id', (req, res) => { const f = SO.publicFile(new URL(req.url, 'http://x').pathname.split('/').pop()); if (!f) return fail(res, 404, 'Not found'); res.writeHead(200, { 'content-type': f.endsWith('png') ? 'image/png' : 'image/jpeg', 'cache-control': 'public, max-age=86400' }); fs.createReadStream(f).pipe(res); }, { open: true });
 
