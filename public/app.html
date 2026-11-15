@@ -238,6 +238,7 @@ function renderOnboard() {
     <form class="card stack" id="f">
       <label class="stack" style="gap:6px"><span class="eyebrow">Your name</span><input class="field" id="name" autocomplete="given-name" placeholder="Sara" required></label>
       <div class="stack" style="gap:6px"><span class="eyebrow">You are</span><div class="stack" style="gap:8px" id="roles">${ROLES.map(([k, l, d]) => `<label class="item" style="cursor:pointer;border:1px solid var(--line2);border-radius:12px;padding:12px 14px;align-items:center"><input type="radio" name="role" value="${k}" style="accent-color:var(--acc)"><div class="grow"><div class="t">${l}</div><div class="s">${d}</div></div></label>`).join('')}</div></div>
+      <label class="stack" id="otherbox" style="gap:6px" hidden><span class="eyebrow">Tell us what you are</span><input class="field" id="othert" maxlength="80" placeholder="For example: freelancer, doctor, homemaker, retired"></label>
       <div class="stack" id="agebox" style="gap:8px" hidden><span class="eyebrow">Are you 18 or older?</span><div class="row"><label class="btn sm" style="flex:1"><input type="radio" name="adult" value="yes" style="accent-color:var(--acc)"> Yes, 18+</label><label class="btn sm" style="flex:1"><input type="radio" name="adult" value="no" style="accent-color:var(--acc)"> No, under 18</label></div></div>
       <label class="stack" style="gap:6px"><span class="eyebrow" id="aboutl">What do you do?</span><textarea class="field" id="about" rows="2" placeholder="I run a small café and a catering business"></textarea></label>
       <p class="note">Time zone: <span class="mono">${esc(tz)}</span></p>
@@ -245,7 +246,7 @@ function renderOnboard() {
     </form></div>`;
   $('#name').focus();
   const PH = { student: ['What do you study?', 'Year 2 Business at university, exams in June'], pro: ['What do you do?', 'Operations manager at a logistics company'], owner: ['What is your business?', 'I run a small café and a catering business'], other: ['Anything Dioma should know?', 'I want to plan my day and keep up with messages'] };
-  $('#roles').addEventListener('change', () => { const r = (document.querySelector('[name=role]:checked') || {}).value; $('#agebox').hidden = r !== 'student'; if (PH[r]) { $('#aboutl').textContent = PH[r][0]; $('#about').placeholder = PH[r][1]; } });
+  $('#roles').addEventListener('change', () => { const r = (document.querySelector('[name=role]:checked') || {}).value; $('#agebox').hidden = r !== 'student'; $('#otherbox').hidden = r !== 'other'; if (r === 'other') $('#othert').focus(); if (PH[r]) { $('#aboutl').textContent = PH[r][0]; $('#about').placeholder = PH[r][1]; } });
   $('#f').addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = $('#name').value.trim(); if (!name) return ($('#err').textContent = 'Please add your name.');
@@ -253,7 +254,10 @@ function renderOnboard() {
     const adult = (document.querySelector('[name=adult]:checked') || {}).value;
     if (role === 'student' && !adult) return ($('#err').textContent = 'Please tell us if you are 18 or older.');
     if (role === 'student' && adult === 'no') return renderUnder18();
-    try { await api('POST', '/api/me', { name, about: $('#about').value, role, tz, onboarded: true }); await boot(null, 'connect'); }
+    const other = $('#othert').value.trim();
+    if (role === 'other' && !other) return ($('#err').textContent = 'Please tell us what you are.');
+    const about = (role === 'other' ? `I am ${other}. ` : '') + $('#about').value.trim();
+    try { await api('POST', '/api/me', { name, about, role, tz, onboarded: true }); await boot(null, 'connect'); }
     catch (x) { $('#err').textContent = x.message; }
   });
 }
