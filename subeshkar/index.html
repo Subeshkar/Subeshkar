@@ -43,8 +43,11 @@ h1{font-weight:400;font-size:36px;letter-spacing:-.025em;line-height:1.1;margin:
 </main>
 <script>
 try { if (localStorage.getItem('dioma-tone') === 'mono') document.documentElement.dataset.tone = 'mono'; } catch {}
-const URL_ = 'https://claude.ai/artifact/VNREoDcJkbdSm12CYw2C5b';
-if (new URLSearchParams(location.search).get('stay') !== '1') setTimeout(() => { location.href = URL_; }, 2600);
+// Your Dioma runs on app.dioma.life. Until that server is online, the current Dioma opens instead.
+const APP = 'https://app.dioma.life/me', OLD = 'https://claude.ai/artifact/VNREoDcJkbdSm12CYw2C5b';
+let URL_ = OLD;
+const ready = fetch('https://app.dioma.life/api/health', { mode: 'no-cors', cache: 'no-store' }).then(() => { URL_ = APP; document.getElementById('open').href = APP; }, () => {});
+if (new URLSearchParams(location.search).get('stay') !== '1') setTimeout(async () => { await ready; location.href = URL_; }, 2600);
 else { document.getElementById('bar').hidden = true; document.getElementById('msg').textContent = 'Tap to open your Dioma.'; }
 </script>
 </body>

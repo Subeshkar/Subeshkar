@@ -84,7 +84,7 @@ setMode(mode);
 document.getElementById('wa').href = 'https://wa.me/971585155559?text=' + encodeURIComponent(`Hi Dioma! I'd like early access${plan ? ' (' + plan + ' plan)' : ''}.`);
 
 // Founding customers already live on Dioma. Only a hash of the email is kept here, never the address.
-const FOUNDERS = { '1f1edfbbe25de917543bf8e21fc4947f37f6c56f49c451a430cb7db621b6c4a5': { name: 'Subesh', url: 'https://claude.ai/artifact/VNREoDcJkbdSm12CYw2C5b' } };
+const FOUNDERS = { '1f1edfbbe25de917543bf8e21fc4947f37f6c56f49c451a430cb7db621b6c4a5': { name: 'Subesh', url: 'https://dioma.life/subeshkar/' } };
 async function founder(email) {
   try { const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(email.trim().toLowerCase())); return FOUNDERS[[...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, '0')).join('')] || null; } catch { return null; }
 }
