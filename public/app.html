@@ -194,27 +194,47 @@ function renderAuth(step = 'email', email = '') {
 // ---------- onboarding ----------
 function renderOnboard() {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Dubai';
+  const ROLES = [['student', 'Student', 'School, college or university'], ['pro', 'Working professional', 'Job, career, my day at work'], ['owner', 'Business owner', 'My company, clients and money'], ['other', 'Something else', 'Just my day']];
   $('#root').innerHTML = `<div class="wrap auth">
     <div class="brandrow"><a class="logo">${LOGO}DIOMA</a>${TG()}</div>
-    <div class="stack" style="gap:10px"><h1>Welcome. Let's set you up.</h1><p class="dim">Two quick things so Dioma knows how to help.</p></div>
+    <div class="stack" style="gap:10px"><h1>Welcome. Let's set you up.</h1><p class="dim">A few quick things so Dioma knows how to help.</p></div>
     <form class="card stack" id="f">
       <label class="stack" style="gap:6px"><span class="eyebrow">Your name</span><input class="field" id="name" autocomplete="given-name" placeholder="Sara" required></label>
-      <label class="stack" style="gap:6px"><span class="eyebrow">What do you do?</span><textarea class="field" id="about" rows="2" placeholder="I run a small café and a catering business"></textarea></label>
+      <div class="stack" style="gap:6px"><span class="eyebrow">You are</span><div class="stack" style="gap:8px" id="roles">${ROLES.map(([k, l, d]) => `<label class="item" style="cursor:pointer;border:1px solid var(--line2);border-radius:12px;padding:12px 14px;align-items:center"><input type="radio" name="role" value="${k}" style="accent-color:var(--acc)"><div class="grow"><div class="t">${l}</div><div class="s">${d}</div></div></label>`).join('')}</div></div>
+      <div class="stack" id="agebox" style="gap:8px" hidden><span class="eyebrow">Are you 18 or older?</span><div class="row"><label class="btn sm" style="flex:1"><input type="radio" name="adult" value="yes" style="accent-color:var(--acc)"> Yes, 18+</label><label class="btn sm" style="flex:1"><input type="radio" name="adult" value="no" style="accent-color:var(--acc)"> No, under 18</label></div></div>
+      <label class="stack" style="gap:6px"><span class="eyebrow" id="aboutl">What do you do?</span><textarea class="field" id="about" rows="2" placeholder="I run a small café and a catering business"></textarea></label>
       <p class="note">Time zone: <span class="mono">${esc(tz)}</span></p>
       <button class="btn pri">Continue</button><div class="err" id="err"></div>
     </form></div>`;
   $('#name').focus();
+  const PH = { student: ['What do you study?', 'Year 2 Business at university, exams in June'], pro: ['What do you do?', 'Operations manager at a logistics company'], owner: ['What is your business?', 'I run a small café and a catering business'], other: ['Anything Dioma should know?', 'I want to plan my day and keep up with messages'] };
+  $('#roles').addEventListener('change', () => { const r = (document.querySelector('[name=role]:checked') || {}).value; $('#agebox').hidden = r !== 'student'; if (PH[r]) { $('#aboutl').textContent = PH[r][0]; $('#about').placeholder = PH[r][1]; } });
   $('#f').addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = $('#name').value.trim(); if (!name) return ($('#err').textContent = 'Please add your name.');
-    try { await api('POST', '/api/me', { name, about: $('#about').value, tz, onboarded: true }); await boot(null, 'connect'); }
+    const role = (document.querySelector('[name=role]:checked') || {}).value; if (!role) return ($('#err').textContent = 'Please choose what describes you.');
+    const adult = (document.querySelector('[name=adult]:checked') || {}).value;
+    if (role === 'student' && !adult) return ($('#err').textContent = 'Please tell us if you are 18 or older.');
+    if (role === 'student' && adult === 'no') return renderUnder18();
+    try { await api('POST', '/api/me', { name, about: $('#about').value, role, tz, onboarded: true }); await boot(null, 'connect'); }
     catch (x) { $('#err').textContent = x.message; }
   });
+}
+// Under 18: Dioma is 18+ for now. The account just created is removed and nothing is kept.
+async function renderUnder18() {
+  try { await api('DELETE', '/api/me/minor'); } catch {}
+  S.me = null;
+  $('#root').innerHTML = `<div class="wrap auth">
+    <div class="brandrow"><a class="logo" href="https://dioma.life">${LOGO}DIOMA</a>${TG()}</div>
+    <div class="stack" style="gap:10px"><h1>Thanks for your interest in Dioma.</h1>
+    <p class="dim">Dioma is for people aged 18 and over right now. Connecting email, messages and apps for students under 18 needs a parent or guardian.</p>
+    <p class="dim">Please ask your parent or guardian to contact us at <span style="color:var(--fg)">hello@dioma.life</span>. We have not kept your details.</p></div>
+    <a class="btn" href="https://dioma.life">Back to dioma.life</a></div>`;
 }
 function renderConnectStep() {
   $('#root').innerHTML = `<div class="wrap auth">
     <div class="brandrow"><a class="logo">${LOGO}DIOMA</a>${TG()}</div>
-    <div class="stack" style="gap:10px"><h1>Connect your Google account</h1><p class="dim">Dioma reads your Gmail and Calendar to write your brief and spot what needs a reply. It can't send or delete anything. You can disconnect any time.</p></div>
+    <div class="stack" style="gap:10px"><h1>Connect your Google account</h1><p class="dim">Dioma reads your Gmail and Calendar to write your brief and spot what needs a reply. It only sends an email or adds an event after you tap Approve. You can disconnect any time.</p></div>
     <div class="stack">
       ${S.me.googleAvailable ? '<a class="btn pri" href="/auth/google">Connect Google</a>' : '<button class="btn pri" disabled>Google connect is coming soon</button>'}
       <a class="btn" href="#home" id="skip">Skip for now</a>
@@ -385,7 +405,7 @@ async function viewMe() {
   $('#main').innerHTML = `<h1>${esc(m.name || 'You')}</h1><p class="dim" style="margin-top:4px">${esc(m.email)}</p>
     ${msg && msg !== 'connected' ? `<p class="err" style="margin-top:12px">${msg === 'cancelled' ? 'Google connect was cancelled.' : esc(msg)}</p>` : ''}
     <section class="sec"><h2>Connected apps</h2><div class="list">
-      <div class="item"><span class="ficon mono">G</span><div class="grow"><div class="t">Google · Gmail and Calendar</div><div class="s">${m.google ? 'Connected' + (m.google.account ? ' as ' + esc(m.google.account) : '') + ' · read only' : m.googleAvailable ? 'Not connected' : 'Coming soon'}</div></div>
+      <div class="item"><span class="ficon mono">G</span><div class="grow"><div class="t">Google · Gmail and Calendar</div><div class="s">${m.google ? 'Connected' + (m.google.account ? ' as ' + esc(m.google.account) : '') + '' : m.googleAvailable ? 'Not connected' : 'Coming soon'}</div></div>
         ${m.google ? '<button class="btn sm" id="gd">Disconnect</button>' : m.googleAvailable ? '<a class="btn sm pri" href="/auth/google">Connect</a>' : ''}</div>
       ${[['W', 'WhatsApp', 'Personal and business chats'], ['O', 'Outlook', 'Microsoft 365 mail and calendar'], ['Z', 'Zoho', 'Mail, Calendar and Books'], ['in', 'LinkedIn', 'Messages and posts']].map(([i, n, d]) => `<div class="item"><span class="ficon mono">${i}</span><div class="grow"><div class="t">${n}</div><div class="s">${d} · coming soon</div></div></div>`).join('')}
     </div></section>

@@ -152,7 +152,7 @@ on('POST', '/api/auth/logout', (req, res) => {
 on('GET', '/api/me', (req, res, u) => {
   const g = one(`SELECT account FROM connections WHERE user_id = ? AND kind = 'google'`, u.id);
   const used = one('SELECT COALESCE(SUM(size),0) s FROM files WHERE user_id = ?', u.id).s;
-  send(res, 200, { email: u.email, name: u.name, about: u.about, tz: u.tz, onboarded: !!u.onboarded, plan: u.plan,
+  send(res, 200, { email: u.email, name: u.name, about: u.about, role: u.role, tz: u.tz, onboarded: !!u.onboarded, plan: u.plan,
     owner: O.isOwner(u), google: g ? { account: g.account } : null, googleAvailable: G.enabled(), ai: { used: usedToday(u), cap: CAP, live: !!process.env.ANTHROPIC_API_KEY }, storage: { used, quota: QUOTA } });
 });
 on('POST', '/api/me', async (req, res, u) => {
@@ -160,8 +160,17 @@ on('POST', '/api/me', async (req, res, u) => {
   const name = b.name !== undefined ? String(b.name).trim().slice(0, 60) : u.name;
   const about = b.about !== undefined ? String(b.about).trim().slice(0, 300) : u.about;
   const tz = b.tz && tzOk(b.tz) ? b.tz : u.tz;
-  run('UPDATE users SET name = ?, about = ?, tz = ?, onboarded = ? WHERE id = ?', name, about, tz, b.onboarded ? 1 : u.onboarded, u.id);
+  const role = ['student', 'pro', 'owner', 'other'].includes(b.role) ? b.role : u.role;
+  run('UPDATE users SET name = ?, about = ?, tz = ?, role = ?, onboarded = ? WHERE id = ?', name, about, tz, role, b.onboarded ? 1 : u.onboarded, u.id);
   send(res, 200, { ok: true });
+});
+// A student who says they are under 18 during set-up: remove the new account and everything in it.
+on('DELETE', '/api/me/minor', async (req, res, u) => {
+  if (u.onboarded) return fail(res, 400, 'Not available.');
+  await G.disconnect(u.id).catch(() => {});
+  fs.rmSync(path.join(DIR, 'files', String(u.id)), { recursive: true, force: true });
+  db.prepare('DELETE FROM users WHERE id = ?').run(u.id);
+  setSession(res, '', 0); send(res, 200, { ok: true });
 });
 on('DELETE', '/api/me', async (req, res, u) => {
   const b = await json(req);

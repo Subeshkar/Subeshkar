@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS files (id TEXT PRIMARY KEY, user_id INTEGER NOT NULL 
 CREATE TABLE IF NOT EXISTS briefs (user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, day TEXT NOT NULL, sig TEXT, text TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (user_id, day));
 CREATE TABLE IF NOT EXISTS waitlist (email TEXT PRIMARY KEY, created INTEGER NOT NULL);
 `);
+try { db.exec('ALTER TABLE users ADD COLUMN role TEXT'); } catch { /* already there */ }
 export const one = (sql, ...a) => db.prepare(sql).get(...a);
 export const all = (sql, ...a) => db.prepare(sql).all(...a);
 export const run = (sql, ...a) => db.prepare(sql).run(...a);
