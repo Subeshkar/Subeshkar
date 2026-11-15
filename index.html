@@ -317,7 +317,7 @@ section{position:relative}
 .disclaim{font-size:12px;color:var(--faint);margin-top:4px}
 
 .vennwrap{display:grid;grid-template-columns:1.1fr 1fr;gap:28px;align-items:center}
-.venn{position:relative;width:100%;max-width:600px;aspect-ratio:1;margin:0 auto}
+.venn{position:relative;width:100%;max-width:480px;aspect-ratio:1;margin:0 auto}
 #venn{position:absolute;inset:0;width:100%;height:100%}
 .vennwrap .lives{grid-template-columns:1fr;gap:10px}
 .vennwrap .life{all:unset;box-sizing:border-box;cursor:pointer;display:grid;grid-template-columns:1fr;gap:8px;padding:18px 20px;border-radius:16px;border:1px solid var(--line2);background:var(--card);transition:border-color .4s,background .4s,opacity .4s;opacity:.55}
@@ -327,7 +327,7 @@ section{position:relative}
 .vennwrap .life li{padding:5px 10px;font-size:13px;border-radius:999px;opacity:.6}
 .vennwrap .life.on li{opacity:1;border-color:rgba(var(--accrgb),.35)}
 .vennwrap+.vline{display:block;width:2px;height:70px;margin:8px auto;background:repeating-linear-gradient(180deg,var(--acc) 0 6px,transparent 6px 18px);background-size:2px 24px;animation:vflow 1.6s linear infinite;filter:drop-shadow(0 0 4px rgba(var(--accrgb),.8))}
-@media(max-width:900px){.vennwrap{grid-template-columns:1fr}.venn{max-width:420px}}
+@media(max-width:900px){.vennwrap{grid-template-columns:1fr}.venn{max-width:400px}}
 
 .mhead{display:flex;justify-content:space-between;align-items:end;gap:16px;flex-wrap:wrap;margin-bottom:20px}
 .mhead h3{font-size:clamp(26px,3vw,38px);line-height:1.1;letter-spacing:-.03em;max-width:620px}
@@ -1078,16 +1078,16 @@ $$('.toggle button').forEach(bt=>bt.onclick=()=>{$$('.toggle button').forEach(x=
   c.globalCompositeOperation='source-over';
   C.forEach(([x,y],i)=>{const on=i===act;c.beginPath();c.arc(x,y,R,0,7);c.strokeStyle=on?`rgba(${acc},.95)`:`rgba(${acc},.3)`;c.lineWidth=on?1.6:1;if(on){c.shadowColor=`rgba(${acc},.8)`;c.shadowBlur=14}c.stroke();c.shadowBlur=0});
   /* items orbiting each circle (bigger, readable, kept inside the frame) */
-  const fs=Math.max(12,Math.min(15,S*.026));
-  C.forEach(([x,y,a0],i)=>{const on=i===act,sm=S<520;const L=sm?ITEMS[i].slice(0,6):ITEMS[i];const n=L.length,sp=sm?.44:.3;L.forEach((txt,k)=>{const a=a0+(k-(n-1)/2)*sp+Math.sin(t*.4+k)*.03;const rr=R*1.1+(sm&&k%2?fs*1.6:0);const px=x+Math.cos(a)*rr,py=y+Math.sin(a)*rr;
+  const fs=Math.max(11,Math.min(13,S*.026));
+  C.forEach(([x,y,a0],i)=>{const on=i===act,sm=S<520;const L=ITEMS[i].slice(0,6);const n=L.length,sp=sm?.44:.36;L.forEach((txt,k)=>{const a=a0+(k-(n-1)/2)*sp+Math.sin(t*.4+k)*.03;const rr=R*1.1+(sm&&k%2?fs*1.6:0);const px=x+Math.cos(a)*rr,py=y+Math.sin(a)*rr;
     c.fillStyle=on?`rgba(${acc},.95)`:'rgba(255,255,255,.3)';c.beginPath();c.arc(px,py,on?3:2,0,7);c.fill();
     if(on){c.font=`500 ${fs}px "IBM Plex Mono",monospace`;const w=c.measureText(txt).width;const ca=Math.cos(a),sa=Math.sin(a);
      let lx=px+ca*10+(ca<-.25?-w:ca>.25?0:-w/2),ly=py+sa*(fs*.9+4);lx=Math.max(4,Math.min(S-4-w,lx));ly=Math.max(fs,Math.min(S-fs*.6,ly));
      c.textAlign='left';c.shadowColor='rgba(0,0,0,.95)';c.shadowBlur=6;c.fillStyle='#fff';c.fillText(txt,lx,ly);c.shadowBlur=0}});
    /* inside each circle: its name near the edge, then what it holds in a neat row */
    const tx=-Math.sin(a0),ty=Math.cos(a0);
-   c.textAlign='center';c.font=`700 ${Math.round(fs*1.05)}px "IBM Plex Mono",monospace`;c.fillStyle=on?`rgb(${acc})`:'rgba(255,255,255,.62)';if(sm&&i)c.fillText(NAMES[i],x+Math.cos(a0)*R*.22,y+Math.sin(a0)*R*.22-fs*2.1);else c.fillText(NAMES[i],x+Math.cos(a0)*R*.7,y+Math.sin(a0)*R*.7);
-   c.font=`500 ${Math.round(fs*.82)}px "IBM Plex Mono",monospace`;
+   c.textAlign='center';c.font=`700 ${Math.round(fs*1.05)}px "IBM Plex Mono",monospace`;c.fillStyle=on?`rgb(${acc})`:'rgba(255,255,255,.62)';if(i)c.fillText(NAMES[i],x+Math.cos(a0)*R*.22,y+Math.sin(a0)*R*.22-fs*2.1);else c.fillText(NAMES[i],x+Math.cos(a0)*R*.7,y+Math.sin(a0)*R*.7);
+   c.font=`500 ${Math.max(10,Math.round(fs*.88))}px "IBM Plex Mono",monospace`;
    const gap=Math.max(R*.4,Math.max(...INSIDE[i].map((q)=>c.measureText(q).width))+fs*1.2);
    if(!sm||on)INSIDE[i].forEach((txt,k)=>{const o=(k-1)*gap,bx=x+Math.cos(a0)*R*.22+o,by=y+Math.sin(a0)*R*.22;c.fillStyle=on?'rgba(255,255,255,.92)':'rgba(255,255,255,.42)';c.beginPath();c.arc(bx,by-fs*.8,on?2.4:1.8,0,7);c.fill();c.fillText(txt,bx,by+1)});
   });
