@@ -108,7 +108,7 @@ export function status(uid) {
 export const chats = (uid, q = '') => all(`SELECT c.jid, COALESCE(c.name, ct.name, substr(c.jid, 1, instr(c.jid, '@') - 1)) name, c.is_group, c.unread, c.last_text, c.last_from_me, c.last_at
   FROM wa_chats c LEFT JOIN wa_contacts ct ON ct.user_id = c.user_id AND ct.jid = c.jid
   WHERE c.user_id = ? AND c.last_at > 0 ${q ? 'AND (c.name LIKE ? OR ct.name LIKE ? OR c.jid LIKE ?)' : ''} ORDER BY c.last_at DESC LIMIT 80`, ...(q ? [uid, `%${q}%`, `%${q}%`, `%${q}%`] : [uid]));
-export const messages = (uid, jid) => all('SELECT id, from_me, sender_name, text, at, (media IS NOT NULL) audio FROM wa_messages WHERE user_id = ? AND jid = ? ORDER BY at DESC LIMIT 60', uid, jid).reverse();
+export const messages = (uid, jid) => all('SELECT id, from_me, sender_name, text, at, (media IS NOT NULL OR text = ?) audio FROM wa_messages WHERE user_id = ? AND jid = ? ORDER BY at DESC LIMIT 60', '🎤 Voice message', uid, jid).reverse();
 export const markRead = (uid, jid) => run('UPDATE wa_chats SET unread = 0 WHERE user_id = ? AND jid = ?', uid, jid);
 
 export async function send(uid, jid, text) {
@@ -133,8 +133,17 @@ export async function sendFile(uid, jid, name, mime, buf, caption) {
 
 // Play a voice note: download it from WhatsApp once, keep it, and give the browser a format it plays (m4a for iPhone).
 export async function voice(uid, jid, id) {
-  const row = one('SELECT media FROM wa_messages WHERE user_id = ? AND jid = ? AND id = ?', uid, jid, id);
-  if (!row || !row.media) throw Object.assign(new Error('No voice note here.'), { status: 404 });
+  let row = one('SELECT media, at FROM wa_messages WHERE user_id = ? AND jid = ? AND id = ?', uid, jid, id);
+  if (!row) throw Object.assign(new Error('No voice note here.'), { status: 404 });
+  if (!row.media) {
+    // An older voice note saved before playback existed: ask WhatsApp to send this part of the chat again.
+    const st = S.get(uid); const next = one('SELECT id, from_me, at FROM wa_messages WHERE user_id = ? AND jid = ? AND at > ? ORDER BY at ASC LIMIT 1', uid, jid, row.at);
+    if (st?.sock && st.status === 'open' && next) {
+      try { await st.sock.fetchMessageHistory(30, { remoteJid: jid, id: next.id, fromMe: !!next.from_me }, next.at); } catch {}
+      for (let i = 0; i < 16 && !row.media; i++) { await new Promise((r) => setTimeout(r, 750)); row = one('SELECT media, at FROM wa_messages WHERE user_id = ? AND jid = ? AND id = ?', uid, jid, id); }
+    }
+    if (!row.media) throw Object.assign(new Error('This older voice note cannot be loaded here. Play it on your phone.'), { status: 404 });
+  }
   const dir = path.join(MEDIA, String(uid)); fs.mkdirSync(dir, { recursive: true });
   const safe = crypto.createHash('sha1').update(jid + '|' + id).digest('hex');
   const m4a = path.join(dir, safe + '.m4a'), ogg = path.join(dir, safe + '.ogg');

@@ -695,7 +695,15 @@ on('POST', '/api/wa/suggest', async (req, res, u) => {
   let items = {}; try { items = JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1)); } catch {}
   send(res, 200, { items });
 });
-on('GET', '/api/wa/voice', async (req, res, u) => { const q = new URL(req.url, 'http://x').searchParams; const v = await W.voice(u.id, q.get('jid') || '', q.get('id') || ''); const st = fs.statSync(v.file); res.writeHead(200, { 'content-type': v.type, 'content-length': st.size, 'cache-control': 'private, max-age=86400', 'accept-ranges': 'none' }); fs.createReadStream(v.file).pipe(res); });
+on('GET', '/api/wa/voice', async (req, res, u) => {
+  const q = new URL(req.url, 'http://x').searchParams; const v = await W.voice(u.id, q.get('jid') || '', q.get('id') || ''); const size = fs.statSync(v.file).size;
+  // iPhone (Safari) only plays audio when the server answers byte ranges.
+  const m = /bytes=(\d*)-(\d*)/.exec(req.headers.range || '');
+  if (m) { const start = m[1] ? +m[1] : Math.max(0, size - +m[2]), end = m[1] && m[2] ? Math.min(+m[2], size - 1) : size - 1;
+    if (start >= size || start > end) { res.writeHead(416, { 'content-range': `bytes */${size}` }); return res.end(); }
+    res.writeHead(206, { 'content-type': v.type, 'content-length': end - start + 1, 'content-range': `bytes ${start}-${end}/${size}`, 'accept-ranges': 'bytes', 'cache-control': 'private, max-age=86400' }); return fs.createReadStream(v.file, { start, end }).pipe(res); }
+  res.writeHead(200, { 'content-type': v.type, 'content-length': size, 'accept-ranges': 'bytes', 'cache-control': 'private, max-age=86400' }); fs.createReadStream(v.file).pipe(res);
+});
 on('POST', '/api/wa/voicetext', async (req, res, u) => { const b = await json(req); const v = await W.voice(u.id, String(b.jid || ''), String(b.id || '')); send(res, 200, { text: await V.listen(fs.readFileSync(v.file), v.type) }); });
 on('POST', '/api/wa/sendvoice', async (req, res, u) => { const q = new URL(req.url, 'http://x').searchParams; const buf = await readBody(req, 16 * 1024 * 1024); if (buf.length < 800) return fail(res, 400, 'The recording is empty. Hold a little longer.'); send(res, 200, await W.sendVoice(u.id, q.get('jid') || '', buf, String(req.headers['content-type'] || ''))); }, { raw: true });
 on('POST', '/api/wa/sendfile', async (req, res, u) => {

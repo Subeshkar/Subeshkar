@@ -1617,7 +1617,9 @@ async function waExpand(jid, name) {
   const sk = Object.keys(WSUG).find((k) => k.startsWith(jid + ':')), pre = sk && !WSUG[sk].sent ? WSUG[sk].text : '';
   box.innerHTML = `<div class="wexm wmsgs">${d.messages.slice(-10).map((m) => wbub(jid, m, name)).join('') || '<div class="note">No messages yet.</div>'}</div>
     <textarea class="field" rows="2" placeholder="Your reply…">${esc(pre)}</textarea>
-    <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm" data-x="reply">AI reply</button><button class="btn sm" data-x="fix">Fix</button><button class="btn sm pri" data-x="send">Send</button><button class="btn sm" data-x="voice">🎤 Voice</button><button class="btn sm" data-x="full" style="margin-left:auto">Full chat ↗</button></div><div class="vrec" hidden></div>`;
+    <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm" data-x="reply">AI reply</button><button class="btn sm" data-x="fix">Fix</button><button class="btn sm pri" data-x="send">Send</button><button class="btn sm" data-x="voice">🎤 Voice</button><label class="btn sm" style="cursor:pointer">📎 Attach<input type="file" class="wexf" hidden></label><button class="btn sm" data-x="ignore">Ignore</button><button class="btn sm" data-x="noise">Move to Noise</button><button class="btn sm" data-x="full" style="margin-left:auto">Full chat ↗</button></div><div class="vrec" hidden></div>`;
+  box.querySelector('.wexf').onchange = async (ev) => { const f = ev.target.files[0], ta = box.querySelector('textarea'); ev.target.value = ''; if (!f) return; if (f.size > 15 * 1048576) return toast('Files up to 15 MB.'); toast('Sending ' + f.name + '…');
+    try { const r = await fetch(`/api/wa/sendfile?jid=${encodeURIComponent(jid)}&name=${encodeURIComponent(f.name)}&caption=${encodeURIComponent(ta.value.trim())}`, { method: 'POST', headers: { 'content-type': f.type || 'application/octet-stream', 'x-dioma': '1' }, body: f }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'Could not send the file.'); ta.value = ''; toast('Sent'); waDone(jid); } catch (x) { toast(x.message); } };
   const m = box.querySelector('.wexm'); m.scrollTop = m.scrollHeight;
   const top = ($('#wtop') ? $('#wtop').getBoundingClientRect().bottom : 0) + 6; window.scrollBy({ top: row.getBoundingClientRect().top - top, behavior: 'smooth' });
 }
@@ -1625,6 +1627,7 @@ async function expClick(e) {
   const box = e.target.closest('.wexp'), b = e.target.closest('[data-x]'); if (!b) return; e.stopPropagation();
   const jid = box.dataset.jid, ta = box.querySelector('textarea'), k = b.dataset.x;
   if (k === 'voice') return voiceRec(b, box.querySelector('.vrec'), jid, () => waDone(jid));
+  if (k === 'ignore' || k === 'noise') { await api('POST', k === 'ignore' ? '/api/wa/ignore' : '/api/wa/noise', { jid, on: true }).catch(() => {}); toast(k === 'ignore' ? 'Ignored until they write again' : 'Moved to Noise'); return waDone(jid); }
   if (k === 'full') { WEXP = null; waOpen = { jid, name: box.dataset.name }; return waChat(waOpen); }
   if (k === 'send') { const t = ta.value.trim(); if (!t) return toast('Write a message first.'); b.disabled = true; try { await api('POST', '/api/wa/send', { jid, text: t }); toast('Sent'); ta.value = ''; waDone(jid); } catch (x) { toast(x.message); } b.disabled = false; return; }
   if (k === 'fix' && !ta.value.trim()) return toast('Write something first.');
@@ -1639,6 +1642,7 @@ const waDone = (jid) => { const row = document.querySelector(`#wl [data-jid="${C
 // Voice notes: play them here (and turn them into text), record and send your own.
 const vnote = (jid, m) => `<div class="vnote"><audio controls preload="none" src="/api/wa/voice?jid=${encodeURIComponent(jid)}&id=${encodeURIComponent(m.id)}"></audio><button type="button" class="btn sm" data-vt="${esc(m.id)}" data-vj="${esc(jid)}">Text</button><div class="note vtx"></div></div>`;
 document.addEventListener('click', async (e) => { const b = e.target.closest('[data-vt]'); if (!b) return; e.stopPropagation(); const out = b.parentElement.querySelector('.vtx'); b.disabled = true; out.textContent = 'Listening…'; try { const r = await api('POST', '/api/wa/voicetext', { jid: b.dataset.vj, id: b.dataset.vt }); out.textContent = r.text || '(nothing heard)'; b.remove(); } catch (x) { out.textContent = x.message; b.disabled = false; } }, true);
+document.addEventListener('error', async (e) => { const a = e.target; if (!a || a.tagName !== 'AUDIO' || !a.closest('.vnote')) return; const out = a.closest('.vnote').querySelector('.vtx'); try { const r = await fetch(a.src); const j = await r.json(); out.textContent = j.error || 'Could not play this voice note.'; } catch { out.textContent = 'Could not play this voice note.'; } }, true);
 let VREC = null;
 async function voiceRec(btn, box, jid, done) {
   if (VREC) { VREC.stop(); return; }
