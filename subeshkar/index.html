@@ -48,7 +48,7 @@ h1{font-weight:400;font-size:36px;letter-spacing:-.025em;line-height:1.1;margin:
 </main>
 <script>
 (function(){const set=(t)=>{if(t==='sun')document.documentElement.dataset.tone='sun';else delete document.documentElement.dataset.tone;document.querySelectorAll('.tg button').forEach((b)=>b.setAttribute('aria-pressed',String(b.dataset.tone===t)));try{localStorage.setItem('dioma-tone',t)}catch(e){}};
-let t='mono';try{t=localStorage.getItem('dioma-tone')==='sun'?'sun':'mono'}catch(e){}set(t);
+let t='sun';try{t=localStorage.getItem('dioma-tone')==='mono'?'mono':'sun'}catch(e){}set(t);
 document.querySelectorAll('.tg button').forEach((b)=>b.addEventListener('click',()=>set(b.dataset.tone)));})();
 
 // Your Dioma runs on app.dioma.life. Until that server is online, the current Dioma opens instead.

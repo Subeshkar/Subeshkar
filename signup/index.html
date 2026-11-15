@@ -72,7 +72,7 @@ ul{margin:0;padding-left:18px;color:var(--dim);font-size:14.5px}li{margin:3px 0}
 </main>
 <script>
 (function(){const set=(t)=>{if(t==='sun')document.documentElement.dataset.tone='sun';else delete document.documentElement.dataset.tone;document.querySelectorAll('.tg button').forEach((b)=>b.setAttribute('aria-pressed',String(b.dataset.tone===t)));try{localStorage.setItem('dioma-tone',t)}catch(e){}};
-let t='mono';try{t=localStorage.getItem('dioma-tone')==='sun'?'sun':'mono'}catch(e){}set(t);
+let t='sun';try{t=localStorage.getItem('dioma-tone')==='mono'?'mono':'sun'}catch(e){}set(t);
 document.querySelectorAll('.tg button').forEach((b)=>b.addEventListener('click',()=>set(b.dataset.tone)));})();
 
 const APP = 'https://app.dioma.life';
