@@ -310,7 +310,7 @@ on('GET', '/auth/google/callback', async (req, res) => {
     G.forget(uid);
     if (!u) { const t = token(); run('INSERT INTO sessions (hash, user_id, expires, created) VALUES (?, ?, ?, ?)', sha(SECRET + t), uid, now() + 30 * DAY, now()); setSession(res, t, 30 * 86400); }
     const me = one('SELECT * FROM users WHERE id = ?', uid);
-    send(res, 302, '', { location: O.isOwner(me) ? '/me' : me.onboarded ? '/#home?google=connected' : '/' });
+    send(res, 302, '', { location: me.onboarded ? '/#assistant/mail?google=connected' : '/' });
   } catch (e) { send(res, 302, '', { location: (u ? '/#me?google=' : '/?err=') + encodeURIComponent(e.message) }); }
 }, { open: true });
 on('DELETE', '/api/google', async (req, res, u) => { await G.disconnect(u.id); send(res, 200, { ok: true }); });
