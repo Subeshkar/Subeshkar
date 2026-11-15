@@ -1,0 +1,10 @@
+{
+  "name": "dioma-cloud",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Dioma for customers: sign up at dioma.life, connect your own apps. Separate from the owner's live Dioma.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": { "start": "node src/server.js", "dev": "DIOMA_DEV=1 APP_SECRET=dev-secret-only-for-local-tests node src/server.js" },
+  "engines": { "node": ">=22.13" }
+}

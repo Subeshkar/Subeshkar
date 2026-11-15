@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Dioma</title>
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{--acc:#fff;--accrgb:255,255,255;--accink:#000;--bg:#000;--fg:#fff;--dim:#8b8b8b;--faint:#5a5a5a;--line:#1c1c1c;--line2:#2a2a2a;--card:#0a0a0a;--field:#0d0d0d;--bad:#ff7a6b;--good:#7ddc9a;
+  --sans:'Inter Tight',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;--mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;color-scheme:dark}
+html[data-tone=sun]{--acc:#ffb547;--accrgb:255,181,71;--accink:#1a0f00}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button,input,textarea,select{font:inherit;color:inherit}
+a{color:inherit}
+.wrap{max-width:640px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.mono{font-family:var(--mono)}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+h1{font-size:30px;font-weight:400;letter-spacing:-.02em;line-height:1.15;margin:0;text-wrap:balance}
+h2{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin:0 0 10px}
+p{margin:0}
+.dim{color:var(--dim)}.faint{color:var(--faint)}
+.logo{display:inline-flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;letter-spacing:.32em;text-decoration:none}
+.logo svg{width:20px;height:20px;display:block}
+.logo .ring{transform-origin:10px 10px;animation:lspin 6s linear infinite}
+@keyframes lspin{to{transform:rotate(360deg)}}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 20px;border-radius:999px;border:1px solid var(--line2);background:transparent;cursor:pointer;font-weight:500;font-size:15px;text-decoration:none;white-space:nowrap}
+.btn:hover{border-color:#444}
+.btn.pri{background:var(--acc);color:var(--accink);border-color:var(--acc)}
+.btn.sm{height:34px;padding:0 14px;font-size:13.5px}
+.btn.bad{color:var(--bad);border-color:rgba(255,122,107,.35)}
+.btn:disabled{opacity:.45;cursor:default}
+.field{width:100%;height:48px;border-radius:12px;border:1px solid var(--line2);background:var(--field);padding:0 14px;outline:none;font-size:16px}
+.field:focus{border-color:rgba(var(--accrgb),.6)}
+textarea.field{height:auto;min-height:48px;padding:12px 14px;resize:none;line-height:1.4}
+.card{border:1px solid var(--line2);border-radius:16px;background:var(--card);padding:18px}
+.stack{display:grid;gap:12px}
+.row{display:flex;align-items:center;gap:10px;min-width:0}
+.grow{flex:1;min-width:0}
+.err{color:var(--bad);font-size:14px;min-height:20px}
+.note{font-size:13px;color:var(--dim)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(88px + env(safe-area-inset-bottom,0px));background:#151515;border:1px solid var(--line2);border-radius:999px;padding:10px 18px;font-size:14px;z-index:50;max-width:calc(100% - 32px)}
+
+/* auth */
+.auth{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;justify-content:center;gap:28px;padding-block:40px}
+.auth .card{padding:24px}
+.code{letter-spacing:.4em;font-family:var(--mono);font-size:22px;text-align:center}
+
+/* app shell */
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;background:rgba(0,0,0,.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:#000;z-index:11}
+header.top .wrap{display:flex;align-items:center;justify-content:space-between;height:56px}
+main{padding-block:22px calc(110px + env(safe-area-inset-bottom,0px))}
+nav.bot{position:fixed;left:0;right:0;bottom:0;z-index:10;background:rgba(0,0,0,.9);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav.bot .wrap{display:grid;grid-template-columns:repeat(5,1fr)}
+nav.bot a{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 0 12px;text-decoration:none;color:var(--faint);font-size:11.5px;letter-spacing:.02em}
+nav.bot a svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+nav.bot a.on{color:var(--fg)}
+nav.bot a.on svg{stroke:var(--acc)}
+.sec{display:grid;gap:10px;margin-top:26px}
+.list{border-top:1px solid var(--line)}
+.item{display:flex;gap:12px;align-items:flex-start;padding:13px 0;border-bottom:1px solid var(--line);min-width:0}
+.item .t{font-size:15px;overflow-wrap:anywhere}
+.item .s{font-size:13px;color:var(--dim);overflow-wrap:anywhere}
+.when{font-family:var(--mono);font-size:12px;color:var(--dim);width:54px;flex:none;padding-top:2px}
+.chk{width:22px;height:22px;flex:none;border-radius:50%;border:1.5px solid var(--line2);background:transparent;cursor:pointer;margin-top:1px;display:grid;place-items:center;padding:0}
+.chk:hover{border-color:var(--acc)}
+.chk.on{background:var(--acc);border-color:var(--acc)}
+.chk.on::after{content:"";width:8px;height:4px;border:solid var(--accink);border-width:0 0 2px 2px;transform:rotate(-45deg) translate(1px,-1px)}
+.done .t{color:var(--faint);text-decoration:line-through}
+.x{background:none;border:0;color:var(--faint);cursor:pointer;padding:2px 6px;font-size:18px;line-height:1}
+.x:hover{color:var(--fg)}
+.brief{font-size:19px;line-height:1.45;letter-spacing:-.01em;font-weight:300}
+.pill{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--line2);border-radius:999px;padding:3px 10px;color:var(--dim);white-space:nowrap;text-decoration:none}
+a.pill:hover{color:var(--fg)}
+.sun{height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,rgba(var(--accrgb),.9),transparent);margin:16px 0 0}
+.empty{padding:16px 0;color:var(--faint);font-size:14px}
+
+/* ask */
+.chat{display:grid;gap:14px}
+.msg{max-width:88%;padding:11px 15px;border-radius:18px;font-size:15px;white-space:pre-wrap;overflow-wrap:anywhere}
+.msg.user{justify-self:end;background:#161616;border:1px solid var(--line2)}
+.msg.assistant{justify-self:start;padding-left:0;padding-right:0}
+.composer{position:fixed;left:0;right:0;bottom:calc(64px + env(safe-area-inset-bottom,0px));z-index:9;background:linear-gradient(transparent,#000 30%);padding-top:18px}
+.composer .row{gap:8px;padding-bottom:10px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{border:1px solid var(--line2);background:transparent;border-radius:999px;padding:7px 14px;font-size:13.5px;cursor:pointer;color:#cfcfcf}
+.chip:hover{border-color:#444;color:var(--fg)}
+.typing{display:inline-flex;gap:5px}.typing i{width:6px;height:6px;border-radius:50%;background:var(--dim);animation:blink 1s infinite}.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes blink{50%{opacity:.25}}
+
+/* files */
+.crumbs{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:14px}
+.crumbs button{background:none;border:0;color:var(--dim);cursor:pointer;padding:2px 0}
+.crumbs button:last-child{color:var(--fg)}
+.ficon{width:34px;height:34px;flex:none;border:1px solid var(--line2);border-radius:9px;display:grid;place-items:center;font-family:var(--mono);font-size:9.5px;color:var(--dim);text-transform:uppercase}
+.ficon svg{width:17px;height:17px;stroke:var(--dim);fill:none;stroke-width:1.5}
+.inline{display:flex;gap:8px;flex-wrap:wrap;padding:10px 0 4px}
+.seg{display:inline-flex;gap:4px;background:#111;border:1px solid var(--line);border-radius:999px;padding:3px}
+.seg button{border:0;background:transparent;border-radius:999px;padding:6px 14px;cursor:pointer;color:var(--dim);font-size:13.5px}
+.seg button.on{background:var(--fg);color:#000}
+@media (prefers-reduced-motion:reduce){.logo .ring{animation:none}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const LOGO = `<svg viewBox="0 0 20 20" aria-hidden="true"><circle class="ring" cx="10" cy="10" r="8.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="46 7.4" stroke-linecap="round"/><circle cx="10" cy="10" r="2.6" fill="var(--acc)"/></svg>`;
+const I = {
+  home:'<path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z"/>',
+  ask:'<path d="M4 5h16v11H9l-5 4z"/>',
+  todo:'<rect x="4" y="4" width="16" height="16" rx="4"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
+  files:'<path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2h8.5A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"/>',
+  me:'<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>',
+};
+const NAV = [['home','Home'],['ask','Ask'],['todo','To-do'],['files','Files'],['me','Me']];
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const S = { me: null, folder: '', newFolders: [], chat: null, busy: false };
+try { const t = localStorage.getItem('dioma-tone'); if (t) document.documentElement.dataset.tone = t; } catch {}
+
+async function api(method, url, body, raw) {
+  const opts = { method, headers: { 'x-dioma': '1' } };
+  if (raw) { opts.body = raw; opts.headers['content-type'] = raw.type || 'application/octet-stream'; }
+  else if (body !== undefined) { opts.body = JSON.stringify(body); opts.headers['content-type'] = 'application/json'; }
+  const r = await fetch(url, opts);
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401) { S.me = null; renderAuth(); throw new Error('signed out'); }
+  if (!r.ok) throw new Error(j.error || 'Something went wrong.');
+  return j;
+}
+function toast(t) { document.querySelectorAll('.toast').forEach((x) => x.remove()); const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 2600); }
+const route = () => { const h = location.hash.slice(1); const [v, q] = h.split('?'); return { view: NAV.some(n => n[0] === v) ? v : 'home', q: new URLSearchParams(q || '') }; };
+
+// ---------- sign in ----------
+function renderAuth(step = 'email', email = '') {
+  $('#root').innerHTML = `<div class="wrap auth">
+    <a class="logo" href="https://dioma.life">${LOGO}DIOMA</a>
+    <div class="stack" style="gap:10px"><h1>${step === 'email' ? 'Your day, handled.' : 'Check your email'}</h1>
+    <p class="dim">${step === 'email' ? 'Sign in or create your account with your email. No password.' : `We sent a 6-digit code to <span style="color:var(--fg)">${esc(email)}</span>.`}</p></div>
+    <form class="card stack" id="f" novalidate>
+      ${step === 'email'
+        ? `<input class="field" id="email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" value="${esc(email)}" required>`
+        : `<input class="field code" id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="······" required>`}
+      <button class="btn pri" id="go">${step === 'email' ? 'Continue' : 'Sign in'}</button>
+      <div class="err" id="err"></div>
+      ${step === 'code' ? '<button type="button" class="btn sm" id="back" style="justify-self:start">Use another email</button>' : ''}
+    </form>
+    <p class="note">By continuing you agree to the <a href="/terms">terms</a> and <a href="/privacy">privacy policy</a>.</p>
+  </div>`;
+  const f = $('#f'), err = $('#err'), go = $('#go');
+  (step === 'email' ? $('#email') : $('#code')).focus();
+  $('#back')?.addEventListener('click', () => renderAuth('email', email));
+  if (step === 'code') $('#code').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, ''); if (e.target.value.length === 6) f.requestSubmit(); });
+  f.addEventListener('submit', async (e) => {
+    e.preventDefault(); err.textContent = ''; go.disabled = true;
+    try {
+      if (step === 'email') {
+        const em = $('#email').value.trim();
+        const r = await api('POST', '/api/auth/start', { email: em });
+        if (r.waitlist) { $('#root').innerHTML = `<div class="wrap auth"><a class="logo" href="https://dioma.life">${LOGO}DIOMA</a><h1>You're on the list.</h1><p class="dim">Early access is full right now. We'll email ${esc(em)} as soon as a seat opens.</p></div>`; return; }
+        renderAuth('code', em);
+        if (r.devCode) { $('#code').value = r.devCode; toast('Test mode: code filled in'); }
+      } else {
+        const r = await api('POST', '/api/auth/verify', { email, code: $('#code').value });
+        await boot(r.onboarded ? null : 'onboard');
+      }
+    } catch (x) { err.textContent = x.message; go.disabled = false; }
+  });
+}
+
+// ---------- onboarding ----------
+function renderOnboard() {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Dubai';
+  $('#root').innerHTML = `<div class="wrap auth">
+    <a class="logo">${LOGO}DIOMA</a>
+    <div class="stack" style="gap:10px"><h1>Welcome. Let's set you up.</h1><p class="dim">Two quick things so Dioma knows how to help.</p></div>
+    <form class="card stack" id="f">
+      <label class="stack" style="gap:6px"><span class="eyebrow">Your name</span><input class="field" id="name" autocomplete="given-name" placeholder="Sara" required></label>
+      <label class="stack" style="gap:6px"><span class="eyebrow">What do you do?</span><textarea class="field" id="about" rows="2" placeholder="I run a small café and a catering business"></textarea></label>
+      <p class="note">Time zone: <span class="mono">${esc(tz)}</span></p>
+      <button class="btn pri">Continue</button><div class="err" id="err"></div>
+    </form></div>`;
+  $('#name').focus();
+  $('#f').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = $('#name').value.trim(); if (!name) return ($('#err').textContent = 'Please add your name.');
+    try { await api('POST', '/api/me', { name, about: $('#about').value, tz, onboarded: true }); await boot(null, 'connect'); }
+    catch (x) { $('#err').textContent = x.message; }
+  });
+}
+function renderConnectStep() {
+  $('#root').innerHTML = `<div class="wrap auth">
+    <a class="logo">${LOGO}DIOMA</a>
+    <div class="stack" style="gap:10px"><h1>Connect your Google account</h1><p class="dim">Dioma reads your Gmail and Calendar to write your brief and spot what needs a reply. It can't send or delete anything. You can disconnect any time.</p></div>
+    <div class="stack">
+      ${S.me.googleAvailable ? '<a class="btn pri" href="/auth/google">Connect Google</a>' : '<button class="btn pri" disabled>Google connect is coming soon</button>'}
+      <a class="btn" href="#home" id="skip">Skip for now</a>
+    </div></div>`;
+  $('#skip').addEventListener('click', (e) => { e.preventDefault(); location.hash = 'home'; shell(); });
+}
+
+// ---------- shell ----------
+function shell() {
+  const { view } = route();
+  if (!$('#app')) {
+    $('#root').innerHTML = `<div id="app"><header class="top"><div class="wrap"><a class="logo" href="#home">${LOGO}DIOMA</a><span class="eyebrow" id="today"></span></div></header>
+      <main class="wrap" id="main"></main>
+      <nav class="bot"><div class="wrap">${NAV.map(([k, l]) => `<a href="#${k}" data-k="${k}"><svg viewBox="0 0 24 24">${I[k]}</svg>${l}</a>`).join('')}</div></nav></div>`;
+  }
+  $('#today').textContent = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: S.me.tz }).format(new Date());
+  document.querySelectorAll('nav.bot a').forEach((a) => a.classList.toggle('on', a.dataset.k === view));
+  $('.composer')?.remove();
+  ({ home: viewHome, ask: viewAsk, todo: viewTodo, files: viewFiles, me: viewMe })[view]();
+  window.scrollTo(0, 0);
+}
+window.addEventListener('hashchange', () => S.me && S.me.onboarded && shell());
+
+// ---------- Home ----------
+const hm = (iso, allDay) => allDay ? 'All day' : new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: S.me.tz }).format(new Date(iso));
+const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 60 ? `${m}m` : m < 1440 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d`; };
+async function viewHome(refresh) {
+  const main = $('#main');
+  const hour = Number(new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hourCycle: 'h23', timeZone: S.me.tz }).format(new Date()));
+  const hello = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  if (!refresh) main.innerHTML = `<p class="eyebrow">${hello}${S.me.name ? ', ' + esc(S.me.name) : ''}</p><div class="sun"></div><p class="brief" style="margin-top:18px"><span class="typing"><i></i><i></i><i></i></span></p>`;
+  let d;
+  try { d = await api('GET', '/api/home' + (refresh ? '?refresh=1' : '')); } catch (x) { if (x.message !== 'signed out') main.innerHTML += `<p class="err">${esc(x.message)}</p>`; return; }
+  if (route().view !== 'home') return;
+  main.innerHTML = `<div class="row" style="justify-content:space-between"><p class="eyebrow">${hello}${S.me.name ? ', ' + esc(S.me.name) : ''}</p>
+      <button class="btn sm" id="rf">${d.stale ? 'Update brief' : 'Refresh'}</button></div>
+    <div class="sun"></div>
+    <p class="brief" style="margin-top:18px">${esc(d.brief)}</p>
+    ${!d.google ? `<div class="card stack" style="margin-top:24px"><p><b style="font-weight:500">Connect Google</b> to see today's meetings and the email that needs you.</p>${S.me.googleAvailable ? '<a class="btn pri sm" style="justify-self:start" href="/auth/google">Connect Google</a>' : '<span class="note">Coming soon.</span>'}</div>` : ''}
+    ${d.google ? `<section class="sec"><h2>Today</h2><div class="list">${d.events.length ? d.events.map((e) => `<div class="item"><span class="when">${hm(e.start, e.allDay)}</span><div class="grow"><div class="t">${esc(e.title)}</div>${e.where ? `<div class="s">${esc(e.where)}</div>` : ''}</div>${e.link ? `<a class="pill" href="${esc(e.link)}" target="_blank" rel="noopener">Join</a>` : e.where ? `<a class="pill" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.where)}">Map</a>` : ''}</div>`).join('') : '<div class="empty">Nothing on your calendar today.</div>'}</div></section>` : ''}
+    ${d.google ? `<section class="sec"><h2>Unread mail</h2><div class="list">${d.mail.length ? d.mail.slice(0, 8).map((m) => `<a class="item" style="text-decoration:none" target="_blank" rel="noopener" href="https://mail.google.com/mail/u/0/#inbox/${esc(m.thread)}"><span class="when">${ago(m.at)}</span><div class="grow"><div class="t">${esc(m.from)}</div><div class="s">${esc(m.subject)}</div></div></a>`).join('') : '<div class="empty">Inbox clear.</div>'}</div></section>` : ''}
+    <section class="sec"><div class="row" style="justify-content:space-between"><h2 style="margin:0">To-do</h2><a class="pill" href="#todo">All</a></div><div class="list" id="ht">${todoRows(d.todos) || '<div class="empty">Nothing open. Ask Dioma to remind you of something.</div>'}</div></section>`;
+  $('#rf').addEventListener('click', (e) => { e.target.disabled = true; e.target.textContent = 'Updating…'; viewHome(true); });
+  wireTodos($('#ht'), () => viewHome());
+}
+
+// ---------- To-do ----------
+const dueTxt = (d) => { if (!d) return ''; const t = new Intl.DateTimeFormat('en-CA', { timeZone: S.me.tz }).format(new Date()); if (d === t) return 'Today'; if (d < t) return 'Overdue · ' + d; return new Date(d + 'T12:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }); };
+const todoRows = (ts, done) => ts.map((t) => `<div class="item ${done ? 'done' : ''}" data-id="${t.id}"><button class="chk ${done ? 'on' : ''}" aria-label="${done ? 'Mark not done' : 'Mark done'}"></button><div class="grow"><div class="t">${esc(t.text)}</div>${t.due ? `<div class="s" style="${!done && dueTxt(t.due).startsWith('Overdue') ? 'color:var(--bad)' : ''}">${esc(dueTxt(t.due))}</div>` : ''}</div><button class="x" aria-label="Delete">×</button></div>`).join('');
+function wireTodos(el, after) {
+  el.addEventListener('click', async (e) => {
+    const it = e.target.closest('.item'); if (!it) return;
+    const id = it.dataset.id;
+    if (e.target.closest('.chk')) { const on = !e.target.classList.contains('on'); e.target.classList.toggle('on', on); it.classList.toggle('done', on); await api('PATCH', `/api/todos/${id}`, { done: on }).catch((x) => toast(x.message)); setTimeout(after, 350); }
+    if (e.target.closest('.x')) { it.remove(); await api('DELETE', `/api/todos/${id}`).catch((x) => toast(x.message)); }
+  });
+}
+async function viewTodo() {
+  const main = $('#main');
+  const d = await api('GET', '/api/todos').catch(() => ({ open: [], done: [] }));
+  if (route().view !== 'todo') return;
+  main.innerHTML = `<h1>To-do</h1>
+    <form id="add" style="margin-top:18px;display:grid;grid-template-columns:1fr auto;gap:8px"><input class="field" id="tt" placeholder="Add a to-do" maxlength="300" style="grid-column:1/-1"><input class="field" id="td" type="date" aria-label="Due date (optional)" style="min-width:0"><button class="btn pri" style="height:48px">Add</button></form>
+    <section class="sec"><h2>Open · ${d.open.length}</h2><div class="list" id="op">${todoRows(d.open) || '<div class="empty">All clear.</div>'}</div></section>
+    ${d.done.length ? `<section class="sec"><h2>Done this week</h2><div class="list" id="dn">${todoRows(d.done, true)}</div></section>` : ''}`;
+  $('#add').addEventListener('submit', async (e) => { e.preventDefault(); const text = $('#tt').value.trim(); if (!text) return; await api('POST', '/api/todos', { text, due: $('#td').value || null }).catch((x) => toast(x.message)); viewTodo(); });
+  wireTodos($('#op'), viewTodo); if ($('#dn')) wireTodos($('#dn'), viewTodo);
+  if (window.innerWidth > 600) $('#tt').focus();
+}
+
+// ---------- Ask ----------
+async function viewAsk() {
+  const main = $('#main');
+  if (!S.chat) S.chat = await api('GET', '/api/chat').catch(() => ({ messages: [], used: 0, cap: 30 }));
+  if (route().view !== 'ask') return;
+  const draw = () => {
+    main.innerHTML = `<div class="row" style="justify-content:space-between"><h1>Ask Dioma</h1>${S.chat.messages.length ? '<button class="btn sm" id="clr">Clear</button>' : ''}</div>
+      <div class="chat" id="chat" style="margin-top:20px">${S.chat.messages.length ? S.chat.messages.map((m) => `<div class="msg ${m.role}">${esc(m.text)}</div>`).join('') : `<p class="dim">Ask about your day, your mail, or tell Dioma what to remember.</p><div class="chips">${['What should I do first today?', 'Summarise my unread email', 'Remind me to call the bank tomorrow', 'What meetings do I have today?'].map((c) => `<button class="chip">${esc(c)}</button>`).join('')}</div>`}
+      ${S.busy ? '<div class="msg assistant"><span class="typing"><i></i><i></i><i></i></span></div>' : ''}</div>
+      <p class="note mono" style="margin-top:14px;font-size:11.5px">${S.chat.used} of ${S.chat.cap} asks today${S.me.ai.live ? '' : ' · test mode'}</p>`;
+    $('#clr')?.addEventListener('click', async () => { await api('DELETE', '/api/chat'); S.chat.messages = []; draw(); });
+    main.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', () => ask(c.textContent)));
+    window.scrollTo(0, document.body.scrollHeight);
+  };
+  const ask = async (q) => {
+    q = q.trim(); if (!q || S.busy) return;
+    S.chat.messages.push({ role: 'user', text: q }); S.busy = true; draw();
+    try { const r = await api('POST', '/api/chat', { text: q }); S.chat.messages.push({ role: 'assistant', text: r.reply }); S.chat.used = r.used; if (r.changed) toast('To-do list updated'); }
+    catch (x) { S.chat.messages.push({ role: 'assistant', text: x.message }); }
+    S.busy = false; if (route().view === 'ask') draw();
+  };
+  draw();
+  const c = document.createElement('div'); c.className = 'composer';
+  c.innerHTML = `<form class="wrap row" id="cf"><textarea class="field grow" id="q" rows="1" placeholder="Ask Dioma…" maxlength="4000"></textarea><button class="btn pri" aria-label="Send">Send</button></form>`;
+  document.body.appendChild(c);
+  const q = $('#q');
+  q.addEventListener('input', () => { q.style.height = 'auto'; q.style.height = Math.min(q.scrollHeight, 140) + 'px'; });
+  q.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 600) { e.preventDefault(); $('#cf').requestSubmit(); } });
+  $('#cf').addEventListener('submit', (e) => { e.preventDefault(); const v = q.value; q.value = ''; q.style.height = 'auto'; ask(v); });
+  main.style.paddingBottom = '190px';
+}
+
+// ---------- Files ----------
+const kb = (n) => n < 1024 ? n + ' B' : n < 1048576 ? Math.round(n / 1024) + ' KB' : (n / 1048576).toFixed(1) + ' MB';
+const ext = (n) => (n.match(/\.([a-z0-9]{1,4})$/i)?.[1] || 'file').toLowerCase();
+async function viewFiles() {
+  const main = $('#main');
+  const d = await api('GET', '/api/files').catch(() => ({ files: [], used: 0, quota: 1 }));
+  if (route().view !== 'files') return;
+  const cur = S.folder;
+  const folders = new Set(['Personal', 'Work', ...S.newFolders]);
+  d.files.forEach((f) => { const parts = f.folder.split('/'); for (let i = 1; i <= parts.length; i++) if (parts[0]) folders.add(parts.slice(0, i).join('/')); });
+  const subs = [...folders].filter((f) => cur ? f.startsWith(cur + '/') && !f.slice(cur.length + 1).includes('/') : !f.includes('/')).sort();
+  const here = d.files.filter((f) => f.folder === cur);
+  const count = (fo) => d.files.filter((f) => f.folder === fo || f.folder.startsWith(fo + '/')).length;
+  const crumbs = ['', ...cur.split('/').filter(Boolean).map((_, i, a) => a.slice(0, i + 1).join('/'))];
+  main.innerHTML = `<div class="row" style="justify-content:space-between"><h1>Files</h1><span class="note mono" style="font-size:11.5px">${kb(d.used)} of ${kb(d.quota)}</span></div>
+    <div class="crumbs" style="margin-top:14px">${crumbs.map((c) => `<button data-go="${esc(c)}">${c ? esc(c.split('/').pop()) : 'All files'}</button>`).join('<span class="faint">/</span>')}</div>
+    <div class="row" style="margin-top:14px;flex-wrap:wrap"><label class="btn pri sm">Upload<input type="file" id="up" multiple hidden></label><button class="btn sm" id="nf">New folder</button></div>
+    <div id="nfrow"></div>
+    <div class="list" style="margin-top:16px" id="fl">
+      ${subs.map((f) => `<div class="item" data-folder="${esc(f)}" style="cursor:pointer"><span class="ficon"><svg viewBox="0 0 24 24">${I.files}</svg></span><div class="grow"><div class="t">${esc(f.split('/').pop())}</div><div class="s">${count(f)} file${count(f) === 1 ? '' : 's'}</div></div></div>`).join('')}
+      ${here.map((f) => `<div class="item" data-id="${f.id}"><span class="ficon">${esc(ext(f.name))}</span><div class="grow"><a class="t" style="text-decoration:none;display:block" href="/api/files/${f.id}" target="_blank" rel="noopener">${esc(f.name)}</a><div class="s">${kb(f.size)} · ${new Date(f.created).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</div><div class="more"></div></div><button class="x" data-more aria-label="Options">⋯</button></div>`).join('')}
+      ${!subs.length && !here.length ? '<div class="empty">Empty folder. Upload passports, IDs, contracts — anything you want Dioma to keep.</div>' : ''}
+    </div><div id="prog" class="note" style="margin-top:10px"></div>`;
+  main.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => { S.folder = b.dataset.go; viewFiles(); }));
+  main.querySelectorAll('[data-folder]').forEach((b) => b.addEventListener('click', () => { S.folder = b.dataset.folder; viewFiles(); }));
+  $('#nf').addEventListener('click', () => {
+    $('#nfrow').innerHTML = `<form class="row" id="nff" style="margin-top:12px"><input class="field grow" id="nfn" placeholder="Folder name" maxlength="40"><button class="btn sm pri">Create</button></form>`;
+    $('#nfn').focus();
+    $('#nff').addEventListener('submit', (e) => { e.preventDefault(); const n = $('#nfn').value.trim().replace(/\//g, '-'); if (!n) return; S.newFolders.push(cur ? cur + '/' + n : n); S.folder = cur ? cur + '/' + n : n; viewFiles(); });
+  });
+  $('#up').addEventListener('change', async (e) => {
+    const files = [...e.target.files]; let ok = 0;
+    for (const [i, f] of files.entries()) {
+      $('#prog').textContent = `Uploading ${i + 1} of ${files.length}: ${f.name}`;
+      try { await api('POST', `/api/files?name=${encodeURIComponent(f.name)}&folder=${encodeURIComponent(cur)}`, undefined, f); ok++; }
+      catch (x) { toast(`${f.name}: ${x.message}`); }
+    }
+    toast(`${ok} file${ok === 1 ? '' : 's'} uploaded`); viewFiles();
+  });
+  $('#fl').addEventListener('click', async (e) => {
+    const it = e.target.closest('[data-id]'); if (!it) return;
+    const id = it.dataset.id, f = d.files.find((x) => x.id === id), more = it.querySelector('.more');
+    if (e.target.closest('[data-more]')) {
+      if (more.innerHTML) { more.innerHTML = ''; return; }
+      more.innerHTML = `<div class="inline"><button class="btn sm" data-a="ren">Rename</button><button class="btn sm" data-a="mv">Move</button><button class="btn sm bad" data-a="del">Delete</button></div>`;
+      return;
+    }
+    const a = e.target.closest('[data-a]')?.dataset.a; if (!a) return;
+    if (a === 'ren') { more.innerHTML = `<form class="row inline" data-f="ren"><input class="field grow" value="${esc(f.name)}" maxlength="140"><button class="btn sm pri">Save</button></form>`; more.querySelector('input').focus(); }
+    if (a === 'mv') { more.innerHTML = `<form class="row inline" data-f="mv"><select class="field grow">${['', ...folders].sort().map((fo) => `<option value="${esc(fo)}" ${fo === cur ? 'selected' : ''}>${fo ? esc(fo) : 'All files (top)'}</option>`).join('')}</select><button class="btn sm pri">Move</button></form>`; }
+    if (a === 'del') more.innerHTML = `<div class="inline"><span class="note" style="align-self:center">Delete for good?</span><button class="btn sm bad" data-a="del2">Delete</button><button class="btn sm" data-more>Cancel</button></div>`;
+    if (a === 'del2') { await api('DELETE', `/api/files/${id}`).catch((x) => toast(x.message)); viewFiles(); }
+    more.querySelector('form')?.addEventListener('submit', async (ev) => {
+      ev.preventDefault(); const el = ev.target.querySelector('input,select');
+      await api('PATCH', `/api/files/${id}`, ev.target.dataset.f === 'ren' ? { name: el.value } : { folder: el.value }).catch((x) => toast(x.message)); viewFiles();
+    });
+  });
+}
+
+// ---------- Me ----------
+async function viewMe() {
+  S.me = await api('GET', '/api/me');
+  const m = S.me, q = route().q;
+  const msg = q.get('google');
+  const tone = document.documentElement.dataset.tone === 'sun' ? 'sun' : 'mono';
+  $('#main').innerHTML = `<h1>${esc(m.name || 'You')}</h1><p class="dim" style="margin-top:4px">${esc(m.email)}</p>
+    ${msg && msg !== 'connected' ? `<p class="err" style="margin-top:12px">${msg === 'cancelled' ? 'Google connect was cancelled.' : esc(msg)}</p>` : ''}
+    <section class="sec"><h2>Connected apps</h2><div class="list">
+      <div class="item"><span class="ficon mono">G</span><div class="grow"><div class="t">Google · Gmail and Calendar</div><div class="s">${m.google ? 'Connected' + (m.google.account ? ' as ' + esc(m.google.account) : '') + ' · read only' : m.googleAvailable ? 'Not connected' : 'Coming soon'}</div></div>
+        ${m.google ? '<button class="btn sm" id="gd">Disconnect</button>' : m.googleAvailable ? '<a class="btn sm pri" href="/auth/google">Connect</a>' : ''}</div>
+      <div class="item"><span class="ficon mono">W</span><div class="grow"><div class="t">WhatsApp</div><div class="s">Coming soon</div></div></div>
+    </div></section>
+    <section class="sec"><h2>About you</h2><form class="stack" id="pf">
+      <input class="field" id="pn" value="${esc(m.name || '')}" placeholder="Name" maxlength="60">
+      <textarea class="field" id="pa" rows="2" placeholder="What you do — helps Dioma prioritise" maxlength="300">${esc(m.about || '')}</textarea>
+      <button class="btn sm" style="justify-self:start">Save</button></form></section>
+    <section class="sec"><h2>Look</h2><div class="seg" id="tone"><button data-t="mono" class="${tone === 'mono' ? 'on' : ''}">Mono</button><button data-t="sun" class="${tone === 'sun' ? 'on' : ''}">Sunrise</button></div></section>
+    <section class="sec"><h2>Plan</h2><p>Early access · free</p><p class="note">${m.ai.used} of ${m.ai.cap} asks used today · ${kb(m.storage.used)} of ${kb(m.storage.quota)} storage</p></section>
+    <section class="sec"><h2>Account</h2><div class="row" style="flex-wrap:wrap"><button class="btn sm" id="lo">Sign out</button><button class="btn sm bad" id="del">Delete account</button></div><div id="delrow"></div>
+      <p class="note" style="margin-top:8px"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="https://dioma.life">dioma.life</a></p></section>`;
+  $('#gd')?.addEventListener('click', async () => { await api('DELETE', '/api/google'); toast('Google disconnected'); viewMe(); });
+  $('#pf').addEventListener('submit', async (e) => { e.preventDefault(); await api('POST', '/api/me', { name: $('#pn').value, about: $('#pa').value }); toast('Saved'); viewMe(); });
+  $('#tone').addEventListener('click', (e) => { const t = e.target.dataset.t; if (!t) return; if (t === 'sun') document.documentElement.dataset.tone = 'sun'; else delete document.documentElement.dataset.tone; try { localStorage.setItem('dioma-tone', t === 'sun' ? 'sun' : ''); } catch {} viewMe(); });
+  $('#lo').addEventListener('click', async () => { await api('POST', '/api/auth/logout'); S.me = null; S.chat = null; renderAuth(); });
+  $('#del').addEventListener('click', () => {
+    $('#delrow').innerHTML = `<form class="stack card" id="df" style="margin-top:12px"><p>This deletes your account, to-dos, chats and files, and disconnects Google. It can't be undone.</p><input class="field" id="dc" placeholder="Type ${esc(m.email)} to confirm" autocomplete="off"><button class="btn sm bad" style="justify-self:start">Delete everything</button><div class="err" id="derr"></div></form>`;
+    $('#df').addEventListener('submit', async (e) => { e.preventDefault(); try { await api('DELETE', '/api/me', { confirm: $('#dc').value.trim() }); S.me = null; renderAuth(); toast('Account deleted'); } catch (x) { $('#derr').textContent = x.message; } });
+  });
+  if (msg) history.replaceState(null, '', '#me');
+}
+
+// ---------- boot ----------
+async function boot(force, step) {
+  try { S.me = await api('GET', '/api/me'); } catch { return renderAuth(); }
+  if (force === 'onboard' || !S.me.onboarded) return renderOnboard();
+  if (step === 'connect' && !S.me.google) return renderConnectStep();
+  if (route().q.get('google') === 'connected') { toast('Google connected'); history.replaceState(null, '', '#home'); }
+  shell();
+}
+boot();
+</script>
+</body>
+</html>
