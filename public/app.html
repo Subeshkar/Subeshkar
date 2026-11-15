@@ -183,6 +183,8 @@ const I = {
   network:'<circle cx="8" cy="9" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3 19c0-3 2.5-5 5-5s5 2 5 5M14 19c0-2 1.5-4 3-4s4 1.5 4 4"/>',
   pulse:'<path d="M3 12h4l2-5 4 10 2-5h6"/>',
   learn:'<path d="M3 6c3-1 6-1 9 1 3-2 6-2 9-1v13c-3-1-6-1-9 1-3-2-6-2-9-1z"/><path d="M12 7v13"/>',
+  money:'<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9v.01M18 15v.01"/>',
+  lab:'<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.5 3.5 5.5 3.5 8.5s-1 6-3.5 8.5c-2.5-2.5-3.5-5.5-3.5-8.5s1-6 3.5-8.5z"/>',
   plan:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="0.8"/>',
   home:'<path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z"/>',
   ask:'<path d="M4 5h16v11H9l-5 4z"/>',
@@ -210,12 +212,12 @@ function setTone(t) {
   document.querySelectorAll('#tone button').forEach((b) => b.classList.toggle('on', b.dataset.t === t));
 }
 document.addEventListener('click', (e) => { const b = e.target.closest('.tg [data-tone]'); if (b) setTone(b.dataset.tone); });
-const ITEMS = [['home','Home','home'],['todo','To-do','todo'],['wa','WhatsApp','wa'],['social','Social','social'],['mail','Mail','mail'],['cal','Calendar','cal'],['act','Activity','act'],['wealth','Wealth','wealth'],['biz','Business','biz'],['career','Career','career'],['grow','Grow','grow'],['network','Network','network'],['pulse','Pulse','pulse'],['learn','Learn AI','learn'],['plan','Master Plan','plan'],['ask','Assistant','ai'],['files','Files','files'],['browser','Browser','browser'],['me','Me','me']];
+const ITEMS = [['home','Home','home'],['todo','To-do','todo'],['wa','WhatsApp','wa'],['social','Social','social'],['mail','Mail','mail'],['cal','Calendar','cal'],['act','Activity','act'],['wealth','Wealth','wealth'],['biz','Business','biz'],['career','Career','career'],['grow','Grow','grow'],['network','Network','network'],['pulse','Pulse','pulse'],['learn','Learn AI','learn'],['plan','Master Plan','plan'],['money','Money','money'],['lab','AI Horizon','lab'],['ask','Assistant','ai'],['files','Files','files'],['browser','Browser','browser'],['me','Me','me']];
 const KEYS = ITEMS.map((i) => i[0]);
 const LABEL = Object.fromEntries(ITEMS.map((i) => [i[0], i[1]])), ICON = Object.fromEntries(ITEMS.map((i) => [i[0], i[2]]));
 const DEF_NAV = { top: ['todo','wa','social','mail','cal','act','biz','ask'], bottom: ['home','ask','wealth','files','me'] };
 const MAXB = 6;
-const SHORT = { todo: 'To-do', wa: 'Wapp', cal: 'Cal', ask: 'AI', biz: 'Business', learn: 'Learn', plan: 'Plan' };
+const SHORT = { todo: 'To-do', wa: 'Wapp', cal: 'Cal', ask: 'AI', biz: 'Business', learn: 'Learn', plan: 'Plan', lab: 'Horizon' };
 let BADGE = {};
 // Saved bars + any new section added since they were saved goes to the top bar (so new features are never hidden).
 const NAVP = () => { const n = S.me && S.me.nav; if (!(n && Array.isArray(n.top) && Array.isArray(n.bottom))) return DEF_NAV; const known = n.known || ['home','todo','wa','social','mail','cal','act','biz','ask','files','me']; const fresh = KEYS.filter((k) => !known.includes(k) && !n.top.includes(k) && !n.bottom.includes(k)); return fresh.length ? { ...n, top: [...n.top, ...fresh] } : n; };
@@ -351,7 +353,7 @@ function shell() {
   drawNav();
   $('.composer')?.remove(); $('#main').style.paddingBottom = ''; $('#main').onclick = $('#main').onchange = null;
   const c = cur();
-  ({ home: viewHome, todo: viewTodo, ask: viewAsk, wa: viewWa, social: viewSocial, mail: viewMail, cal: viewCal, act: viewActivity, biz: viewBiz, career: viewCareer, grow: viewGrow, network: viewNetwork, pulse: viewPulse, learn: viewLearn, plan: viewPlan, wealth: viewWealth, browser: viewBrowser, files: viewFiles, me: viewMe, more: viewMore })[c]();
+  ({ home: viewHome, todo: viewTodo, ask: viewAsk, wa: viewWa, social: viewSocial, mail: viewMail, cal: viewCal, act: viewActivity, biz: viewBiz, career: viewCareer, grow: viewGrow, network: viewNetwork, pulse: viewPulse, learn: viewLearn, plan: viewPlan, money: viewMoney, lab: viewLab, wealth: viewWealth, browser: viewBrowser, files: viewFiles, me: viewMe, more: viewMore })[c]();
   window.scrollTo(0, 0);
 }
 window.addEventListener('hashchange', () => S.me && S.me.onboarded && shell());
@@ -807,25 +809,26 @@ async function shortcutCard() {
   $('#screset').onclick = async () => { await api('POST', '/api/loc/shortcut/reset').catch(() => {}); toast('New link made. Update your shortcut.'); shortcutCard(); };
 }
 // ---------- Social: comments, posts, create (nothing goes out until you tap Post / Send) ----------
-let SOT = 'comments', SOD = null;
+let SOT = 'comments', SOD = null, SOPRE = '';
 const NETN = { instagram: 'Instagram', facebook: 'Facebook', linkedin: 'LinkedIn', twitter: 'X', youtube: 'YouTube', tiktok: 'TikTok' };
 const aiw = (kind, input) => api('POST', '/api/ai/write', { kind, input });
 async function viewSocial() {
   const main = $('#main');
   await loadApps(true); if (cur() !== 'social') return;
   const on = ((APPS && APPS.catalog.social) || []).filter(([k]) => appOn(k));
-  if (!on.length) { main.innerHTML = connBlock('social', 'social', 'Add account'); return; }
+  if (!on.length && SOT !== 'weekly') { main.innerHTML = connBlock('social', 'social', 'Add account') + '<button class="btn" id="sowk" style="margin-top:14px">Write this week\'s posts without connecting</button>'; $('#sowk').onclick = () => { SOT = 'weekly'; viewSocial(); }; return; }
   main.innerHTML = `<div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><div class="row" style="gap:6px;flex-wrap:wrap">${on.map(([k, n]) => `<span class="srcb" style="font-size:12px;padding:4px 10px">${n}</span>`).join('')}</div><button class="btn sm pri" data-addmore="social">+ Add account</button></div>
     <div id="more-social" hidden style="margin-top:10px">${appList('social', 'social')}</div>
-    <div class="seg wtabs" id="sot" style="margin-top:14px">${[['comments', 'Comments'], ['posts', 'Posts'], ['create', 'Create post']].map(([k, l]) => `<button data-t="${k}" class="${SOT === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+    <div class="seg wtabs" id="sot" style="margin-top:14px">${[['comments', 'Comments'], ['posts', 'Posts'], ['create', 'Create post'], ['weekly', 'Write this week\'s posts']].map(([k, l]) => `<button data-t="${k}" class="${SOT === k ? 'on' : ''}">${l}</button>`).join('')}</div>
     <div id="sov" style="margin-top:14px"><div class="empty">Loading…</div></div>`;
   $('#sot').onclick = (e) => { const b = e.target.closest('[data-t]'); if (!b) return; SOT = b.dataset.t; $('#sot').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); drawSo(on); };
-  if (SOT !== 'create') SOD = await api('GET', '/api/social/feed').catch((x) => ({ posts: [], errors: [x.message] }));
+  if (SOT !== 'create' && SOT !== 'weekly') SOD = await api('GET', '/api/social/feed').catch((x) => ({ posts: [], errors: [x.message] }));
   drawSo(on);
 }
 async function drawSo(on) {
   const v = $('#sov'); if (!v) return;
   if (SOT === 'create') return drawCreate(on);
+  if (SOT === 'weekly') return drawWeekly();
   if (!SOD) SOD = await api('GET', '/api/social/feed').catch((x) => ({ posts: [], errors: [x.message] }));
   const errs = (SOD.errors || []).map((e) => `<p class="err">${esc(e)}</p>`).join('');
   if (SOT === 'posts') {
@@ -839,6 +842,23 @@ async function drawSo(on) {
     const a = e.target.closest('[data-air]'), sd = e.target.closest('[data-send]');
     if (a) { const c = cm[+a.dataset.air]; a.disabled = true; a.textContent = 'Writing…'; try { const r = await aiw('comment', { post: c.post, comment: c.text, from: c.who }); $('#cr' + a.dataset.air).value = r.text; } catch (x) { toast(x.message); } a.disabled = false; a.textContent = 'AI reply'; }
     if (sd) { const i = +sd.dataset.send, c = cm[i], t = $('#cr' + i).value.trim(); if (!t) return toast('Write a reply first.'); sd.disabled = true; try { await api('POST', '/api/social/reply', { net: c.net, id: c.id, text: t }); toast('Reply posted'); sd.textContent = 'Sent ✓'; } catch (x) { toast(x.message); sd.disabled = false; } }
+  };
+}
+async function drawWeekly() {
+  const v = $('#sov'); await kvLoad(); const posts = KVS.posts || [];
+  v.onclick = null;
+  v.innerHTML = `<div class="card stack"><div class="row" style="gap:6px;flex-wrap:wrap"><select class="field" id="wbr" style="width:auto">${['Personal brand (LinkedIn)', 'RedexGo', 'New business idea', 'Other'].map((b) => `<option>${b}</option>`).join('')}</select><span class="note">Facebook · Instagram · LinkedIn</span></div>
+    <textarea class="field" id="wtp" rows="3" placeholder="What should this week's posts be about?">${esc(SOPRE)}</textarea><button class="btn pri" id="wgo" style="justify-self:start">Write my posts</button></div>
+    <div style="display:grid;gap:12px;margin-top:14px">${posts.length ? posts.map((p, i) => `<div class="card stack"><div class="row" style="justify-content:space-between"><span class="srcb" style="font-size:10px">${esc(String(p.platform || '').toUpperCase())}</span><span class="note">${esc(p.brand || '')}</span></div><div id="wp${i}" style="white-space:pre-wrap;line-height:1.5">${esc(p.text)}</div>${p.image_idea ? `<p class="note">Image: ${esc(p.image_idea)}</p>` : ''}${p.best_time ? `<p class="note">Best time: ${esc(String(p.best_time).replace('T', ' ').slice(0, 16))}</p>` : ''}<div class="row" style="gap:6px;flex-wrap:wrap">${copyBtnH('wp' + i)}${p.best_time ? `<button class="btn sm" data-wr="${i}">Remind me to post</button>` : ''}${appOn(String(p.platform || '').toLowerCase()) ? `<button class="btn sm pri" data-wpub="${i}">Post to ${esc(p.platform)}</button>` : ''}<button class="btn sm" data-wx="${i}">Delete</button></div></div>`).join('') : '<div class="empty">Your posts appear here, ready to copy or post.</div>'}</div>`;
+  SOPRE = '';
+  $('#wgo').onclick = (e) => { const t = $('#wtp').value.trim(); if (!t) return toast('Tell Dioma what to post about.'); busyB(e.target, 'Writing…', async () => {
+    const a = await aiAsk(`You are a social media manager for UAE brands. Brand: ${$('#wbr').value}\nTopic: ${t}\nToday: ${tday()}\nReply with only a JSON array of 3 posts, one each for Facebook, Instagram and LinkedIn: {"platform": "Facebook"|"Instagram"|"LinkedIn", "text": the post (Instagram with line breaks and 5-8 hashtags; LinkedIn professional, 80-150 words; Facebook friendly), "image_idea": one line, "best_time": "YYYY-MM-DDTHH:MM" this week in Dubai time}`);
+    if (!Array.isArray(a.data)) throw new Error('Try again.'); await kvSave('posts', [...a.data.map((p) => ({ ...p, brand: $('#wbr').value, at: Date.now() })), ...posts].slice(0, 30)); drawWeekly(); }); };
+  v.onclick = async (e) => {
+    const r = e.target.closest('[data-wr]'), x = e.target.closest('[data-wx]'), pb = e.target.closest('[data-wpub]');
+    if (r) { const p = posts[+r.dataset.wr]; await addTodo(`Post on ${p.platform} (${String(p.best_time).replace('T', ' ').slice(0, 16)})`, String(p.best_time).slice(0, 10)); toast('Added to To-do'); }
+    if (x) { posts.splice(+x.dataset.wx, 1); await kvSave('posts', posts); drawWeekly(); }
+    if (pb) { const p = posts[+pb.dataset.wpub]; if (pb.dataset.sure !== '1') { pb.dataset.sure = '1'; pb.textContent = 'Tap again to post'; return; } pb.disabled = true; try { await api('POST', '/api/social/post', { net: String(p.platform).toLowerCase(), text: p.text }); pb.textContent = 'Posted ✓'; } catch (y) { toast(y.message); pb.disabled = false; pb.dataset.sure = ''; pb.textContent = 'Post to ' + p.platform; } }
   };
 }
 function drawCreate(on) {
@@ -914,123 +934,384 @@ function drawBz() {
   };
 }
 
-// ---------- Career: CV, tailor for a job, cover letter, job tracker ----------
-let CRT = 'cv';
+// ---------- helpers for the Dioma Live sections ----------
+const aiAsk = (prompt) => aiw('ask', prompt);
+const askIn = (text) => { location.hash = '#ask'; setTimeout(() => { const q = $('#q'); if (q) { q.value = text; q.focus(); } }, 450); };
+const addTodo = (text, due) => api('POST', '/api/todos', { text: String(text).slice(0, 300), due: due || '' }).catch(() => {});
+const uidS = () => Math.random().toString(36).slice(2, 10);
+const twoTap = (b, label, fn) => { b.onclick = async () => { if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = 'Tap again to ' + label.toLowerCase(); return; } b.disabled = true; try { await fn(); } catch (x) { toast(x.message); b.disabled = false; b.dataset.sure = ''; b.textContent = label; } }; };
+const busyB = async (b, label, fn) => { b.disabled = true; const l = b.textContent; b.textContent = label; try { await fn(); } catch (x) { toast(x.message); } b.disabled = false; b.textContent = l; };
+const hdr = (title, sub) => `<div style="margin:4px 0 14px"><div class="note" style="letter-spacing:.12em;text-transform:uppercase">${esc(title)}</div><div style="font-size:26px;font-weight:600;line-height:1.1;margin-top:4px">${sub}</div></div>`;
+const statT = (list) => `<div class="wstats" style="grid-template-columns:repeat(${Math.min(4, list.length)},minmax(0,1fr))">${list.map(([n, l, k], i) => `<button type="button" class="wst ${i === 0 ? 'hi' : ''}" ${k ? `data-st="${k}"` : ''}><b>${n}</b><span>${l}</span></button>`).join('')}</div>`;
+const copyBtnH = (id) => `<button class="btn sm" data-copy="${id}">Copy</button>`;
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-copy]'); if (!b) return; const el = document.getElementById(b.dataset.copy); if (el) copyT(el.value ?? el.textContent); });
+
+// ---------- Career: applications from Gmail, find jobs, tailor an application, CV ----------
+let CRT = 'apps';
+const STG = ['Saved', 'Applied', 'Interview', 'Offer', 'Rejected'];
 async function viewCareer() {
   const main = $('#main'); await kvLoad(); if (cur() !== 'career') return;
-  main.innerHTML = segH('crs', [['cv', 'My CV'], ['tailor', 'Tailor for a job'], ['jobs', 'Job tracker']], CRT) + '<div id="crv" style="margin-top:14px"></div>';
+  const jobs = KVS.jobs || [];
+  main.innerHTML = hdr('Career', 'From school <span style="color:var(--acc)">to your next role</span>') + statT(STG.map((s) => [jobs.filter((j) => (j.status || 'Saved') === s).length, s])) +
+    segH('crs', [['apps', 'Applications'], ['find', 'Find jobs'], ['tailor', 'Tailor an application'], ['cv', 'My CV']], CRT) + '<div id="crv" style="margin-top:14px"></div>';
   segW('crs', (t) => { CRT = t; drawCr(); }); drawCr();
 }
 function drawCr() {
-  const v = $('#crv'), cv = (KVS.cv && KVS.cv.text) || ''; v.onclick = v.onchange = null;
-  if (CRT === 'cv') {
+  const v = $('#crv'); v.onclick = v.onchange = null; const cv = (KVS.cv && KVS.cv.text) || '';
+  if (CRT === 'apps') {
+    const jobs = KVS.jobs || [];
+    v.innerHTML = `<div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn pri" id="jscan">Scan my Gmail for applications</button></div><p class="note" id="jst" style="margin-top:6px">Dioma reads job emails from the last 4 months (LinkedIn, Bayt, Indeed, NaukriGulf, recruiters) and builds this list.</p>
+      <form class="row" id="jf" style="gap:6px;flex-wrap:wrap;margin-top:10px"><input class="field" id="jn" placeholder="Add by hand: role and company" style="flex:1;min-width:200px"><button class="btn">Add</button></form>
+      <div class="list" style="margin-top:12px">${jobs.length ? jobs.map((j, i) => `<div class="item" style="flex-wrap:wrap"><div class="grow" style="min-width:0"><div class="t">${esc(j.role || 'Role')}${j.company ? ' · ' + esc(j.company) : ''}</div><div class="s">${[j.at, j.next].filter(Boolean).map(esc).join(' · ')}</div></div><select class="field" data-js="${i}" style="width:auto">${STG.map((s) => `<option ${(j.status || 'Saved') === s ? 'selected' : ''}>${s}</option>`).join('')}</select><button class="btn sm" data-jd="${i}">✕</button></div>`).join('') : '<div class="empty">No applications tracked yet. Scan your Gmail and Dioma builds this list for you.</div>'}</div>`;
+    $('#jscan').onclick = (e) => busyB(e.target, 'Reading your Gmail…', async () => { const r = await api('POST', '/api/career/scan'); let n = 0; for (const a of r.apps) { const ex = jobs.find((x) => (x.company || '').toLowerCase() === String(a.company).toLowerCase() && (x.role || '').toLowerCase() === String(a.role || '').toLowerCase()); const row = { role: a.role || '', company: a.company, status: STG.includes(a.status) ? a.status : 'Applied', at: a.date || tday(), next: a.next || '' }; if (ex) Object.assign(ex, row); else { jobs.unshift(row); n++; } } await kvSave('jobs', jobs); toast(r.apps.length ? `${r.apps.length} applications found, ${n} new` : 'No application emails in the last 4 months.'); viewCareer(); });
+    $('#jf').onsubmit = async (e) => { e.preventDefault(); const r = $('#jn').value.trim(); if (!r) return; await kvSave('jobs', [{ role: r, status: 'Saved', at: tday() }, ...jobs]); viewCareer(); };
+    v.onchange = async (e) => { const s = e.target.closest('[data-js]'); if (!s) return; jobs[+s.dataset.js].status = s.value; jobs[+s.dataset.js].at = tday(); await kvSave('jobs', jobs); viewCareer(); };
+    v.onclick = async (e) => { const b = e.target.closest('[data-jd]'); if (!b) return; jobs.splice(+b.dataset.jd, 1); await kvSave('jobs', jobs); viewCareer(); };
+  } else if (CRT === 'find') {
+    const role = (KVS.role && KVS.role.text) || '';
+    v.innerHTML = `<div class="stack"><input class="field" id="frole" placeholder="Role you want, e.g. Supply chain manager" value="${esc(role)}"><div class="list" id="flinks"></div></div>`;
+    const draw = () => { const q = $('#frole').value.trim(), k = encodeURIComponent(q), s = q.toLowerCase().replace(/[^a-z0-9]+/g, '-'); $('#flinks').innerHTML = q ? [['LinkedIn Jobs · UAE', `https://www.linkedin.com/jobs/search/?keywords=${k}&location=United%20Arab%20Emirates`], ['Bayt · UAE', `https://www.bayt.com/en/uae/jobs/${s}-jobs/`], ['Indeed UAE', `https://ae.indeed.com/jobs?q=${k}`], ['NaukriGulf', `https://www.naukrigulf.com/${s}-jobs-in-uae`], ['GulfTalent', `https://www.gulftalent.com/jobs/search?keywords=${k}`]].map(([n, u]) => `<a class="item" href="${u}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none"><div class="grow t">${n}</div><span class="note">Open ↗</span></a>`).join('') : '<div class="empty">Type the role you want.</div>'; };
+    let t; $('#frole').oninput = () => { draw(); clearTimeout(t); t = setTimeout(() => kvSave('role', { text: $('#frole').value.trim() }), 600); }; draw();
+  } else if (CRT === 'tailor') {
+    v.innerHTML = `<div class="stack"><textarea class="field" id="tcv" rows="5" placeholder="Paste your CV text once. Dioma keeps it for next time.">${esc(cv)}</textarea>
+      <input class="field" id="jr" placeholder="Role and company, e.g. Operations Manager at Noon"><textarea class="field" id="jd" rows="6" placeholder="Paste the job ad here"></textarea>
+      <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn pri" data-k="tailor">Tailor my application</button><button class="btn" data-k="cv">Rewrite my CV for it</button><button class="btn" data-k="cover">Cover letter only</button></div><div id="jo"></div></div>`;
+    $('#tcv').onchange = () => kvSave('cv', { text: $('#tcv').value, at: Date.now() });
+    v.onclick = async (e) => {
+      if (e.target.closest('[data-trk]')) { await kvSave('jobs', [{ role: $('#jr').value.trim() || 'New job', status: 'Applied', at: tday() }, ...(KVS.jobs || [])]); return toast('Added to Applications'); }
+      const b = e.target.closest('[data-k]'); if (!b) return; const cvT = $('#tcv').value.trim(), role = $('#jr').value.trim(), jd = $('#jd').value.trim();
+      if (!jd && !role) return toast('Paste the job ad first.'); if (cvT !== cv) kvSave('cv', { text: cvT, at: Date.now() });
+      busyB(b, 'Writing…', async () => {
+        const a = b.dataset.k === 'tailor' ? await aiAsk(`You are a UAE career coach. Job: ${role}\nJob ad:\n${jd.slice(0, 6000)}\n\nCV:\n${(cvT || 'not provided').slice(0, 8000)}\n\nWrite, in plain text:\nFIT: a score out of 10 and one sentence why.\nCV CHANGES: 5 specific • bullets.\nCOVER LETTER: a 150-word cover letter ready to send, signed with my name.\nINTERVIEW: 3 likely questions with a one-line answer angle each.`) : await aiw(b.dataset.k, { cv: cvT, role, jobDescription: jd });
+        const letter = b.dataset.k === 'cv' ? '' : ((a.text.split(/COVER LETTER:?/i)[1] || a.text).split(/INTERVIEW:?/i)[0].trim());
+        $('#jo').innerHTML = `<div class="card stack" style="margin-top:10px"><textarea class="field" id="jout" rows="16">${esc(a.text)}</textarea><div class="row" style="gap:6px;flex-wrap:wrap">${copyBtnH('jout')}<button class="btn sm" data-trk>Add to Applications</button></div>${letter ? `<div class="row" style="gap:6px;flex-wrap:wrap"><input class="field" id="jto" placeholder="Recruiter email" style="flex:1;min-width:180px"><button class="btn sm pri" id="jsend">Email the cover letter from Gmail</button></div>` : ''}</div>`;
+        if (letter) twoTap($('#jsend'), 'Email the cover letter from Gmail', async () => { const to = $('#jto').value.trim(); await api('POST', '/api/mail/send', { to, subject: 'Application: ' + (role || 'role'), body: letter }); $('#jsend').textContent = 'Sent ✓'; toast('Sent from your Gmail'); });
+      });
+    };
+  } else {
     v.innerHTML = `<div class="stack"><p class="note">Paste your CV once. Dioma uses it to tailor applications and cover letters.</p><textarea class="field" id="cvt" rows="16" placeholder="Paste your CV here">${esc(cv)}</textarea><button class="btn pri" id="cvs" style="justify-self:start">Save CV</button></div>`;
     $('#cvs').onclick = async () => { await kvSave('cv', { text: $('#cvt').value, at: Date.now() }); toast('CV saved'); };
-  } else if (CRT === 'tailor') {
-    v.innerHTML = cv ? `<div class="stack"><input class="field" id="jr" placeholder="Role and company, e.g. Operations Manager at Noon"><textarea class="field" id="jd" rows="6" placeholder="Paste the job description"></textarea><div class="row" style="gap:6px"><button class="btn pri" data-k="cv">Tailor my CV</button><button class="btn" data-k="cover">Write cover letter</button></div><div id="jo"></div></div>` : '<div class="empty">Add your CV under "My CV" first.</div>';
-    v.onclick = async (e) => { if (e.target.closest('[data-cp]')) return copyT(e.target.closest('.card').querySelector('textarea').value); if (e.target.closest('[data-trk]')) { await kvSave('jobs', [{ role: $('#jr').value.trim() || 'New job', status: 'Applied', at: tday() }, ...(KVS.jobs || [])]); return toast('Added to tracker'); }
-      const b = e.target.closest('[data-k]'); if (!b) return; const role = $('#jr').value.trim(), jd = $('#jd').value.trim(); if (!role && !jd) return toast('Add the role or job description.'); b.disabled = true; const l = b.textContent; b.textContent = 'Writing…'; try { const a = await aiw(b.dataset.k, { cv, role, jobDescription: jd }); $('#jo').innerHTML = `<div class="card stack" style="margin-top:10px"><textarea class="field" rows="16">${esc(a.text)}</textarea><div class="row" style="gap:6px"><button class="btn sm" data-cp>Copy</button><button class="btn sm" data-trk>Add to job tracker</button></div></div>`; } catch (x) { toast(x.message); } b.disabled = false; b.textContent = l; };
-  } else {
-    const ST = ['Saved', 'Applied', 'Interview', 'Offer', 'Rejected'], jobs = KVS.jobs || [];
-    v.innerHTML = `<form class="row" id="jf" style="gap:6px;flex-wrap:wrap"><input class="field" id="jn" placeholder="Role and company" style="flex:1;min-width:200px"><button class="btn pri">Add</button></form>
-      <div class="list" style="margin-top:12px">${jobs.length ? jobs.map((j, i) => `<div class="item" style="flex-wrap:wrap"><div class="grow" style="min-width:0"><div class="t">${esc(j.role)}</div><div class="s">Since ${esc(j.at || '')}</div></div><select class="field" data-js="${i}" style="width:auto">${ST.map((s) => `<option ${j.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select><button class="btn sm" data-jd="${i}">✕</button></div>`).join('') : '<div class="empty">No jobs tracked yet.</div>'}</div>`;
-    $('#jf').onsubmit = async (e) => { e.preventDefault(); const r = $('#jn').value.trim(); if (!r) return; await kvSave('jobs', [{ role: r, status: 'Saved', at: tday() }, ...jobs]); drawCr(); };
-    v.onchange = async (e) => { const s = e.target.closest('[data-js]'); if (!s) return; jobs[+s.dataset.js].status = s.value; jobs[+s.dataset.js].at = tday(); await kvSave('jobs', jobs); };
-    v.onclick = async (e) => { const b = e.target.closest('[data-jd]'); if (!b) return; jobs.splice(+b.dataset.jd, 1); await kvSave('jobs', jobs); drawCr(); };
   }
 }
 
-// ---------- Grow: goals with progress, daily habits ----------
+// ---------- Pulse: your day, live (life log) + news ----------
+let PLT = 'day';
+const PK = { expense: 'EXPENSE', meeting: 'MEETING', call: 'CALL', place: 'PLACE', task: 'TO-DO', idea: 'IDEA', note: 'NOTE', health: 'HEALTH' };
+const MCATS = { 'Rent share': 1200, Food: 700, Transport: 300, 'Phone & subscriptions': 250, Fun: 300, Savings: 400 };
+const moneyS = () => { const m = KVS.money || {}; return { budget: m.budget || { ...MCATS }, expenses: m.expenses || [] }; };
+async function lifeAdd(text, place, src) {
+  const life = KVS.life || []; const e = { id: uidS(), at: Date.now(), text: String(text).slice(0, 20000), place: place || '', src, kind: 'note' };
+  life.push(e); await kvSave('life', life.slice(-800)); if (cur() === 'pulse') drawPl();
+  try {
+    const a = await aiAsk(`Classify this life-log entry (Dubai, UAE; currency AED unless said otherwise). Entry: "${e.text.slice(0, 6000)}"${place ? ' Place: ' + place : ''}. Reply only JSON: {"kind":"expense|meeting|call|place|task|idea|note|health","title":"max 8 words","amount":number|null,"currency":"AED","category":"Food|Transport|Rent share|Phone & subscriptions|Fun|Savings|Business|Other","paid_by":"cash|card|other|","people":[names],"place":"","todo":"a follow-up to do, or empty"}`);
+    const j = a.data || {}; Object.assign(e, { kind: PK[j.kind] ? j.kind : 'note', title: j.title || '', amount: Number(j.amount) || 0, currency: j.currency || 'AED', category: j.category || '', paid_by: j.paid_by || '', people: Array.isArray(j.people) ? j.people.slice(0, 6) : [], place: e.place || j.place || '' });
+    if (e.kind === 'expense' && e.amount > 0) { const M = moneyS(); const cat = Object.keys(M.budget).find((k) => k.toLowerCase() === String(e.category).toLowerCase()) || 'Fun'; M.expenses.push({ id: uidS(), amt: e.amount, cat, note: (e.title || e.text).slice(0, 80) + (e.paid_by ? ' · ' + e.paid_by : ''), at: e.at }); await kvSave('money', M); e.linked = 'money'; }
+    if (j.todo) { await addTodo(j.todo); e.linked = e.linked ? e.linked + '+todo' : 'todo'; }
+    await kvSave('life', life.slice(-800)); if (cur() === 'pulse') drawPl();
+  } catch {}
+}
+async function viewPulse() {
+  const main = $('#main'); await kvLoad(); if (cur() !== 'pulse') return;
+  main.innerHTML = hdr('Pulse', 'Your day, <span style="color:var(--acc)">live.</span>') + segH('pls', [['day', 'My day'], ['news', 'News']], PLT) + '<div id="plv" style="margin-top:14px"></div>';
+  segW('pls', (t) => { PLT = t; drawPl(); }); drawPl();
+}
+async function drawPl() {
+  const v = $('#plv'); if (!v) return; v.onclick = null;
+  if (PLT === 'news') return drawNews(v);
+  const life = KVS.life || [], day = (t) => new Date(t).toLocaleDateString('en-CA'), today = day(Date.now());
+  const tod = life.filter((e) => day(e.at) === today), spent = tod.filter((e) => e.kind === 'expense').reduce((a, e) => a + (e.amount || 0), 0);
+  const ppl = new Set(tod.flatMap((e) => e.people || [])), places = new Set(tod.map((e) => e.place).filter(Boolean));
+  const keepT = $('#plin')?.value || '', keepP = $('#plp')?.value ?? ((KVS.pulse && KVS.pulse.place) || '');
+  const days = new Map(); for (const e of [...life].reverse()) { const d = day(e.at); if (!days.has(d)) days.set(d, []); days.get(d).push(e); }
+  v.innerHTML = `<div class="stack"><textarea class="field" id="plin" rows="3" placeholder='What just happened? e.g. "Spent 5 dirhams cash at the café" · "Met my brother, talked about the Mannar plan"'>${esc(keepT)}</textarea>
+    <input class="field" id="plp" placeholder="Where? (optional, e.g. Al Jada, Deira office)" value="${esc(keepP)}">
+    <div class="row" style="gap:6px;flex-wrap:wrap;justify-content:space-between"><div class="row" style="gap:6px"><button class="btn sm" id="plmic">🎤 Speak</button><label class="btn sm" style="cursor:pointer">Upload audio<input type="file" id="plfile" accept="audio/*,video/*" hidden></label></div><button class="btn pri" id="pladd">Log it</button></div><span class="note" id="plst"></span></div>
+    <div style="margin-top:14px">${statT([[tod.length, 'Logged today'], [money(spent), 'Spent today'], [ppl.size, 'People met'], [places.size, 'Places']])}</div>
+    <div class="card stack" style="margin-top:14px"><div class="row" style="justify-content:space-between"><b style="font-weight:600">Today in one look</b><button class="btn sm" id="plsum">Summarise my day</button></div><div id="plsumo" class="note" style="white-space:pre-wrap"></div></div>
+    ${[...days].slice(0, 14).map(([d, list]) => `<h2 style="font-size:14px;font-weight:600;margin:18px 0 8px">${d === today ? 'Today' : new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} · ${list.length}</h2><div class="list">${list.map((e) => `<div class="item" style="flex-direction:column;align-items:stretch;gap:4px"><div class="row" style="justify-content:space-between;gap:8px"><span class="srcb" style="font-size:10px">${PK[e.kind] || 'NOTE'}</span><span class="note">${new Date(e.at).toTimeString().slice(0, 5)}${e.place ? ' · ' + esc(e.place) : ''}</span></div><div class="t">${esc(e.title || e.text.slice(0, 90))}</div>${e.title ? `<div class="s">${esc(e.text.slice(0, 300))}</div>` : ''}<div class="row" style="justify-content:space-between;gap:8px"><span class="note">${[e.amount ? `${e.currency || 'AED'} ${e.amount}${e.paid_by ? ' · ' + esc(e.paid_by) : ''}` : '', (e.people || []).map(esc).join(', '), /money/.test(e.linked || '') ? '→ Money' : '', /todo/.test(e.linked || '') ? '→ To-do' : ''].filter(Boolean).join(' · ')}</span><button class="btn sm" data-ld="${e.id}">Delete</button></div></div>`).join('')}</div>`).join('') || '<div class="empty" style="margin-top:14px">Nothing logged yet. Type or speak what you just did: money, meetings, places, ideas.</div>'}
+    <p class="note" style="margin-top:12px">Expenses go to Money and follow-ups to To-do automatically.</p>`;
+  const plp = $('#plp'); let pt; plp.oninput = () => { clearTimeout(pt); pt = setTimeout(() => kvSave('pulse', { ...(KVS.pulse || {}), place: plp.value }), 800); };
+  $('#pladd').onclick = () => { const t = $('#plin').value.trim(); if (!t) return $('#plin').focus(); $('#plin').value = ''; lifeAdd(t, plp.value.trim(), 'typed'); };
+  $('#plin').onkeydown = (ev) => { if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); $('#pladd').click(); } };
+  $('#plmic').onclick = (e) => micToggle(e.currentTarget, (t) => { lifeAdd(t, plp.value.trim(), 'voice'); });
+  $('#plfile').onchange = async (e) => { const f = e.target.files[0]; if (!f) return; if (f.size > 12 * 1048576) return toast('Recording is over 12 MB.'); $('#plst').textContent = 'Listening to ' + f.name + '…'; try { const r = await fetch('/api/voice/listen', { method: 'POST', headers: { 'content-type': f.type || 'audio/mpeg', 'x-dioma': '1' }, body: f }); const j = await r.json(); if (!r.ok) throw new Error(j.error); lifeAdd('Recording "' + f.name + '": ' + (j.text || ''), plp.value.trim(), 'recording'); } catch (x) { $('#plst').textContent = x.message || 'Could not listen to it'; } };
+  $('#plsum').onclick = (e) => { if (!tod.length) return ($('#plsumo').textContent = 'Nothing logged today yet.'); busyB(e.target, 'Reading…', async () => { const a = await aiAsk(`Summarise my day from my life log, point by point, short and honest: money spent (total + where, cash vs card), people met and what about, places, decisions, follow-ups I should do, one thing to improve tomorrow.\nLog:\n${tod.map((x) => `${new Date(x.at).toTimeString().slice(0, 5)} [${x.kind}] ${x.text}${x.place ? ' @' + x.place : ''}`).join('\n')}`); $('#plsumo').textContent = a.text; }); };
+  v.onclick = async (e) => { const b = e.target.closest('[data-ld]'); if (!b) return; await kvSave('life', life.filter((x) => x.id !== b.dataset.ld)); drawPl(); };
+}
+async function drawNews(v) {
+  const topics = (KVS.pulse && KVS.pulse.topics) || ['UAE business', 'Dubai logistics', 'artificial intelligence'];
+  v.innerHTML = `<div class="row" style="gap:6px;flex-wrap:wrap">${topics.map((t, i) => `<span class="srcb" style="font-size:12px;padding:4px 10px">${esc(t)} <a href="#" data-tx="${i}" style="color:inherit;margin-left:4px">✕</a></span>`).join('')}</div>
+    <form class="row" id="tf" style="gap:6px;margin-top:10px;flex-wrap:wrap"><input class="field" id="tn" placeholder="Add a topic, e.g. Amazon UAE" style="flex:1;min-width:180px"><button class="btn">Add</button><button type="button" class="btn pri" id="psum">AI summary</button></form>
+    <div id="pso"></div><div id="pl" style="margin-top:12px"><div class="empty">Loading headlines…</div></div>`;
+  const setT = async (t) => { await kvSave('pulse', { ...(KVS.pulse || {}), topics: t }); drawPl(); };
+  $('#tf').onsubmit = (e) => { e.preventDefault(); const x = $('#tn').value.trim(); if (x && topics.length < 6) setT([...topics, x]); };
+  v.onclick = (e) => { const x = e.target.closest('[data-tx]'); if (x) { e.preventDefault(); setT(topics.filter((_, i) => i !== +x.dataset.tx)); } };
+  const d = await api('GET', '/api/pulse').catch((x) => ({ topics: [], error: x.message })); if (!$('#pl')) return;
+  $('#pl').innerHTML = d.topics.map((t) => `<h2 style="font-size:15px;font-weight:600;margin:16px 0 6px">${esc(t.topic)}</h2>${t.items.length ? `<div class="list">${t.items.map((n) => `<a class="item" href="${esc(n.link)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none"><div class="grow"><div class="t">${esc(n.title)}</div><div class="s">${esc(n.source)}${n.at ? ' · ' + ago(n.at) : ''}</div></div></a>`).join('')}</div>` : `<div class="empty">${esc(t.error || 'No news in the last two days.')}</div>`}`).join('');
+  $('#psum').onclick = (e) => busyB(e.target, 'Reading…', async () => { const a = await aiw('pulse', d.topics.flatMap((t) => t.items.map((n) => `[${t.topic}] ${n.title} (${n.source})`))); $('#pso').innerHTML = `<div class="ycard" style="margin-top:12px;white-space:pre-wrap">${esc(a.text)}</div>`; });
+}
+
+// ---------- Grow: business builder + goals and habits ----------
+let GRT = 'biz';
 async function viewGrow() {
   const main = $('#main'); await kvLoad(); if (cur() !== 'grow') return;
+  main.innerHTML = hdr('Business builder', 'Start something <span style="color:var(--acc)">of your own</span>') + segH('grs', [['biz', 'Business builder'], ['habits', 'Goals and habits']], GRT) + '<div id="grv" style="margin-top:14px"></div>';
+  segW('grs', (t) => { GRT = t; drawGr(); }); drawGr();
+}
+function drawGr() {
+  const v = $('#grv'); v.onclick = null; v.onsubmit = null;
+  if (GRT === 'habits') return drawHabits(v);
+  const ideas = KVS.ideas || [];
+  v.innerHTML = `<div class="card stack"><b style="font-weight:600">New idea</b><textarea class="field" id="gi" rows="3" placeholder="e.g. Healthy snack boxes delivered to university students between classes"></textarea><div class="row" style="gap:6px;flex-wrap:wrap"><input class="field" id="gb" type="number" min="0" placeholder="Budget (AED), e.g. 3000" style="flex:1;min-width:160px"><button class="btn pri" id="gbuild">Build my business plan</button></div></div>
+    ${ideas.length ? ideas.map((b, bi) => { const p = b.plan || {}, total = (p.costs || []).reduce((s, c) => s + (Number(c.aed) || 0), 0); return `<section class="card stack" style="margin-top:16px"><div class="ycard"><div class="note" style="color:inherit;letter-spacing:.12em">YOUR BUSINESS</div><div style="font-size:26px;font-weight:600;text-transform:uppercase;line-height:1.1">${esc(p.name)}</div><div>${esc(p.one_liner || '')}</div><div style="font-size:12px;opacity:.85;margin-top:6px">Customer: ${esc(p.customer || '')}</div></div>
+      ${(p.stages || []).map((st) => `<div><span class="srcb" style="font-size:10px">${esc(String(st.stage || '').toUpperCase())}</span><div class="list" style="margin-top:6px">${(st.steps || []).map((s, i) => { const k = st.stage + i, d = (b.done || {})[k]; return `<button type="button" class="item" data-gs="${bi}|${esc(k)}" style="text-align:left;width:100%;color:inherit;${d ? 'opacity:.55;text-decoration:line-through' : ''}"><span style="width:20px">${d ? '✓' : '○'}</span><span class="grow">${esc(s)}</span></button>`; }).join('')}</div></div>`).join('')}
+      <div><b style="font-weight:600">Start-up costs</b><div class="list" style="margin-top:6px">${(p.costs || []).map((c) => `<div class="row" style="justify-content:space-between"><span>${esc(c.item)}</span><b>${money(c.aed)}</b></div>`).join('')}<div class="row" style="justify-content:space-between;border-top:1px solid var(--line);padding-top:8px"><b>Total</b><b style="color:var(--acc)">${money(total)}</b></div></div>${p.licence ? `<p class="note">${esc(p.licence)}</p>` : ''}</div>
+      <div><b style="font-weight:600">First 10 customers</b><div class="note" style="white-space:pre-wrap;margin-top:4px">${(p.first_customers || []).map((x) => '• ' + esc(x)).join('\n')}</div></div>
+      <div><b style="font-weight:600">Risks</b><div class="note" style="white-space:pre-wrap;margin-top:4px">${(p.risks || []).map((x) => '• ' + esc(x)).join('\n')}</div></div>
+      <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm" data-gt="${bi}">Add all steps to To-do</button><button class="btn sm" data-gp="${bi}">Write launch posts</button><button class="btn sm" data-gx="${bi}">Delete</button></div></section>`; }).join('') : '<div class="empty" style="margin-top:14px">Your plans appear here with steps you can tick off.</div>'}`;
+  $('#gbuild').onclick = (e) => { const idea = $('#gi').value.trim(); if (!idea) return toast('Describe your idea first.'); busyB(e.target, 'Building…', async () => {
+    const a = await aiAsk(`You are a startup coach for the UAE. Idea: ${idea}\nStarting budget: AED ${$('#gb').value || 'not given'}\nReply with only JSON: {"name": short brand name, "one_liner": string, "customer": who pays and why, "stages": [{"stage": "Validate"|"Plan"|"Launch"|"Grow", "steps": [3-4 short concrete steps]}], "costs": [{"item": string, "aed": number}], "licence": one or two lines on the UAE licence or free zone to consider, "first_customers": [5 ideas to get the first 10 customers], "risks": [3 risks with a mitigation each]}`);
+    if (!a.data || !a.data.name) throw new Error('Dioma could not build the plan. Try again.');
+    await kvSave('ideas', [{ id: uidS(), idea, budget: Number($('#gb').value) || 0, plan: a.data, done: {}, at: Date.now() }, ...ideas]); drawGr(); }); };
+  v.onclick = async (e) => {
+    const s = e.target.closest('[data-gs]'), t = e.target.closest('[data-gt]'), p = e.target.closest('[data-gp]'), x = e.target.closest('[data-gx]');
+    if (s) { const [bi, k] = s.dataset.gs.split('|'); const b = ideas[+bi]; b.done = b.done || {}; b.done[k] = !b.done[k]; await kvSave('ideas', ideas); drawGr(); }
+    if (t) { const b = ideas[+t.dataset.gt]; for (const st of b.plan.stages || []) for (const s2 of st.steps || []) await addTodo(`${b.plan.name}: ${s2}`); toast('Steps added to To-do'); }
+    if (p) { const b = ideas[+p.dataset.gp]; SOPRE = `Launch of ${b.plan.name}: ${b.plan.one_liner}`; SOT = 'weekly'; location.hash = '#social'; }
+    if (x) { if (x.dataset.sure !== '1') { x.dataset.sure = '1'; x.textContent = 'Tap again to delete'; return; } ideas.splice(+x.dataset.gx, 1); await kvSave('ideas', ideas); drawGr(); }
+  };
+}
+function drawHabits(v) {
   const goals = KVS.goals || [], habits = KVS.habits || [], t = tday();
   const days = [...Array(7)].map((_, i) => new Date(Date.now() - (6 - i) * 864e5).toISOString().slice(0, 10));
-  main.innerHTML = `<h2 style="font-size:17px;font-weight:600">Goals</h2>
+  v.innerHTML = `<b style="font-weight:600">Goals</b>
     <form class="row" id="gf" style="gap:6px;margin-top:8px;flex-wrap:wrap"><input class="field" id="gn" placeholder="e.g. Sign 5 new chilled delivery clients" style="flex:1;min-width:200px"><button class="btn pri">Add goal</button></form>
-    <div class="list" style="margin-top:10px">${goals.length ? goals.map((g, i) => `<div class="item" style="flex-wrap:wrap"><div class="grow" style="min-width:0"><div class="t">${esc(g.text)}</div><div style="height:6px;background:var(--line2);border-radius:4px;margin-top:6px"><div style="height:6px;width:${g.p || 0}%;background:var(--acc);border-radius:4px"></div></div></div><b>${g.p || 0}%</b><button class="btn sm" data-gp="${i}">+10%</button><button class="btn sm" data-gd="${i}">✕</button></div>`).join('') : '<div class="empty">Add a goal you want to reach.</div>'}</div>
-    <h2 style="font-size:17px;font-weight:600;margin-top:22px">Daily habits</h2>
+    <div class="list" style="margin-top:10px">${goals.length ? goals.map((g, i) => `<div class="item" style="flex-wrap:wrap"><div class="grow" style="min-width:0"><div class="t">${esc(g.text)}</div><div style="height:6px;background:var(--line2);border-radius:4px;margin-top:6px"><div style="height:6px;width:${g.p || 0}%;background:var(--acc);border-radius:4px"></div></div></div><b>${g.p || 0}%</b><button class="btn sm" data-hp="${i}">+10%</button><button class="btn sm" data-hgd="${i}">✕</button></div>`).join('') : '<div class="empty">Add a goal you want to reach.</div>'}</div>
+    <b style="font-weight:600;display:block;margin-top:22px">Daily habits</b>
     <form class="row" id="hf" style="gap:6px;margin-top:8px;flex-wrap:wrap"><input class="field" id="hn" placeholder="e.g. 30 minutes walk" style="flex:1;min-width:200px"><button class="btn pri">Add habit</button></form>
-    <div class="list" style="margin-top:10px">${habits.length ? habits.map((h, i) => { const done = h.done || []; let streak = 0; for (let d = 0; ; d++) { if (done.includes(new Date(Date.now() - d * 864e5).toISOString().slice(0, 10))) streak++; else if (d) break; else continue; } return `<div class="item" style="flex-wrap:wrap"><div class="grow" style="min-width:0"><div class="t">${esc(h.text)}</div><div class="s">${streak} day streak</div></div><div class="row" style="gap:3px">${days.map((d) => `<span title="${d}" style="width:12px;height:12px;border-radius:3px;background:${done.includes(d) ? 'var(--acc)' : 'var(--line2)'}"></span>`).join('')}</div><button class="btn sm ${done.includes(t) ? 'pri' : ''}" data-hd="${i}">${done.includes(t) ? 'Done today ✓' : 'Mark done'}</button><button class="btn sm" data-hx="${i}">✕</button></div>`; }).join('') : '<div class="empty">Add a habit to track every day.</div>'}</div>`;
-  $('#gf').onsubmit = async (e) => { e.preventDefault(); const x = $('#gn').value.trim(); if (!x) return; await kvSave('goals', [...goals, { text: x, p: 0 }]); viewGrow(); };
-  $('#hf').onsubmit = async (e) => { e.preventDefault(); const x = $('#hn').value.trim(); if (!x) return; await kvSave('habits', [...habits, { text: x, done: [] }]); viewGrow(); };
-  main.onclick = async (e) => {
-    const b = e.target.closest('[data-gp],[data-gd],[data-hd],[data-hx]'); if (!b) return;
-    if (b.dataset.gp) { const g = goals[+b.dataset.gp]; g.p = Math.min(100, (g.p || 0) + 10); await kvSave('goals', goals); }
-    if (b.dataset.gd) { goals.splice(+b.dataset.gd, 1); await kvSave('goals', goals); }
+    <div class="list" style="margin-top:10px">${habits.length ? habits.map((h, i) => { const done = h.done || []; let streak = 0; for (let d = 0; d < 400; d++) { if (done.includes(new Date(Date.now() - d * 864e5).toISOString().slice(0, 10))) streak++; else if (d) break; } return `<div class="item" style="flex-wrap:wrap"><div class="grow" style="min-width:0"><div class="t">${esc(h.text)}</div><div class="s">${streak} day streak</div></div><div class="row" style="gap:3px">${days.map((d) => `<span title="${d}" style="width:12px;height:12px;border-radius:3px;background:${done.includes(d) ? 'var(--acc)' : 'var(--line2)'}"></span>`).join('')}</div><button class="btn sm ${done.includes(t) ? 'pri' : ''}" data-hd="${i}">${done.includes(t) ? 'Done today ✓' : 'Mark done'}</button><button class="btn sm" data-hx="${i}">✕</button></div>`; }).join('') : '<div class="empty">Add a habit to track every day.</div>'}</div>`;
+  $('#gf').onsubmit = async (e) => { e.preventDefault(); const x = $('#gn').value.trim(); if (!x) return; await kvSave('goals', [...goals, { text: x, p: 0 }]); drawGr(); };
+  $('#hf').onsubmit = async (e) => { e.preventDefault(); const x = $('#hn').value.trim(); if (!x) return; await kvSave('habits', [...habits, { text: x, done: [] }]); drawGr(); };
+  v.onclick = async (e) => {
+    const b = e.target.closest('[data-hp],[data-hgd],[data-hd],[data-hx]'); if (!b) return;
+    if (b.dataset.hp) { const g = goals[+b.dataset.hp]; g.p = Math.min(100, (g.p || 0) + 10); await kvSave('goals', goals); }
+    if (b.dataset.hgd) { goals.splice(+b.dataset.hgd, 1); await kvSave('goals', goals); }
     if (b.dataset.hd) { const h = habits[+b.dataset.hd]; h.done = h.done || []; h.done = h.done.includes(t) ? h.done.filter((x) => x !== t) : [...h.done, t].slice(-400); await kvSave('habits', habits); }
     if (b.dataset.hx) { habits.splice(+b.dataset.hx, 1); await kvSave('habits', habits); }
-    viewGrow();
+    drawGr();
   };
 }
 
-// ---------- Network: people to keep in touch with ----------
+// ---------- Money: budget, spending, money coach ----------
+async function viewMoney() {
+  const main = $('#main'); await kvLoad(); if (cur() !== 'money') return;
+  const M = moneyS(), mk = new Date().toISOString().slice(0, 7);
+  const month = M.expenses.filter((e) => new Date(e.at).toISOString().slice(0, 7) === mk);
+  const byCat = {}; for (const e of month) byCat[e.cat] = (byCat[e.cat] || 0) + e.amt;
+  const spent = month.reduce((s, e) => s + e.amt, 0), total = Object.values(M.budget).reduce((s, n) => s + (Number(n) || 0), 0);
+  main.innerHTML = hdr('Money · ' + new Date().toLocaleDateString('en-GB', { month: 'long' }), 'Know where <span style="color:var(--acc)">it goes</span>') +
+    `<div class="ycard"><div style="font-size:11px;letter-spacing:.12em">LEFT TO SPEND THIS MONTH</div><div style="font-size:40px;font-weight:600;line-height:1.1">${money(total - spent)}</div><div style="height:10px;background:rgba(0,0,0,.2);border-radius:99px;overflow:hidden;margin:8px 0"><div style="height:100%;width:${Math.min(100, Math.round(spent / Math.max(1, total) * 100))}%;background:currentColor"></div></div><div>${money(spent)} spent of ${money(total)} budget</div></div>
+    <div class="card stack" style="margin-top:14px"><div class="row" style="justify-content:space-between"><b style="font-weight:600">Budget by category</b><span class="note">Edit any amount</span></div>${Object.entries(M.budget).map(([c, b]) => { const s = byCat[c] || 0; return `<div class="stack" style="gap:6px"><div class="row" style="justify-content:space-between;gap:8px"><span>${esc(c)}</span><span class="row" style="gap:6px"><span class="note">${money(s)} of</span><input class="field" type="number" min="0" data-mb="${esc(c)}" value="${b}" style="width:100px;min-height:34px;padding:4px 8px"></span></div><div style="height:8px;background:var(--line2);border-radius:99px;overflow:hidden"><div style="height:100%;width:${Math.min(100, Math.round(s / Math.max(1, b) * 100))}%;background:${s > b ? 'var(--bad,#e5484d)' : 'var(--acc)'}"></div></div></div>`; }).join('')}</div>
+    <form class="card stack" id="mf" style="margin-top:14px"><b style="font-weight:600">Add an expense</b><div class="row" style="gap:6px;flex-wrap:wrap"><input class="field" id="ma" type="number" min="0" step="0.01" placeholder="Amount (AED)" style="flex:1;min-width:110px"><select class="field" id="mc" style="flex:1;min-width:140px">${Object.keys(M.budget).map((c) => `<option>${esc(c)}</option>`).join('')}</select><input class="field" id="mn" placeholder="Note, e.g. Groceries" style="flex:2;min-width:160px"></div><button class="btn pri" style="justify-self:start">Add expense</button></form>
+    <div class="card stack" style="margin-top:14px"><b style="font-weight:600">This month</b><div class="list">${month.length ? [...month].reverse().slice(0, 30).map((e) => `<div class="item"><div class="grow"><div class="t">${esc(e.note || e.cat)}</div><div class="s">${esc(e.cat)} · ${new Date(e.at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</div></div><b>${money(e.amt)}</b><button class="btn sm" data-mx="${e.id}">×</button></div>`).join('') : '<div class="empty">No expenses this month yet. Add one here, or log it in Pulse ("spent 45 on groceries").</div>'}</div></div>
+    <div class="card stack" style="margin-top:14px"><b style="font-weight:600">Money coach</b><button class="btn pri" id="mcoach" style="justify-self:start">Ask my money coach</button><div id="mco" class="note" style="white-space:pre-wrap"></div><p class="note">Education only, not financial advice.</p></div>`;
+  const m = $('#main');
+  m.onchange = async (e) => { const i = e.target.closest('[data-mb]'); if (!i) return; M.budget[i.dataset.mb] = Number(i.value) || 0; await kvSave('money', M); viewMoney(); };
+  $('#mf').onsubmit = async (e) => { e.preventDefault(); const n = Number($('#ma').value); if (!n) return; M.expenses.push({ id: uidS(), amt: n, cat: $('#mc').value, note: $('#mn').value.trim(), at: Date.now() }); await kvSave('money', M); viewMoney(); };
+  m.onclick = async (e) => { const x = e.target.closest('[data-mx]'); if (!x) return; M.expenses = M.expenses.filter((y) => y.id !== x.dataset.mx); await kvSave('money', M); viewMoney(); };
+  $('#mcoach').onclick = (e) => busyB(e.target, 'Thinking…', async () => { const a = await aiAsk(`You are a money coach for people in the UAE. This month: budget ${JSON.stringify(M.budget)}, spent by category ${JSON.stringify(byCat)}, total spent AED ${spent}. Give 4 short, practical • tips (one on an emergency fund), then a one-line lesson on how money works. Education only.`); $('#mco').textContent = a.text; });
+}
+
+// ---------- Network: people to keep warm ----------
 async function viewNetwork() {
   const main = $('#main'); await kvLoad(); if (cur() !== 'network') return;
   const ppl = KVS.people || [], now = Date.now();
-  const due = (p) => (p.last ? Math.round((now - Date.parse(p.last)) / 864e5) - (p.every || 30) : 0);
-  const list = ppl.map((p, i) => ({ ...p, i, d: due(p) })).sort((a, b) => b.d - a.d);
-  main.innerHTML = `<form class="stack card" id="pf"><div class="row" style="gap:6px;flex-wrap:wrap"><input class="field" id="pn" placeholder="Name" style="flex:1;min-width:140px"><input class="field" id="pw" placeholder="How you know them, e.g. Amazon Dubai ops" style="flex:2;min-width:180px"></div><div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><span class="note">Keep in touch every</span><select class="field" id="pe" style="width:auto"><option value="14">2 weeks</option><option value="30" selected>month</option><option value="90">3 months</option><option value="180">6 months</option></select><button class="btn pri">Add person</button></div></form>
-    <div class="list" style="margin-top:12px">${list.length ? list.map((p) => `<div class="item" style="flex-direction:column;align-items:stretch;gap:8px"><div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap"><div style="min-width:0"><div class="t">${esc(p.name)}</div><div class="s">${esc(p.how || '')} · last contact ${p.last ? esc(p.last) : 'never'}</div></div>${p.d > 0 ? `<b style="color:var(--bad,#e5484d);font-size:12px">${p.d} days overdue</b>` : '<span class="note">On track</span>'}</div><div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm" data-pm="${p.i}">AI message</button><button class="btn sm pri" data-pc="${p.i}">I contacted them</button><button class="btn sm" data-px="${p.i}">✕</button></div><div id="pmo${p.i}"></div></div>`).join('') : '<div class="empty">Add the people who matter for your work and life. Dioma reminds you to stay in touch.</div>'}</div>`;
-  $('#pf').onsubmit = async (e) => { e.preventDefault(); const n = $('#pn').value.trim(); if (!n) return; await kvSave('people', [...ppl, { name: n, how: $('#pw').value.trim(), every: +$('#pe').value, last: '' }]); viewNetwork(); };
+  const dueIn = (p) => Math.round(((p.last ? Date.parse(p.last) : now - (p.every || 14) * 864e5) + (p.every || 14) * 864e5 - now) / 864e5);
+  const list = ppl.map((p, i) => ({ ...p, i, d: dueIn(p) })).sort((a, b) => a.d - b.d);
+  main.innerHTML = hdr('Network', 'Keep your <span style="color:var(--acc)">network warm</span>') + `<form class="card stack" id="pf"><b style="font-weight:600">Add a person</b><div class="row" style="gap:6px;flex-wrap:wrap"><input class="field" id="pn" placeholder="Name" style="flex:1;min-width:140px"><input class="field" id="pw" placeholder="How you know them, e.g. Investor, met at BNI" style="flex:2;min-width:180px"></div>
+    <div class="row" style="gap:6px;flex-wrap:wrap"><select class="field" id="pch" style="width:auto"><option>WhatsApp</option><option>LinkedIn</option><option>Email</option></select><input class="field" id="pd" placeholder="Phone, email or profile link" style="flex:1;min-width:160px"><select class="field" id="pe" style="width:auto"><option value="7">Every week</option><option value="14" selected>Every 2 weeks</option><option value="30">Every month</option><option value="90">Every 3 months</option></select></div><button class="btn pri" style="justify-self:start">Add person</button></form>
+    <div class="row" style="justify-content:space-between;margin-top:16px"><b style="font-weight:600">Your people</b><span class="note">Due first</span></div>
+    <div class="list" style="margin-top:8px">${list.length ? list.map((p) => `<div class="item" style="flex-direction:column;align-items:stretch;gap:8px"><div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap"><div style="min-width:0"><div class="t">${esc(p.name)}</div><div class="s">${[p.how, p.channel || 'WhatsApp', p.detail].filter(Boolean).map(esc).join(' · ')}${p.last ? ' · last contact ' + esc(p.last) : ''}</div></div><span class="srcb" style="font-size:10px;${p.d <= 0 ? '' : 'opacity:.6'}">${p.d <= 0 ? 'DUE NOW' : 'IN ' + p.d + ' DAYS'}</span></div>
+      <div class="row" style="gap:6px;flex-wrap:wrap"><input class="field" id="pp${p.i}" placeholder="Why reach out? (optional)" style="flex:1;min-width:160px;min-height:38px"><button class="btn sm" data-pm="${p.i}">Write message</button><button class="btn sm" data-px="${p.i}">Remove</button></div><div id="pmo${p.i}"></div></div>`).join('') : '<div class="empty">Add the people who matter: mentors, investors, clients, friends. Dioma reminds you when to reach out and writes the message.</div>'}</div>`;
+  $('#pf').onsubmit = async (e) => { e.preventDefault(); const n = $('#pn').value.trim(); if (!n) return; await kvSave('people', [...ppl, { name: n, how: $('#pw').value.trim(), channel: $('#pch').value, detail: $('#pd').value.trim(), every: +$('#pe').value, last: '' }]); viewNetwork(); };
   main.onclick = async (e) => {
     const m = e.target.closest('[data-pm]'), c = e.target.closest('[data-pc]'), x = e.target.closest('[data-px]');
-    if (e.target.closest('[data-cp]')) return copyT(e.target.closest('.card').querySelector('textarea').value);
-    if (m) { const p = ppl[+m.dataset.pm]; m.disabled = true; m.textContent = 'Writing…'; try { const a = await aiw('followup', { person: p.name, relationship: p.how, lastContact: p.last || 'a long time ago', goal: 'reconnect and keep the relationship warm' }); $('#pmo' + m.dataset.pm).innerHTML = `<div class="card stack"><textarea class="field" rows="3">${esc(a.text)}</textarea><button class="btn sm" data-cp style="justify-self:start">Copy</button></div>`; } catch (x2) { toast(x2.message); } m.disabled = false; m.textContent = 'AI message'; }
+    if (m) { const i = +m.dataset.pm, p = ppl[i], ch = p.channel || 'WhatsApp'; busyB(m, 'Writing…', async () => {
+      const a = await aiAsk(`Write a short ${ch} message from me to ${p.name} (${p.how || 'a contact'}). Purpose: ${$('#pp' + i).value || 'stay in touch and keep the relationship warm'}. Last contact: ${p.last || 'a while ago'}. ${ch === 'LinkedIn' ? 'Under 300 characters.' : ch === 'WhatsApp' ? '2-4 friendly lines.' : 'Email with a first line "Subject: ..." then the body.'} Reply with only the message.`);
+      const num = (p.detail || '').replace(/\D/g, ''), isMail = /@/.test(p.detail || '');
+      $('#pmo' + i).innerHTML = `<div class="card stack"><textarea class="field" id="pmt${i}" rows="4">${esc(a.text)}</textarea><div class="row" style="gap:6px;flex-wrap:wrap">${copyBtnH('pmt' + i)}${ch === 'WhatsApp' && num.length >= 7 ? `<button class="btn sm pri" id="pws${i}">Send on WhatsApp</button><a class="btn sm" href="https://wa.me/${num}?text=${encodeURIComponent(a.text)}" target="_blank" rel="noopener">Open in WhatsApp ↗</a>` : ''}${ch === 'Email' && isMail ? `<button class="btn sm pri" id="pgs${i}">Send from Gmail</button>` : ''}${ch === 'LinkedIn' && /linkedin\.com/.test(p.detail || '') ? `<a class="btn sm" href="${esc(/^https?:/.test(p.detail) ? p.detail : 'https://' + p.detail)}" target="_blank" rel="noopener">Open LinkedIn ↗</a>` : ''}<button class="btn sm" data-pc="${i}">Mark contacted</button></div></div>`;
+      if ($('#pws' + i)) twoTap($('#pws' + i), 'Send on WhatsApp', async () => { await api('POST', '/api/wa/send', { jid: num + '@s.whatsapp.net', text: $('#pmt' + i).value }); $('#pws' + i).textContent = 'Sent ✓'; ppl[i].last = tday(); await kvSave('people', ppl); });
+      if ($('#pgs' + i)) twoTap($('#pgs' + i), 'Send from Gmail', async () => { const t = $('#pmt' + i).value, sm = t.match(/^Subject:\s*(.+)$/im); await api('POST', '/api/mail/send', { to: p.detail.trim(), subject: sm ? sm[1] : 'Hello', body: t.replace(/^Subject:.*$/im, '').trim() }); $('#pgs' + i).textContent = 'Sent ✓'; ppl[i].last = tday(); await kvSave('people', ppl); });
+    }); }
     if (c) { ppl[+c.dataset.pc].last = tday(); await kvSave('people', ppl); viewNetwork(); }
-    if (x) { ppl.splice(+x.dataset.px, 1); await kvSave('people', ppl); viewNetwork(); }
+    if (x) { if (x.dataset.sure !== '1') { x.dataset.sure = '1'; x.textContent = 'Tap again'; return; } ppl.splice(+x.dataset.px, 1); await kvSave('people', ppl); viewNetwork(); }
   };
 }
 
-// ---------- Pulse: headlines on your topics + AI summary ----------
-async function viewPulse() {
-  const main = $('#main'); await kvLoad(); if (cur() !== 'pulse') return;
-  const topics = (KVS.pulse && KVS.pulse.topics) || ['UAE business', 'Dubai logistics', 'artificial intelligence'];
-  main.innerHTML = `<div class="row" style="gap:6px;flex-wrap:wrap">${topics.map((t, i) => `<span class="srcb" style="font-size:12px;padding:4px 10px">${esc(t)} <a href="#" data-tx="${i}" style="color:inherit;margin-left:4px">✕</a></span>`).join('')}</div>
-    <form class="row" id="tf" style="gap:6px;margin-top:10px;flex-wrap:wrap"><input class="field" id="tn" placeholder="Add a topic, e.g. Amazon UAE" style="flex:1;min-width:180px"><button class="btn">Add</button><button type="button" class="btn pri" id="psum">AI summary</button></form>
-    <div id="pso"></div><div id="pl" style="margin-top:12px"><div class="empty">Loading headlines…</div></div>`;
-  const setT = async (t) => { await kvSave('pulse', { topics: t }); viewPulse(); };
-  $('#tf').onsubmit = (e) => { e.preventDefault(); const x = $('#tn').value.trim(); if (x && topics.length < 6) setT([...topics, x]); };
-  main.onclick = (e) => { const x = e.target.closest('[data-tx]'); if (x) { e.preventDefault(); setT(topics.filter((_, i) => i !== +x.dataset.tx)); } };
-  const d = await api('GET', '/api/pulse').catch((x) => ({ topics: [], error: x.message })); if (cur() !== 'pulse') return;
-  $('#pl').innerHTML = d.topics.map((t) => `<h2 style="font-size:15px;font-weight:600;margin:16px 0 6px">${esc(t.topic)}</h2>${t.items.length ? `<div class="list">${t.items.map((n) => `<a class="item" href="${esc(n.link)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none"><div class="grow"><div class="t">${esc(n.title)}</div><div class="s">${esc(n.source)}${n.at ? ' · ' + ago(n.at) : ''}</div></div></a>`).join('')}</div>` : `<div class="empty">${esc(t.error || 'No news in the last two days.')}</div>`}`).join('');
-  $('#psum').onclick = async (e) => { e.target.disabled = true; e.target.textContent = 'Reading…'; try { const a = await aiw('pulse', d.topics.flatMap((t) => t.items.map((n) => `[${t.topic}] ${n.title} (${n.source})`))); $('#pso').innerHTML = `<div class="ycard" style="margin-top:12px;white-space:pre-wrap">${esc(a.text)}</div>`; } catch (x) { toast(x.message); } e.target.disabled = false; e.target.textContent = 'AI summary'; };
-}
-
-// ---------- Learn AI: a lesson a day, quiz, XP ----------
-const LTOP = ['What AI can do for my work', 'Writing great prompts', 'AI for email and WhatsApp replies', 'AI for sales and follow-ups', 'AI for spreadsheets and reports', 'AI agents and automation', 'Using AI safely with company data', 'AI for marketing and social posts'];
+// ---------- Learn AI: 8 lessons with a practice on your real life, plus quiz and XP ----------
+const LESSONS2 = [['l1', 'What AI is good and bad at', 'Know when to trust it'], ['l2', 'Write prompts that work', 'Role, goal, context, format'], ['l3', 'Check AI answers', 'Spot mistakes fast'], ['l4', 'AI for job hunting', 'CVs, cover letters, interviews'], ['l5', 'AI for your business', 'Ideas, costs, marketing'], ['l6', 'AI for study', 'Summaries and quizzes, honestly'], ['l7', 'Plan your life with AI', 'Goals into weekly steps'], ['l8', 'Privacy and safety', 'What never to share']];
+let LOPEN = null;
 async function viewLearn() {
   const main = $('#main'); await kvLoad(); if (cur() !== 'learn') return;
-  const L = KVS.learn || { xp: 0, done: [], level: 'beginner' };
-  main.innerHTML = `<div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><div><b style="font-size:22px">${L.xp || 0} XP</b><div class="note">${(L.done || []).length} lessons done</div></div><select class="field" id="lv" style="width:auto">${['beginner', 'intermediate', 'advanced'].map((x) => `<option ${L.level === x ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
-    <div class="list" style="margin-top:14px">${LTOP.map((t, i) => `<div class="item"><div class="grow"><div class="t">${esc(t)}</div></div>${(L.done || []).includes(t) ? '<span class="note">Done ✓</span>' : ''}<button class="btn sm pri" data-ls="${i}">Start</button></div>`).join('')}</div><div id="lo" style="margin-top:14px"></div>`;
-  $('#lv').onchange = (e) => { L.level = e.target.value; kvSave('learn', L); };
+  const L = KVS.lessons || {}, X = KVS.learn || { xp: 0, done: [], level: 'beginner' }, done = LESSONS2.filter(([id]) => L[id]).length;
+  main.innerHTML = hdr('AI skills', 'Learn AI by <span style="color:var(--acc)">using it</span>') + `<div class="ycard row" style="justify-content:space-between;flex-wrap:wrap;gap:10px"><div><div style="font-size:11px;letter-spacing:.12em">YOUR LEVEL</div><div style="font-size:34px;font-weight:600;line-height:1">Level ${1 + Math.floor(done / 2)}</div><div>${done} of ${LESSONS2.length} lessons · ${X.xp || 0} XP</div></div><select class="field" id="lv" style="width:auto;color:var(--fg)">${['beginner', 'intermediate', 'advanced'].map((x) => `<option ${X.level === x ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
+    <div class="list" style="margin-top:14px">${LESSONS2.map(([id, t, s], i) => `<button type="button" class="item" data-lo="${id}" style="text-align:left;width:100%;color:inherit;${LOPEN === id ? 'border-color:var(--acc)' : ''}"><span style="color:var(--acc);font-size:18px;width:28px">${String(i + 1).padStart(2, '0')}</span><span class="grow"><span class="t" style="${L[id] ? 'text-decoration:line-through;opacity:.6' : ''}">${esc(t)}</span><br><span class="s">${esc(s)}</span></span><span class="note">${L[id] ? 'Done' : 'Open'}</span></button>`).join('')}</div><div id="lr" style="margin-top:14px"></div>`;
+  $('#lv').onchange = (e) => { X.level = e.target.value; kvSave('learn', X); };
+  main.onclick = (e) => { const b = e.target.closest('[data-lo]'); if (b) { LOPEN = b.dataset.lo; viewLearn(); } };
+  if (!LOPEN) { $('#lr').innerHTML = '<div class="empty">Pick a lesson. Dioma teaches it in a few minutes, with a practice task on your real life, and a quiz for XP.</div>'; return; }
+  const [id, title] = LESSONS2.find(([x]) => x === LOPEN);
+  $('#lr').innerHTML = `<div class="card stack"><b style="font-size:16px;font-weight:600">${esc(title)}</b><div class="note">Preparing your lesson…</div></div>`; $('#lr').scrollIntoView({ behavior: 'smooth' });
+  try {
+    const a = await aiAsk(`Teach the lesson "${title}" to a ${X.level} learner in the UAE, in under 260 words: 3 key ideas as • bullets with one concrete example each, one common mistake, then a line starting "Practice:" with one task the learner can do right now with the Dioma Assistant using their own email, calendar, goals or WhatsApp. Then 3 multiple-choice questions. Reply with only JSON: {"lesson": string, "practice": string, "quiz": [{"q": string, "options": [string,string,string,string], "answer": number}]}`);
+    if (LOPEN !== id || !$('#lr')) return;
+    const d = a.data || { lesson: a.text, practice: '', quiz: [] };
+    $('#lr').innerHTML = `<div class="card stack"><b style="font-size:16px;font-weight:600">${esc(title)}</b><div style="white-space:pre-wrap;line-height:1.55">${esc(d.lesson)}</div>${d.practice ? `<div class="ycard" style="white-space:pre-wrap">Practice: ${esc(d.practice)}</div>` : ''}
+      ${(d.quiz || []).map((q, qi) => `<div class="stack" data-q="${qi}"><b style="font-weight:500">${qi + 1}. ${esc(q.q)}</b>${q.options.map((op, oi) => `<button class="btn sm" data-o="${oi}" style="justify-content:flex-start;text-align:left">${esc(op)}</button>`).join('')}</div>`).join('')}
+      <div class="row" style="gap:6px;flex-wrap:wrap">${d.practice ? '<button class="btn pri" id="lpr">Try the practice</button>' : ''}<button class="btn" id="ldone">${L[id] ? 'Mark not done' : 'Mark complete'}</button></div></div>`;
+    $('#lpr')?.addEventListener('click', () => askIn(d.practice));
+    $('#ldone').onclick = async () => { L[id] = !L[id]; await kvSave('lessons', L); viewLearn(); };
+    let right = 0, answered = 0;
+    $('#lr').onclick = async (ev) => { const ob = ev.target.closest('[data-o]'); if (!ob) return; const qd = ob.closest('[data-q]'); if (qd.dataset.a) return; const q = d.quiz[+qd.dataset.q]; qd.dataset.a = '1'; answered++;
+      const ok = +ob.dataset.o === q.answer; if (ok) right++; ob.style.background = ok ? 'var(--acc)' : 'var(--bad,#e5484d)'; ob.style.color = ok ? 'var(--accink)' : '#fff';
+      if (!ok) qd.querySelectorAll('[data-o]')[q.answer].style.outline = '2px solid var(--acc)';
+      if (answered === d.quiz.length) { const xp = 10 + right * 10; X.xp = (X.xp || 0) + xp; X.done = [...new Set([...(X.done || []), title])]; await kvSave('learn', X); if (!L[id]) { L[id] = true; await kvSave('lessons', L); } toast(`+${xp} XP · ${right}/${d.quiz.length} right`); } };
+  } catch (x) { $('#lr').innerHTML = `<p class="err">${esc(x.message)}</p>`; }
+}
+
+// ---------- Master Plan: goals broken into steps + your 90-day plan ----------
+async function viewPlan() {
+  const main = $('#main'); await kvLoad(); if (cur() !== 'plan') return;
+  const G = KVS.plans || [], P = KVS.plan || {};
+  main.innerHTML = hdr('Master plan', 'Your future, <span style="color:var(--acc)">step by step</span>') + `<div class="card stack"><b style="font-weight:600">New goal</b><input class="field" id="pg" placeholder="e.g. Raise a bridge round for RedexGo"><div class="row" style="gap:6px;flex-wrap:wrap"><select class="field" id="ph" style="width:auto">${['This month', 'This term', 'This year', '5 years'].map((x) => `<option>${x}</option>`).join('')}</select><button class="btn pri" id="pbreak">Break it into steps</button></div></div>
+    <div style="display:grid;gap:12px;margin-top:14px">${G.length ? G.map((g, gi) => { const dn = g.steps.filter((s) => s.done).length, pct = Math.round(dn / Math.max(1, g.steps.length) * 100); return `<section class="card stack"><div class="row" style="justify-content:space-between"><span class="srcb" style="font-size:10px">${esc(g.horizon.toUpperCase())}</span><b style="font-size:22px;color:var(--acc)">${pct}%</b></div><b style="font-weight:600;font-size:16px">${esc(g.title)}</b>${g.why ? `<p class="note">${esc(g.why)}</p>` : ''}<div style="height:8px;background:var(--line2);border-radius:99px;overflow:hidden"><div style="height:100%;width:${pct}%;background:var(--acc)"></div></div>
+      <div class="list">${g.steps.map((s, si) => `<button type="button" class="item" data-ps="${gi}|${si}" style="text-align:left;width:100%;color:inherit;${s.done ? 'opacity:.55;text-decoration:line-through' : ''}"><span style="width:20px">${s.done ? '✓' : '○'}</span><span class="grow">${esc(s.t)}</span></button>`).join('')}</div>
+      <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm" data-pn="${gi}">Schedule next step</button><button class="btn sm" data-pt="${gi}">Next step to To-do</button><button class="btn sm" data-pd="${gi}">Delete</button></div></section>`; }).join('') : '<div class="empty">Add a goal for this month, this year or 5 years. Dioma breaks it into steps.</div>'}</div>
+    <div class="card stack" style="margin-top:18px"><b style="font-weight:600">My 90-day master plan</b><p class="note">Write where you want to be: life, work, money, health. Dioma turns it into a 90-day plan with weekly actions.</p>
+      <textarea class="field" id="pv" rows="5" placeholder="e.g. Grow RedexGo to 50 trucks by end of 2027, launch Dioma to 1,000 customers, lose 8 kg, save AED 10,000 a month">${esc(P.input || '')}</textarea>
+      <div class="row" style="gap:6px"><button class="btn pri" id="pmk">${P.text ? 'Rebuild my plan' : 'Build my plan'}</button>${P.text ? '<button class="btn" data-copy="pvt">Copy</button>' : ''}</div>
+      ${P.text ? `<div class="card" id="pvt" style="white-space:pre-wrap;line-height:1.55">${esc(P.text)}</div><p class="note">Built ${esc(P.at || '')}</p>` : ''}</div>`;
+  $('#pbreak').onclick = (e) => { const goal = $('#pg').value.trim(); if (!goal) return toast('Write a goal first.'); busyB(e.target, 'Planning…', async () => { const a = await aiAsk(`You are a life and career planner. Goal: ${goal}\nHorizon: ${$('#ph').value}\nReply with only JSON: {"title": the goal restated in under 10 words, "why": one sentence, "steps": [5-7 concrete steps in order, each under 14 words, with a rough timing like "Week 1"]}`); const r = a.data; if (!r || !Array.isArray(r.steps)) throw new Error('Try again.'); await kvSave('plans', [{ id: uidS(), horizon: $('#ph').value, title: r.title || goal, why: r.why || '', steps: r.steps.map((t) => ({ t: String(t), done: false })) }, ...G]); viewPlan(); }); };
+  $('#pmk').onclick = (e) => { const x = $('#pv').value.trim(); if (!x) return toast('Write your vision first.'); busyB(e.target, 'Building…', async () => { const a = await aiw('plan', { vision: x, goals: G.map((g) => g.title), today: tday() }); await kvSave('plan', { input: x, text: a.text, at: tday() }); viewPlan(); }); };
   main.onclick = async (e) => {
-    const b = e.target.closest('[data-ls]'); if (!b) return; const topic = LTOP[+b.dataset.ls];
-    b.disabled = true; b.textContent = 'Preparing…';
-    try {
-      const a = await aiw('lesson', { topic, level: L.level }), d = a.data || { lesson: a.text, quiz: [] };
-      const o = $('#lo'); o.innerHTML = `<div class="card stack"><b style="font-size:16px">${esc(topic)}</b><div style="white-space:pre-wrap;line-height:1.55">${esc(d.lesson)}</div>${(d.quiz || []).map((q, qi) => `<div class="stack" data-q="${qi}"><b style="font-weight:500">${qi + 1}. ${esc(q.q)}</b>${q.options.map((op, oi) => `<button class="btn sm" data-o="${oi}" style="justify-content:flex-start;text-align:left">${esc(op)}</button>`).join('')}</div>`).join('')}</div>`;
-      o.scrollIntoView({ behavior: 'smooth' });
-      let right = 0, answered = 0;
-      o.onclick = async (ev) => { const ob = ev.target.closest('[data-o]'); if (!ob) return; const qd = ob.closest('[data-q]'); if (qd.dataset.a) return; const q = d.quiz[+qd.dataset.q]; qd.dataset.a = '1'; answered++;
-        const ok = +ob.dataset.o === q.answer; if (ok) right++; ob.style.background = ok ? 'var(--acc)' : 'var(--bad,#e5484d)'; ob.style.color = ok ? 'var(--accink)' : '#fff';
-        if (!ok) qd.querySelectorAll('[data-o]')[q.answer].style.outline = '2px solid var(--acc)';
-        if (answered === d.quiz.length) { const xp = 10 + right * 10; L.xp = (L.xp || 0) + xp; L.done = [...new Set([...(L.done || []), topic])]; await kvSave('learn', L); toast(`+${xp} XP · ${right}/${d.quiz.length} right`); } };
-    } catch (x) { toast(x.message); }
-    b.disabled = false; b.textContent = 'Start';
+    const s = e.target.closest('[data-ps]'), n = e.target.closest('[data-pn]'), t = e.target.closest('[data-pt]'), d = e.target.closest('[data-pd]');
+    if (s) { const [gi, si] = s.dataset.ps.split('|').map(Number); G[gi].steps[si].done = !G[gi].steps[si].done; await kvSave('plans', G); viewPlan(); }
+    if (n) { const g = G[+n.dataset.pn], x = g.steps.find((y) => !y.done); if (x) askIn(`Find a good time this week in my calendar for "${x.t}" (goal: ${g.title}) and suggest when to do it.`); }
+    if (t) { const g = G[+t.dataset.pt], x = g.steps.find((y) => !y.done); if (x) { await addTodo(`${g.title}: ${x.t}`); toast('Added to To-do'); } }
+    if (d) { if (d.dataset.sure !== '1') { d.dataset.sure = '1'; d.textContent = 'Tap again to delete'; return; } G.splice(+d.dataset.pd, 1); await kvSave('plans', G); viewPlan(); }
   };
 }
 
-// ---------- Master Plan: vision and goals into a 90-day plan ----------
-async function viewPlan() {
-  const main = $('#main'); await kvLoad(); if (cur() !== 'plan') return;
-  const P = KVS.plan || {};
-  main.innerHTML = `<div class="stack"><p class="note">Write where you want to be: life, work, money, health. Dioma turns it into a 90-day plan with weekly actions.</p>
-    <textarea class="field" id="pv" rows="6" placeholder="e.g. Grow RedexGo to 50 trucks by end of 2027, launch Dioma to 1,000 customers, lose 8 kg, save AED 10,000 a month">${esc(P.input || '')}</textarea>
-    <div class="row" style="gap:6px"><button class="btn pri" id="pmk">${P.text ? 'Rebuild my plan' : 'Build my plan'}</button>${P.text ? '<button class="btn" id="pcp">Copy</button>' : ''}</div>
-    ${P.text ? `<div class="card" style="white-space:pre-wrap;line-height:1.55">${esc(P.text)}</div><p class="note">Built ${esc(P.at || '')}</p>` : ''}</div>`;
-  $('#pcp')?.addEventListener('click', () => copyT(P.text));
-  $('#pmk').onclick = async (e) => { const x = $('#pv').value.trim(); if (!x) return toast('Write your vision first.'); e.target.disabled = true; e.target.textContent = 'Building…'; try { const a = await aiw('plan', { vision: x, goals: (KVS.goals || []).map((g) => g.text), today: tday() }); await kvSave('plan', { input: x, text: a.text, at: tday() }); viewPlan(); } catch (x2) { toast(x2.message); e.target.disabled = false; e.target.textContent = 'Build my plan'; } };
+// ---------- AI Horizon: the world of AI, UAE, sectors, opportunity, risks, how it works, play, ask ----------
+const LAB_HOW = [
+    ['How AI writes', 'A chatbot like Claude or ChatGPT is a "language model". It read a huge amount of text and learned one skill: guessing the next word. It writes a whole answer one small piece (a "token") at a time, each time picking a likely next piece.', 'What does a chatbot really do?', ['Looks up answers in a database', 'Predicts the next word, again and again', 'Copies a web page'], 1],
+    ['How it learned', 'Training = showing the model billions of sentences and nudging millions of numbers ("weights") every time it guessed wrong. After training, it also learned from people rating good and bad answers. It does not keep learning from your chat by default.', 'How does a model learn?', ['By adjusting its numbers when it guesses wrong', 'Someone types every answer in', 'It watches YouTube live'], 0],
+    ['Why it makes mistakes', 'Because it predicts what sounds right, it can say things that are confident but false. This is called a "hallucination". Always check names, numbers, dates and sources, especially for homework and money.', 'A "hallucination" is…', ['A picture made by AI', 'A confident answer that is wrong', 'When AI is slow'], 1],
+    ['Prompts: how to ask', 'Good prompts have 4 parts: Role ("act as my maths tutor"), Goal ("explain fractions"), Context ("I am 14, I get confused by dividing"), Format ("3 steps and one example"). Clear asks → better answers.', 'Which prompt is best?', ['"fractions"', '"Explain dividing fractions to a 14-year-old in 3 steps with one example"', '"help"'], 1],
+    ['Images, voice and more', 'Some AI models work with pictures, sound and video, not only text. They turn everything into numbers the same way. That is how AI can read a photo of your notes or listen to your voice.', 'How can AI understand a photo?', ['It turns the image into numbers', 'A person describes it', 'It cannot'], 0],
+    ['Use AI honestly and safely', 'Use AI to learn, not to cheat: ask it to explain, quiz you and check your work. Never share passwords, ID numbers, bank details or private photos. If your school has rules on AI, follow them.', 'What is a good way to use AI for homework?', ['Copy its answer and submit', 'Ask it to explain and quiz you, then write it yourself', 'Share your password so it can log in'], 1]
+  ];
+const LAB_NEXT = [
+    ['The cat sat on the ___', ['mat', 'moon', 'calculator', 'rainbow'], 0, 'mat ≈ 60% · moon ≈ 3% · others < 1%. The model picks likely words, and a bit of randomness makes answers vary.'],
+    ['Dubai is a city in the United Arab ___', ['Emirates', 'Kingdom', 'Desert', 'Airlines'], 0, 'Emirates ≈ 98%. Some facts are so common the model is almost always sure.'],
+    ['I am hungry, let\'s go and ___', ['eat', 'swim', 'sleep', 'study'], 0, 'eat ≈ 70%. The model uses the earlier words ("hungry") as context.'],
+    ['2 + 2 = ___', ['4', '22', '5', 'four'], 0, '"4" is most likely. But for hard maths, models can slip. Use a calculator to check.'],
+    ['Once upon a ___', ['time', 'day', 'tree', 'phone'], 0, 'time ≈ 95%. Stories it read many times make strong patterns.']
+  ];
+const LAB_GAMES = [['next', 'target', 'Guess the next word', 'Think like a language model'], ['spot', 'search', 'Spot the fake fact', 'Find the AI hallucination'], ['prompt', 'pen', 'Prompt challenge', 'Write a prompt, AI scores it'], ['who', 'bot', 'Human or AI?', 'Which text did AI write?']];
+const HZ_TOP = [
+    ['chat', 'Chat assistants', 'Claude, ChatGPT, Gemini: write, explain, plan, answer questions.'],
+    ['code', 'Coding & AI agents', 'AI that writes software and does multi-step tasks on its own.'],
+    ['image', 'Image & video creation', 'Make pictures, ads and videos from a sentence.'],
+    ['voice', 'Voice & translation', 'Talk to AI, live translation Arabic ⇄ English and 100+ languages.'],
+    ['eye', 'Computer vision', 'Reads images: X-rays, CCTV, number plates, product defects.'],
+    ['chart', 'Prediction & analytics', 'Forecasts demand, fraud, prices, traffic and energy use.'],
+    ['car', 'Self-driving & robots', 'Robotaxis, delivery robots, warehouse and factory robots.'],
+    ['dna', 'Science & medicine', 'Finds new drugs, reads DNA, designs materials faster.'],
+    ['search', 'Search & research', 'Reads thousands of pages and gives a summary with sources.'],
+    ['shield', 'Cyber security', 'Spots attacks and scams in real time (and is used by attackers too).']
+  ];
+const HZ_UAE = [
+    'First country with a Minister of State for AI (2017).',
+    'UAE National Strategy for AI 2031: AI across government, health, transport, energy and education.',
+    'MBZUAI in Abu Dhabi (2019): one of the world\'s first universities only for AI.',
+    'Falcon models from TII (Abu Dhabi): open AI models made in the UAE.',
+    'G42 and big partnerships with global tech firms; very large AI data-centre projects in Abu Dhabi.',
+    'AI being added to the school curriculum, from kindergarten to grade 12.',
+    'Dubai: AI in government services, RTA traffic and robotaxi trials, smart police, DEWA.'
+  ];
+const HZ_SECT = [['finance', 'coin', 'Finance & banking'], ['health', 'health', 'Doctors & health'], ['eng', 'gear', 'Engineering'], ['math', 'math', 'Mathematics'], ['history', 'book', 'History & research'], ['edu', 'cap', 'Education'], ['logistics', 'truck', 'Logistics & transport'], ['law', 'law', 'Law'], ['gov', 'gov', 'Government'], ['retail', 'bag', 'Retail & e-commerce'], ['energy', 'bolt', 'Energy & oil'], ['media', 'film', 'Media & marketing'], ['realestate', 'house', 'Real estate'], ['agri', 'leaf', 'Food & agriculture'], ['security', 'shield', 'Security & defence'], ['tourism', 'plane', 'Travel & tourism']];
+const HZ_TABS = [['top', 'Top AI'], ['uae', 'UAE'], ['sectors', 'Sectors'], ['opps', 'Opportunity'], ['risks', 'Risks'], ['how', 'How it works'], ['play', 'Play'], ['ask', 'Ask']];
+const LESSONS_HZ = [['l1', 'What AI is good and bad at', 'Know when to trust it'], ['l2', 'Write prompts that work', 'Role, goal, context, format'], ['l3', 'Check AI answers', 'Spot mistakes fast'], ['l4', 'AI for job hunting', 'CVs, cover letters, interviews'], ['l5', 'AI for your business', 'Ideas, costs, marketing'], ['l6', 'AI for study', 'Summaries and quizzes, honestly'], ['l7', 'Plan your life with AI', 'Goals into weekly steps'], ['l8', 'Privacy and safety', 'What never to share']];
+let HZT = 'top', HZS = null, LABG = null, LABS = {};
+const HZC = {}; // cache per session
+async function hzAI(key, prompt, el, force) {
+  const today = tday(), A = KVS.academy || {}; A.cache = A.cache || {};
+  if (!force && A.cache[key] && A.cache[key].day === today) { el.textContent = A.cache[key].text; return; }
+  el.textContent = 'Writing…';
+  try { const a = await aiAsk(`${prompt}\n\nToday is ${today}. Reader: someone in the UAE (student, professional or business owner). Plain text, short lines, • bullets and short CAPITAL section labels (like WHAT IT IS:), no emojis, no markdown. Be accurate; where you are not sure of something recent, say "check latest news". Max 280 words.`); el.textContent = a.text; A.cache[key] = { day: today, text: a.text }; KVS.academy = A; kvSave('academy', A); } catch (x) { el.textContent = x.message; }
+}
+const labXP = async (n) => { const A = KVS.academy || {}; A.xp = (A.xp || 0) + n; await kvSave('academy', A); toast(`+${n} XP`); };
+async function viewLab() {
+  const main = $('#main'); await kvLoad(); if (cur() !== 'lab') return;
+  const A = KVS.academy || {}; A.done = A.done || {}; const xp = A.xp || 0, lvl = 1 + Math.floor(xp / 50), badge = lvl >= 6 ? 'AI Pro' : lvl >= 4 ? 'AI Builder' : lvl >= 2 ? 'AI Explorer' : 'AI Beginner';
+  main.innerHTML = hdr('AI Horizon', 'The world of AI, <span style="color:var(--acc)">explained.</span>') + `<div class="ycard row" style="justify-content:space-between;padding:10px 14px"><b>Level ${lvl} · ${badge}</b><span>${xp} XP</span></div>` + segH('hzs', HZ_TABS, HZT) + '<div id="hzv" class="stack" style="margin-top:14px"></div>';
+  segW('hzs', (t) => { HZT = t; viewLab(); });
+  const v = $('#hzv'), box = (key, prompt) => { const o = document.createElement('div'); o.style.cssText = 'white-space:pre-wrap;line-height:1.55'; hzAI(key, prompt, o); return o; };
+  const refresh = (key, prompt, o) => { const b = document.createElement('button'); b.className = 'btn sm'; b.textContent = '↻ Refresh'; b.style.justifySelf = 'start'; b.onclick = () => hzAI(key, prompt, o, true); return b; };
+  if (HZT === 'top') {
+    v.innerHTML = '<p class="note">The 10 biggest things AI does in the world today. Tap one to learn more.</p>' + HZ_TOP.map(([, t, s], i) => `<details class="item" style="display:block" data-hi="${i}"><summary style="cursor:pointer;list-style:none"><div class="t">${esc(t)}</div><div class="s">${esc(s)}</div></summary><div class="hzo" style="margin-top:8px"></div></details>`).join('');
+    v.querySelectorAll('details').forEach((d) => d.addEventListener('toggle', () => { if (d.open && !d.dataset.l) { d.dataset.l = 1; const [, t, s] = HZ_TOP[+d.dataset.hi]; d.querySelector('.hzo').append(box('top:' + t, `Explain the AI function "${t}" (${s}). Give: what it is in 2 lines, 3 real-world examples (name real companies/products), how it is used in the UAE, jobs/skills it creates, one risk.`)); } }));
+  } else if (HZT === 'uae') {
+    v.innerHTML = `<div class="list">${HZ_UAE.map((t) => `<div class="item">🇦🇪 <span>${esc(t)}</span></div>`).join('')}</div><b style="font-weight:600;margin-top:6px">WHAT IT MEANS FOR YOU</b>`;
+    const p = 'Explain how AI is changing the UAE: government vision (AI Strategy 2031, Minister of AI, MBZUAI, TII Falcon, G42, data centres), what you see in daily life in Dubai/Abu Dhabi, the sectors hiring for AI, how a person in the UAE can benefit this year.', o = box('uae', p); v.append(o, refresh('uae', p, o));
+  } else if (HZT === 'sectors') {
+    v.innerHTML = `<p class="note">How AI helps each field. Pick one.</p><div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px">${HZ_SECT.map(([id, , l]) => `<button class="btn sm ${HZS === id ? 'pri' : ''}" data-sec="${id}" style="justify-content:flex-start">${esc(l)}</button>`).join('')}</div>`;
+    v.onclick = (e) => { const b = e.target.closest('[data-sec]'); if (b) { HZS = HZS === b.dataset.sec ? null : b.dataset.sec; viewLab(); } };
+    if (HZS) { const l = HZ_SECT.find(([x]) => x === HZS)[2], p = `How is AI helping "${l}"? Give: 4 ways AI helps today, each with a real example (in the UAE/GCC if possible), how it was done before vs now, new jobs and skills, 2 risks, one thing someone in this field should learn first.`, o = box('sec:' + HZS, p); const hd = document.createElement('b'); hd.textContent = l.toUpperCase(); v.append(hd, o, refresh('sec:' + HZS, p, o)); }
+  } else if (HZT === 'opps') {
+    const p = 'How is AI creating opportunities, especially in the UAE? Give: 8 fast-growing AI jobs (with a one-line "how to start"), 6 small business ideas using AI that work in the UAE, the 5 skills worth learning now, UAE programs and places that help (government, free zones, universities).', o = box('opps', p); v.append(o, refresh('opps', p, o));
+  } else if (HZT === 'risks') {
+    const p1 = 'AI risks on a timeline. Sections: Next 1 year, Next 2 years, Next 5 years. For each: 3-4 concrete risks (jobs, scams/deepfakes, privacy, wrong answers, security, power use, control of AI) and one line "How to protect yourself". Balanced and calm, not scary.', p2 = 'The biggest advantages of AI for people and countries like the UAE: 6-8 bullets with a concrete example each (health, education, productivity, accessibility, safety, science, small businesses).';
+    const o1 = box('risks', p1), o2 = box('adv', p2), h1 = document.createElement('b'), h2 = document.createElement('b'); h1.textContent = 'RISKS · TIMELINE'; h2.textContent = 'ADVANTAGES'; v.append(h1, o1, refresh('risks', p1, o1), h2, o2);
+  } else if (HZT === 'how') {
+    v.innerHTML = LAB_HOW.map(([t, body, q, opts], i) => `<details class="item" style="display:block"><summary style="cursor:pointer;list-style:none" class="row"><span style="color:var(--acc);width:22px">${i + 1}</span><span class="t grow">${esc(t)}</span><span class="note">${A.done['h' + i] ? '✓ +10' : '2 min'}</span></summary><p style="line-height:1.5">${esc(body)}</p><b style="font-weight:500">${esc(q)}</b><div class="stack" style="margin-top:6px" data-hq="${i}">${opts.map((o, j) => `<button class="btn sm" data-ho="${j}" style="justify-content:flex-start;text-align:left;white-space:normal">${esc(o)}</button>`).join('')}</div><p class="note" id="hf${i}"></p></details>`).join('');
+    v.onclick = async (e) => { const b = e.target.closest('[data-ho]'); if (!b) return; const i = +b.closest('[data-hq]').dataset.hq, ok = LAB_HOW[i][4]; if (+b.dataset.ho === ok) { $('#hf' + i).textContent = '✓ Correct!'; if (!A.done['h' + i]) { A.done['h' + i] = true; KVS.academy = A; await labXP(10); } } else $('#hf' + i).textContent = '✗ Not quite. Try another answer.'; };
+  } else if (HZT === 'play') {
+    v.innerHTML = `<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">${LAB_GAMES.map(([id, , t, s]) => `<button class="${LABG === id ? 'ycard' : 'card'}" data-g="${id}" style="text-align:left;cursor:pointer;color:inherit"><b>${esc(t)}</b><div class="note" style="color:inherit;opacity:.8">${esc(s)}</div></button>`).join('')}</div><div id="gst" class="stack" style="margin-top:10px"></div>`;
+    v.onclick = (e) => { const b = e.target.closest('[data-g]'); if (b) { LABG = b.dataset.g; LABS = {}; viewLab(); } };
+    drawGame($('#gst'));
+  } else {
+    const T = LABS.tutor || (LABS.tutor = []);
+    v.innerHTML = `<div class="stack" id="tlog">${T.slice(-8).map((m) => `<div class="msg ${m.me ? 'user' : 'assistant'}">${esc(m.text)}</div>`).join('')}</div><div class="row" style="gap:6px"><input class="field" id="tq" placeholder="Ask anything about AI…" style="flex:1"><button class="btn pri" id="tgo">Ask</button></div><div class="row" style="gap:6px;flex-wrap:wrap"><select class="field" id="tlv" style="width:auto">${['Simple', 'Student', 'Professional'].map((x) => `<option ${A.age === x ? 'selected' : ''}>${x}</option>`).join('')}</select>${['Will AI take my job?', 'How does ChatGPT work?', 'Best AI tools in UAE?', 'How do deepfakes work?'].map((q) => `<button class="btn sm" data-tq="${esc(q)}">${esc(q)}</button>`).join('')}</div>`;
+    const run = async (q) => { if (!q) return; T.push({ me: 1, text: q }); viewLab(); const a = await aiAsk(`Explain at a "${$('#tlv')?.value || 'Simple'}" level, short and clear, for someone in the UAE. Question about AI: ${q}`).catch((x) => ({ text: x.message })); T.push({ text: a.text }); if (cur() === 'lab' && HZT === 'ask') viewLab(); };
+    $('#tgo').onclick = () => run($('#tq').value.trim()); $('#tq').onkeydown = (e) => { if (e.key === 'Enter') run($('#tq').value.trim()); };
+    $('#tlv').onchange = () => { A.age = $('#tlv').value; kvSave('academy', A); };
+    v.onclick = (e) => { const b = e.target.closest('[data-tq]'); if (b) run(b.dataset.tq); };
+  }
+}
+async function drawGame(st) {
+  if (!LABG) { st.innerHTML = '<div class="empty">Pick a game above.</div>'; return; }
+  if (LABG === 'next') {
+    const i = LABS.i || 0, [sent, opts, ok, why] = LAB_NEXT[i % LAB_NEXT.length];
+    st.innerHTML = `<div style="font-size:20px;font-weight:500">${esc(sent)}</div><div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px">${opts.map((o, j) => `<button class="btn" data-nw="${j}">${esc(o)}</button>`).join('')}</div><p class="note" id="nfb"></p>`;
+    st.onclick = async (e) => { const b = e.target.closest('[data-nw]'), n = e.target.closest('#nnext'); if (n) { LABS = { i: i + 1 }; drawGame(st); return; } if (!b || LABS.answered) return; LABS.answered = 1; const good = +b.dataset.nw === ok; $('#nfb').textContent = (good ? '✓ The model would pick that too. ' : '✗ The model would most likely pick "' + opts[ok] + '". ') + why; if (good) await labXP(5); st.insertAdjacentHTML('beforeend', '<button class="btn pri" id="nnext">Next sentence</button>'); };
+  } else if (LABG === 'spot' || LABG === 'who') {
+    st.innerHTML = `<p class="note">${LABG === 'spot' ? 'AI is writing 3 facts… one is fake.' : 'Writing two texts… one by a "human", one by AI.'}</p>`;
+    try {
+      const a = await aiAsk(LABG === 'spot' ? 'Make a quiz for someone learning about AI hallucinations. Pick a random everyday topic (space, animals, UAE, sports, food, history, science). Write 3 short facts about it: exactly 2 true, 1 false but believable. Reply only JSON {"topic": string, "facts": [string,string,string], "fake": 0|1|2, "why": "one line: what is actually true"}' : 'Game "Human or AI?". Pick a simple topic (my weekend, lunch, my pet, a rainy day, football). Write two short texts (2-3 sentences each) about it: one like a real person writes casually (a small typo or slang, specific personal detail), one in typical polished AI style (balanced, generic, tidy). Randomly choose which is first. Reply only JSON {"topic": string, "texts": [string,string], "ai": 0|1, "clues": "one line on what gives the AI one away"}');
+      const q = a.data; if (!q) throw new Error('Try again.');
+      const items = LABG === 'spot' ? q.facts : q.texts, right = LABG === 'spot' ? q.fake : q.ai;
+      st.innerHTML = `<div class="note">Topic: ${esc(q.topic)} · ${LABG === 'spot' ? 'Which one is FAKE?' : 'Which one did AI write?'}</div>${items.map((t, j) => `<button class="btn" data-pk="${j}" style="text-align:left;justify-content:flex-start;white-space:normal;line-height:1.45">${LABG === 'who' ? (j ? 'B: ' : 'A: ') : ''}${esc(t)}</button>`).join('')}<p id="pfb" style="line-height:1.5;white-space:pre-wrap"></p>`;
+      st.onclick = async (e) => { const b = e.target.closest('[data-pk]'), n = e.target.closest('#pnext'); if (n) { drawGame(st); return; } if (!b || st.dataset.done === '1') return; st.dataset.done = '1'; const good = +b.dataset.pk === right; $('#pfb').textContent = LABG === 'spot' ? (good ? '✓ You caught the hallucination! +10 XP\n' : `✗ That one is true. The fake was #${right + 1}.\n`) + q.why + '\nLesson: AI can sound sure and still be wrong. Check facts.' : (good ? '✓ Right! +10 XP\n' : `✗ It was ${right ? 'B' : 'A'}.\n`) + 'Clue: ' + q.clues + '\n(Both were actually written by AI. That shows how well it can copy styles!)'; if (good) await labXP(10); st.insertAdjacentHTML('beforeend', '<button class="btn pri" id="pnext">Play again</button>'); };
+      st.dataset.done = '';
+    } catch (x) { st.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
+  } else if (LABG === 'prompt') {
+    const TASKS = ['Get AI to help you revise for a science test on the water cycle', 'Ask AI for a 3-day study plan before your maths exam', 'Ask AI to explain photosynthesis so a 10-year-old understands', 'Get AI to give feedback on your English essay introduction', 'Ask AI for 5 healthy lunchbox ideas under 15 AED', 'Get AI to write a polite follow-up to a client who has not paid', 'Ask AI to plan your week around 3 big work tasks'];
+    const task = LABS.task || (LABS.task = TASKS[Math.floor(Math.random() * TASKS.length)]);
+    st.innerHTML = `<b style="font-weight:500">Your mission: ${esc(task)}</b><textarea class="field" id="gp" rows="4" placeholder="Write your prompt here… (tip: role, goal, context, format)"></textarea><div class="row" style="gap:6px"><button class="btn pri" id="gsc">Score my prompt</button><button class="btn sm" id="gnm">New mission</button></div><div id="gout" style="white-space:pre-wrap;line-height:1.5"></div>`;
+    $('#gnm').onclick = () => { LABS = {}; drawGame(st); };
+    $('#gsc').onclick = (e) => { const p = $('#gp').value.trim(); if (!p) return; busyB(e.target, 'Scoring…', async () => { const a = await aiAsk(`You are a friendly AI teacher. Mission: "${task}". Learner's prompt: "${p.slice(0, 1500)}". Reply in plain text: first line "Score: N/10". Then "Good:" one line, "Better:" one line, then "Try this:" an improved prompt.`); $('#gout').textContent = a.text; const m = a.text.match(/Score:\s*(\d+)/i); if (m && +m[1] >= 7) await labXP(10); }); };
+  }
 }
 
 // More: everything not on the bottom bar, plus the layout setting

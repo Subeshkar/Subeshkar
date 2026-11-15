@@ -206,7 +206,7 @@ async function reminders() {
     }
   }
 }
-const NAVKEYS = ['home','todo','wa','social','mail','cal','act','wealth','biz','career','grow','network','pulse','learn','plan','ask','files','browser','me'];
+const NAVKEYS = ['home','todo','wa','social','mail','cal','act','wealth','biz','career','grow','network','pulse','learn','plan','money','lab','ask','files','browser','me'];
 const navOf = (u) => { try { return u.nav ? JSON.parse(u.nav) : null; } catch { return null; } };
 on('GET', '/api/me', (req, res, u) => {
   const g = one(`SELECT account FROM connections WHERE user_id = ? AND kind = 'google'`, u.id);
