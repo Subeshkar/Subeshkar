@@ -1086,7 +1086,7 @@ $$('.toggle button').forEach(bt=>bt.onclick=()=>{$$('.toggle button').forEach(x=
      c.textAlign='left';c.shadowColor='rgba(0,0,0,.95)';c.shadowBlur=6;c.fillStyle='#fff';c.fillText(txt,lx,ly);c.shadowBlur=0}});
    /* inside each circle: its name near the edge, then what it holds in a neat row */
    const tx=-Math.sin(a0),ty=Math.cos(a0);
-   c.textAlign='center';c.font=`700 ${Math.round(fs*1.05)}px "IBM Plex Mono",monospace`;c.fillStyle=on?`rgb(${acc})`:'rgba(255,255,255,.62)';c.fillText(NAMES[i],x+Math.cos(a0)*R*.7,y+Math.sin(a0)*R*.7);
+   c.textAlign='center';c.font=`700 ${Math.round(fs*1.05)}px "IBM Plex Mono",monospace`;c.fillStyle=on?`rgb(${acc})`:'rgba(255,255,255,.62)';if(sm&&i)c.fillText(NAMES[i],x+Math.cos(a0)*R*.22,y+Math.sin(a0)*R*.22-fs*2.1);else c.fillText(NAMES[i],x+Math.cos(a0)*R*.7,y+Math.sin(a0)*R*.7);
    c.font=`500 ${Math.round(fs*.82)}px "IBM Plex Mono",monospace`;
    const gap=Math.max(R*.4,Math.max(...INSIDE[i].map((q)=>c.measureText(q).width))+fs*1.2);
    if(!sm||on)INSIDE[i].forEach((txt,k)=>{const o=(k-1)*gap,bx=x+Math.cos(a0)*R*.22+o,by=y+Math.sin(a0)*R*.22;c.fillStyle=on?'rgba(255,255,255,.92)':'rgba(255,255,255,.42)';c.beginPath();c.arc(bx,by-fs*.8,on?2.4:1.8,0,7);c.fill();c.fillText(txt,bx,by+1)});
