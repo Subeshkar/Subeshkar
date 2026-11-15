@@ -118,6 +118,13 @@ textarea:focus,.field:focus{border-color:var(--y)}
 .toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:#000;font-weight:500;font-size:13.5px;border-radius:99px;padding:9px 16px;z-index:20;opacity:0;transition:opacity .3s;pointer-events:none;max-width:calc(100vw - 32px);text-align:center}
 .toast.on{opacity:1}
 .empty{color:var(--faint);font-size:14px;padding:6px 2px}
+.stabs{display:grid;grid-template-columns:repeat(8,minmax(56px,1fr));gap:2px;overflow-x:auto;scrollbar-width:none;margin:10px -4px 4px;padding:4px 0 10px;border-bottom:1px solid var(--line)}
+.stabs::-webkit-scrollbar{display:none}
+.stabs button{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:5px;padding:6px 2px;color:var(--mute);font-size:13px;font-weight:500;position:relative;border-radius:12px}
+.stabs button svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.stabs button[aria-pressed=true]{color:var(--fg);background:var(--ys)}
+.stabs button[aria-pressed=true] svg{color:var(--y)}
+.stabs .badge{top:0;left:calc(50% + 8px)}
 .hide{display:none!important}
 .join .gs{display:none}
 @media (max-width:430px){.brand .live{display:none}.brand{letter-spacing:.2em;gap:8px}.tone button{padding:5px 8px}.join .gd{display:none}.join .gs{display:inline}.join{padding:7px 11px}}
@@ -128,7 +135,7 @@ textarea:focus,.field:focus{border-color:var(--y)}
 <div class="top"><div class="wrap bar">
   <div class="brand"><svg class="dlogo" width="22" height="22" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle class="ring" cx="10" cy="10" r="8.5" stroke="#fff" stroke-width="1.3" stroke-dasharray="46 7.4" stroke-linecap="round"/><circle cx="10" cy="10" r="3.2" fill="var(--y)"/></svg>DIOMA <span class="live"><i></i>DEMO</span></div>
   <div class="tr"><div class="tone" role="group" aria-label="Colour"><button type="button" data-tone="mono" aria-pressed="false"><i style="background:#fff"></i><span>Mono</span></button><button type="button" data-tone="sun" aria-pressed="true"><i style="background:#FFB547"></i><span>Sunrise</span></button></div>
-  <a class="join" id="join" target="_blank" rel="noopener"><span class="gd">Get Dioma</span><span class="gs">Join</span></a></div>
+  <a class="join" id="join"><span class="gd">Sign up</span><span class="gs">Sign up</span></a></div>
 </div></div>
 
 <main class="wrap" id="view"></main>
@@ -137,8 +144,7 @@ textarea:focus,.field:focus{border-color:var(--y)}
 <div class="toast" id="toast" role="status"></div>
 
 <script>
-const WA = 'https://wa.me/971585155559?text=' + encodeURIComponent("Hi Dioma! I tried the demo and I'm ready to change my life. I'd like early access.");
-document.getElementById('join').href = WA;
+document.getElementById('join').href = 'https://dioma.life/signup/';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -167,7 +173,17 @@ const IC = {
   cal: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
 };
 const NAV = [['home', 'Home'], ['assistant', 'Assistant'], ['pulse', 'Pulse'], ['wealth', 'Wealth'], ['more', 'More']];
-const SUBS = [['me', 'Me'], ['wa', 'WhatsApp'], ['mail', 'Mail'], ['cal', 'Calendar'], ['biz', 'Business'], ['ai', 'Ask']];
+const SUBS = [['me', 'Me'], ['wa', 'Wapp'], ['social', 'Social'], ['mail', 'Mail'], ['cal', 'Cal'], ['act', 'Activity'], ['biz', 'Business'], ['ai', 'AI']];
+const SIC = {
+  me: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>',
+  wa: '<path d="M4 20l1.3-3.8A8 8 0 1 1 8 19z"/>',
+  social: '<circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9" r="2.6"/><path d="M3 20c.8-3.6 3.2-5.5 6-5.5s5.2 1.9 6 5.5M15 15c2.8-.4 5 1.2 6 4.5"/>',
+  mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6.5l8.5 6 8.5-6"/>',
+  cal: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M8 14h.01M12 14h.01M16 14h.01M8 17.5h.01M12 17.5h.01"/>',
+  act: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M7 15l3.5-4 3 2.5L17 9"/>',
+  biz: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5h6v2M3 12.5h18"/>',
+  ai: '<path d="M11 4l1.6 4.4L17 10l-4.4 1.6L11 16l-1.6-4.4L5 10l4.4-1.6z"/><circle cx="18.5" cy="5.5" r="1.5"/>',
+};
 
 // ---- sample data (all fictional) ----
 const D = {
@@ -221,6 +237,7 @@ function actions() {
   const a = [];
   waOpen().forEach((c) => a.push({ id: c.id, src: 'WhatsApp', who: c.name, what: c.waiting ? `No reply for ${c.waiting} days — follow up` : c.msgs[c.msgs.length - 1][1], urgent: c.urgent, go: () => { S.sub = 'wa'; S.openWa = c.id; } }));
   mailOpen().forEach((m) => a.push({ id: m.id, src: 'Mail', who: `${m.from}${m.org ? ' · ' + m.org : ''}`, what: m.act, urgent: m.urgent, go: () => { S.sub = m.biz ? 'biz' : 'mail'; S.openMail = m.biz ? null : m.id; } }));
+  socialOpen().filter((x) => x.id !== 's3').forEach((x) => a.push({ id: x.id, src: 'Social', who: `${x.who} · ${x.net}`, what: x.what, go: () => { S.sub = 'social'; } }));
   if (!S.done.has('meet')) a.push({ id: 'meet', src: 'Calendar', who: 'Daniel Moore · Harbor Foods', what: 'Wants to meet Tuesday — accept 11:00 in person?', go: () => { S.sub = 'cal'; } });
   return a.sort((x, y) => (y.urgent ? 1 : 0) - (x.urgent ? 1 : 0));
 }
@@ -270,10 +287,30 @@ B.home = () => $$('[data-act]').forEach((el) => (el.onclick = () => { const x = 
 
 // ---------- Assistant ----------
 V.assistant = () => `<div class="eyebrow">Assistant</div>
-  <div class="seg" style="margin:8px 0 4px">${SUBS.map(([k, l]) => { const c = k === 'wa' ? waOpen().length : k === 'mail' ? mailOpen().filter((m) => !m.biz).length : k === 'me' ? actions().length : 0; return `<button type="button" data-sub="${k}" aria-pressed="${S.sub === k}">${l}${c ? ' · ' + c : ''}</button>`; }).join('')}</div>
+  <div class="stabs" role="tablist">${SUBS.map(([k, l]) => { const c = subCount(k); return `<button type="button" data-sub="${k}" aria-pressed="${S.sub === k}"><svg viewBox="0 0 24 24">${SIC[k]}</svg>${l}${c ? `<span class="badge">${c > 99 ? '99+' : c}</span>` : ''}</button>`; }).join('')}</div>
   <div id="subv">${SV[S.sub]()}</div>`;
 B.assistant = () => { $$('[data-sub]').forEach((b) => (b.onclick = () => { S.sub = b.dataset.sub; S.openMail = null; S.openWa = null; render(); })); SB[S.sub]?.(); };
 const SV = {}, SB = {};
+const subCount = (k) => ({ me: actions().length, wa: waOpen().length, social: socialOpen().length, mail: mailOpen().filter((m) => !m.biz).length, cal: S.done.has('meet') ? 0 : 1, biz: (S.inv < 2 ? 1 : 0) + 1 }[k] || 0);
+const SOC = [
+  { id: 's1', net: 'LinkedIn', who: 'Rania Saeed', what: 'commented on your post: “Do you also do frozen, or only chilled?”', draft: 'Hi Rania, yes — we run both chilled (0–4°C) and frozen (−18°C) trucks across the UAE. Happy to share rates in a DM.' },
+  { id: 's2', net: 'Instagram', who: 'freshfold.kitchens', what: 'sent a message: “Can you deliver to Al Quoz daily?”', draft: 'Hi! Yes, we cover Al Quoz every day. Could you share your daily volume and delivery window? We\u2019ll send a quote today.' },
+  { id: 's3', net: 'LinkedIn', who: 'Post idea from Dioma', what: 'Your new chiller trucks arrived — a short post could bring in leads this week.', draft: 'Cold chain doesn\u2019t take a day off. This week we added two new chiller trucks to keep fresh food moving across the UAE — on time, at the right temperature.' },
+];
+const socialOpen = () => SOC.filter((x) => !S.done.has(x.id) && !S.notNeeded.has(x.id));
+SV.social = () => `<div class="panel" style="margin-top:14px"><div class="row sp"><h2>Social · needs you</h2><span class="sub">LinkedIn · Instagram · X · Facebook</span></div>
+  ${socialOpen().map((x) => `<div class="item"><div class="row"><span class="pill">${x.net}</span><span class="ttl grow">${esc(x.who)}</span></div><div class="sub">${esc(x.what)}</div>
+    <div class="appr"><div class="tag">${x.id === 's3' ? 'Post written by Dioma' : 'Reply written by Dioma'}</div><textarea style="min-height:84px">${esc(x.draft)}</textarea><div class="row"><button class="btn" data-sok="${x.id}">${x.id === 's3' ? 'Approve &amp; post' : 'Approve &amp; reply'}</button><button class="ghost" data-snn="${x.id}">Not needed</button></div></div></div>`).join('') || '<p class="empty">Nothing waiting on social. 👏</p>'}</div>
+  <div class="panel"><h2>This week</h2><div class="stats"><div class="stat"><b>1.8k</b><span>post views</span></div><div class="stat"><b>+46</b><span>followers</span></div><div class="stat"><b>3</b><span>leads from social</span></div></div></div>`;
+SB.social = () => {
+  $$('[data-sok]').forEach((b) => (b.onclick = () => { S.done.add(b.dataset.sok); render(); toast('Demo: posted ✓ (nothing really posted)'); }));
+  $$('[data-snn]').forEach((b) => (b.onclick = () => { S.notNeeded.add(b.dataset.snn); render(); toast('Won\u2019t suggest this again'); }));
+};
+const LOG = [['08:02', 'Read 46 new emails and 128 WhatsApp messages', 'Brief'], ['08:03', 'Found Sky Mart\u2019s trip sheet and prepared the October invoice', 'Business'], ['08:05', 'Hid 31 promotions and newsletters from your inbox', 'Mail'], ['08:06', 'Noticed Harbor Foods wants to meet — checked your calendar for free times', 'Calendar'], ['08:07', 'Spotted you already replied to Fatima on WhatsApp — removed it from your list', 'Me'], ['08:10', 'Drafted 6 replies in your style. Waiting for your OK', 'Assistant']];
+SV.act = () => { const mine = Object.keys(S.sent).length + [...S.done].length; return `<div class="panel" style="margin-top:14px"><h2>What Dioma did today</h2>
+  ${mine ? `<div class="row"><span class="when">now</span><span class="grow">You approved ${mine} action${mine === 1 ? '' : 's'} — each one sent once and cleared everywhere</span><span class="pill ok">You</span></div>` : ''}
+  ${LOG.slice().reverse().map(([t, w, c]) => `<div class="row"><span class="when">${t}</span><span class="grow">${esc(w)}</span><span class="pill">${c}</span></div>`).join('')}</div>
+  <p class="sub">A full record of everything Dioma reads, drafts and sends — so you always know what happened.</p>`; };
 
 // Me
 SV.me = () => {

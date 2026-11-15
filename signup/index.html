@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Sign up · Dioma</title>
+<meta name="description" content="Create your Dioma account or sign in. Just your email — no password.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14'/%3E%3Ccircle cx='32' cy='32' r='19' fill='none' stroke='%23fff' stroke-width='3' stroke-dasharray='103 16.4' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='32' r='6' fill='%23FFB547'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{--acc:#fff;--accink:#000;--bg:#000;--fg:#fff;--dim:#8b8b8b;--line:#1c1c1c;--line2:#2a2a2a;--card:#0a0a0a;--bad:#ff8a7a;
+--sans:'Inter Tight',ui-sans-serif,system-ui,sans-serif;--mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;color-scheme:dark}
+html[data-tone=sun]{--acc:#ffb547;--accink:#1a0f00}
+*{box-sizing:border-box}[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit}
+a{color:var(--fg)}
+.wrap{max-width:440px;margin:0 auto;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;justify-content:center;gap:26px;padding-block:40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.logo{display:inline-flex;align-items:center;gap:10px;font:500 12px var(--mono);letter-spacing:.32em;text-decoration:none;color:var(--fg)}
+.logo svg{width:22px;height:22px}.logo .ring{transform-origin:10px 10px;animation:sp 6s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.logo .ring{animation:none}}
+h1{font-weight:400;font-size:34px;letter-spacing:-.025em;line-height:1.1;margin:0;text-wrap:balance}
+.dim{color:var(--dim)}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:#111;border:1px solid var(--line);border-radius:999px;padding:4px}
+.seg button{border:0;background:transparent;border-radius:999px;height:38px;cursor:pointer;color:var(--dim);font-weight:500}
+.seg button[aria-pressed=true]{background:var(--fg);color:#000}
+.card{border:1px solid var(--line2);border-radius:18px;background:var(--card);padding:22px;display:grid;gap:12px}
+.field{width:100%;height:50px;border-radius:12px;border:1px solid var(--line2);background:#0d0d0d;padding:0 14px;outline:none;font-size:16px}
+.field:focus{border-color:var(--acc)}
+.btn{height:50px;border-radius:999px;border:1px solid var(--acc);background:var(--acc);color:var(--accink);font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none}
+.btn.o{background:transparent;color:var(--fg);border-color:var(--line2)}
+.btn:disabled{opacity:.5}
+.err{color:var(--bad);font-size:14px;min-height:20px}
+.note{font-size:13px;color:var(--dim)}
+.plan{font:500 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--line2);border-radius:999px;padding:4px 10px;color:var(--dim);justify-self:start}
+ul{margin:0;padding-left:18px;color:var(--dim);font-size:14.5px}li{margin:3px 0}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <a class="logo" href="https://dioma.life"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle class="ring" cx="10" cy="10" r="8.5" stroke="currentColor" stroke-width="1.4" stroke-dasharray="46 7.4" stroke-linecap="round"/><circle cx="10" cy="10" r="2.8" fill="var(--acc)"/></svg>DIOMA</a>
+  <div style="display:grid;gap:10px"><h1 id="h">Create your Dioma</h1><p class="dim" id="p">Just your email. We send you a 6-digit code — no password.</p></div>
+  <div class="seg" role="group" aria-label="Sign up or sign in"><button type="button" data-m="up" aria-pressed="true">Sign up</button><button type="button" data-m="in" aria-pressed="false">Sign in</button></div>
+  <form class="card" id="f" novalidate>
+    <span class="plan" id="plan" hidden></span>
+    <input class="field" id="email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" required>
+    <button class="btn" id="go">Continue</button>
+    <div class="err" id="err" role="alert"></div>
+  </form>
+  <div class="card" id="soon" hidden>
+    <p><b style="font-weight:500">Accounts open very soon.</b> We're finishing the last checks before letting people in.</p>
+    <p class="dim" style="font-size:14.5px">Until then, you can try the full demo, or message us and we'll set you up first.</p>
+    <a class="btn" href="https://dioma.life/demo/">Try the demo</a>
+    <a class="btn o" id="wa" target="_blank" rel="noopener">Message us on WhatsApp</a>
+  </div>
+  <ul id="perks"><li>Your day in one brief: mail, calendar, to-dos</li><li>Ask Dioma anything, by typing</li><li>Free during early access</li></ul>
+  <p class="note">By continuing you agree to the <a href="https://app.dioma.life/terms">terms</a> and <a href="https://app.dioma.life/privacy">privacy policy</a>. <a href="https://dioma.life">Back to dioma.life</a></p>
+</main>
+<script>
+const APP = 'https://app.dioma.life';
+const q = new URLSearchParams(location.search);
+try { if (localStorage.getItem('dioma-tone') === 'sun') document.documentElement.dataset.tone = 'sun'; } catch {}
+let mode = q.get('mode') === 'in' ? 'in' : 'up';
+const plan = (q.get('plan') || '').replace(/[^a-z]/gi, '').slice(0, 20);
+if (plan) { const el = document.getElementById('plan'); el.hidden = false; el.textContent = plan + ' plan'; }
+function setMode(m) {
+  mode = m;
+  document.querySelectorAll('[data-m]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.m === m)));
+  document.getElementById('h').textContent = m === 'up' ? 'Create your Dioma' : 'Welcome back';
+  document.getElementById('p').textContent = m === 'up' ? 'Just your email. We send you a 6-digit code — no password.' : 'Enter your email and we’ll send you a sign-in code.';
+  document.getElementById('perks').hidden = m === 'in';
+}
+document.querySelectorAll('[data-m]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.m)));
+setMode(mode);
+document.getElementById('wa').href = 'https://wa.me/971585155559?text=' + encodeURIComponent(`Hi Dioma! I'd like early access${plan ? ' (' + plan + ' plan)' : ''}.`);
+
+// Is the app online yet? (a no-cors request succeeds only if the server answers)
+const live = fetch(APP + '/api/health', { mode: 'no-cors', cache: 'no-store' }).then(() => true, () => false);
+
+document.getElementById('f').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('email').value.trim();
+  const err = document.getElementById('err');
+  if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(email)) { err.textContent = 'Please enter a valid email address.'; return; }
+  err.textContent = ''; const go = document.getElementById('go'); go.disabled = true; go.textContent = 'One moment…';
+  if (await live) { location.href = `${APP}/?email=${encodeURIComponent(email)}${plan ? '&plan=' + plan : ''}`; return; }
+  document.getElementById('f').hidden = true; document.getElementById('soon').hidden = false;
+  go.disabled = false; go.textContent = 'Continue';
+});
+document.getElementById('email').focus();
+</script>
+</body>
+</html>
