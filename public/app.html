@@ -651,10 +651,10 @@ async function boot(force, step) {
   const qerr = new URLSearchParams(location.search).get('err'); if (qerr) { history.replaceState(null, '', '/'); setTimeout(() => toast(qerr), 300); }
   // Arriving from dioma.life with an email: if someone else is signed in here, sign them out so the code goes to this email.
   const em0 = new URLSearchParams(location.search).get('email');
+  if (em0) history.replaceState(null, '', '/' + location.hash); // never leave the email in the address bar
   try { S.me = await api('GET', '/api/me'); if (em0 && S.me.email !== em0.trim().toLowerCase()) { await api('POST', '/api/auth/logout').catch(() => {}); S.me = null; throw new Error('switch'); } } catch {
-    const em = new URLSearchParams(location.search).get('email');
     renderAuth();
-    if (em) { history.replaceState(null, '', '/'); $('#email').value = em; $('#f').requestSubmit(); }
+    if (em0) { $('#email').value = em0; $('#f').requestSubmit(); }
     return;
   }
   if (force === 'onboard' || !S.me.onboarded) return renderOnboard();
