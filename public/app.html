@@ -517,13 +517,29 @@ const CONNECT = {
   social: ['Connect your social accounts', 'Replies to comments and messages, post ideas and drafts. Nothing is posted without your OK.', [['LinkedIn', 'Messages, comments and posts', ''], ['Instagram', 'DMs, comments and posts', ''], ['Facebook', 'Page messages and comments', ''], ['X', 'Mentions and posts', ''], ['TikTok', 'Comments and posts', '']]],
   biz: ['Connect your business tools', 'Invoices from emails, money owed to you, purchase orders and leads, all in one place.', [['Zoho Books', 'Invoices, bills, purchase orders', ''], ['Zoho CRM', 'Leads, deals, follow-ups', ''], ['QuickBooks', 'Invoices and payments', ''], ['HubSpot', 'Contacts and deals', '']]],
 };
-function viewConnect(k) {
-  const [h, p, items] = CONNECT[k];
-  $('#main').innerHTML = `${stabs()}<h1>${h}</h1><p class="dim" style="margin:8px 0 18px">${p}</p>${prov(items)}`;
+// One-tap "Allow" apps (served by Dioma's app hub)
+let APPS = null;
+const loadApps = async (fresh) => { if (!APPS || fresh) APPS = await api('GET', '/api/apps').catch(() => ({ enabled: false, catalog: {}, connected: [] })); return APPS; };
+const appOn = (slug) => !!APPS && APPS.connected.includes(slug);
+function appList(group, to, skip = []) {
+  const items = ((APPS && APPS.catalog[group]) || []).filter(([k]) => !skip.includes(k));
+  return `<div class="prov">${items.map(([k, n, d]) => `<div class="item"><div class="grow"><div class="t">${n}</div><div class="s">${appOn(k) ? 'Connected' : d}</div></div>${appOn(k) ? `<button class="btn sm" data-off="${k}" data-to="${to}">Disconnect</button>` : APPS && APPS.enabled ? `<a class="btn sm pri" href="/connect/app?slug=${k}&to=${to}">Connect</a>` : '<span class="soon">Coming soon</span>'}</div>`).join('')}</div>`;
+}
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-off]'); if (!b) return;
+  if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = 'Tap again to disconnect'; b.classList.add('bad'); return; }
+  await api('DELETE', '/api/apps', { slug: b.dataset.off }).catch((x) => toast(x.message)); await loadApps(true); toast('Disconnected'); shell();
+});
+async function viewConnect(k) {
+  const [h, p] = CONNECT[k];
+  await loadApps(); if (cur() !== k) return;
+  $('#main').innerHTML = `<h1>${h}</h1><p class="dim" style="margin:8px 0 18px">${p}</p>${appList(k, k)}
+    <p class="note" style="margin-top:14px">Tap Connect, sign in to the app and tap Allow. Dioma never sees your password.</p>`;
 }
 const MAILP = [['gmail', 'Gmail', 'Personal or Google Workspace'], ['outlook', 'Outlook', 'Microsoft only allows its own sign-in; we are adding it'], ['zoho', 'Zoho Mail', 'Business email on Zoho'], ['yahoo', 'Yahoo Mail', ''], ['icloud', 'iCloud Mail', ''], ['other', 'Other email', 'Company or any other provider']];
 const APPPW = { gmail: 'Google Account → Security → App passwords', outlook: 'account.microsoft.com → Security → App passwords', zoho: 'Zoho Accounts → Security → App passwords (and turn on IMAP in Zoho Mail settings)', yahoo: 'Yahoo Account security → Generate app password', icloud: 'appleid.apple.com → Sign-in and security → App-specific passwords' };
-const mailChooser = () => `<div class="prov">${MAILP.map(([k, n, d]) => `<div class="item"><div class="grow"><div class="t">${n}</div>${d ? `<div class="s">${d}</div>` : ''}</div>${k === 'outlook' ? '<span class="soon">Coming soon</span>' : `<button class="btn sm pri" data-mp="${k}">Connect</button>`}</div>`).join('')}</div>`;
+const mailChooser = () => (APPS && APPS.enabled ? appList('mail', 'mail') + `<div class="prov" style="margin-top:10px">${MAILP.filter(([k]) => ['yahoo', 'icloud', 'other'].includes(k)).map(([k, n, d]) => `<div class="item"><div class="grow"><div class="t">${n}</div>${d ? `<div class="s">${d}</div>` : ''}</div><button class="btn sm" data-mp="${k}">Connect</button></div>`).join('')}</div>` : mailChooserPw());
+const mailChooserPw = () => `<div class="prov">${MAILP.map(([k, n, d]) => `<div class="item"><div class="grow"><div class="t">${n}</div>${d ? `<div class="s">${d}</div>` : ''}</div>${k === 'outlook' ? '<span class="soon">Coming soon</span>' : `<button class="btn sm pri" data-mp="${k}">Connect</button>`}</div>`).join('')}</div>`;
 function mailForm(k) {
   const [, n] = MAILP.find((x) => x[0] === k);
   $('#main').innerHTML = `<button class="btn sm" id="mback">← Back</button><h1 style="margin-top:12px">Connect ${n}</h1>
@@ -555,16 +571,19 @@ function wireChooser() {
 }
 async function viewMail() {
   const main = $('#main');
-  S.me = await api('GET', '/api/me').catch(() => S.me);
+  S.me = await api('GET', '/api/me').catch(() => S.me); await loadApps(true);
   if (cur() !== 'mail') return;
-  if (!gOK() && !S.me.mailbox) {
+  const mailApps = ((APPS.catalog.mail) || []).filter(([k]) => appOn(k));
+  if (!gOK() && !S.me.mailbox && !mailApps.length) {
     main.innerHTML = `<h1>Connect your mail</h1><p class="dim" style="margin:8px 0 18px">Which email do you use? Pick it and sign in. You can add more later.</p>${mailChooser()}`;
     return wireChooser();
   }
   main.innerHTML = `<h1>Mail</h1>
     ${gOK() ? `<section class="sec"><div class="row" style="justify-content:space-between"><h2 style="margin:0">${esc(S.me.google.account || 'Gmail')} · unread</h2></div><div class="list" id="ml"><div class="empty">Loading…</div></div></section>` : ''}
     ${S.me.mailbox ? `<section class="sec"><div class="row" style="justify-content:space-between"><h2 style="margin:0">${esc(S.me.mailbox)}</h2><button class="btn sm" id="mdis">Disconnect</button></div><div class="list" id="mi"><div class="empty">Loading…</div></div></section>` : ''}
-    ${S.me.mailbox ? '' : `<section class="sec"><h2>Add another mailbox</h2>${mailChooser()}</section>`}`;
+    ${mailApps.map(([k, n]) => `<section class="sec"><div class="row" style="justify-content:space-between"><h2 style="margin:0">${n}</h2><button class="btn sm" data-off="${k}">Disconnect</button></div><div class="list" data-inbox="${k}"><div class="empty">Loading…</div></div></section>`).join('')}
+    <section class="sec"><h2>Add another mailbox</h2>${mailChooser()}</section>`;
+  document.querySelectorAll('[data-inbox]').forEach(async (el) => { try { const d = await api('GET', '/api/apps/inbox?slug=' + el.dataset.inbox); el.innerHTML = d.mail.length ? d.mail.map((m) => `<div class="item"><span class="when">${m.at ? ago(m.at) : ''}</span><div class="grow"><div class="t">${esc(m.from)}</div><div class="s">${esc(m.subject)}</div></div></div>`).join('') : '<div class="empty">Inbox clear.</div>'; } catch (x) { el.innerHTML = `<div class="empty">${esc(x.message)}</div>`; } });
   wireChooser();
   $('#mdis')?.addEventListener('click', async () => { await api('DELETE', '/api/mail'); S.me.mailbox = null; toast('Mailbox disconnected'); viewMail(); });
   if (gOK()) api('GET', '/api/home').catch(() => ({ mail: [] })).then((d) => { if (!$('#ml')) return; $('#ml').innerHTML = d.mail.length ? d.mail.map((m) => `<a class="item" style="text-decoration:none" target="_blank" rel="noopener" href="https://mail.google.com/mail/u/0/#inbox/${esc(m.thread)}"><span class="when">${ago(m.at)}</span><div class="grow"><div class="t">${esc(m.from)}</div><div class="s">${esc(m.subject)}</div></div></a>`).join('') : '<div class="empty">Inbox clear.</div>'; });
@@ -572,9 +591,10 @@ async function viewMail() {
 }
 async function viewCal() {
   const main = $('#main');
+  await loadApps(true); if (cur() !== 'cal') return;
   if (!gOK()) {
-    main.innerHTML = `${stabs()}<h1>Connect your calendar</h1><p class="dim" style="margin:8px 0 18px">Dioma plans your day around it and adds meetings when you approve.</p>
-      ${prov([['Google Calendar', 'Personal or Google Workspace', gHref()], ['Outlook Calendar', 'Outlook.com or Microsoft 365', ''], ['Zoho Calendar', 'Business calendar on Zoho', '']])}`;
+    main.innerHTML = `<h1>Calendar</h1><p class="dim" style="margin:8px 0 18px">Connect your calendar. Dioma plans your day around it and adds meetings when you approve.</p>
+      ${APPS.enabled ? appList('cal', 'cal') : prov([['Google Calendar', 'Personal or Google Workspace', gHref()], ['Outlook Calendar', 'Outlook.com or Microsoft 365', ''], ['Zoho Calendar', 'Business calendar on Zoho', '']])}`;
     return;
   }
   main.innerHTML = `${stabs()}<h1>Today</h1><div class="list" id="cl" style="margin-top:14px"><div class="empty">Loading…</div></div>`;
@@ -663,6 +683,7 @@ async function boot(force, step) {
   }
   if (force === 'onboard' || !S.me.onboarded) return renderOnboard();
   const nx = new URLSearchParams(location.search).get('next'); if (nx && /^\/[a-z0-9-]+$/i.test(nx)) { location.replace(nx); return; }
+  { const q = route().q; if (q.get('app') === 'connected') { toast('Connected'); history.replaceState(null, '', '#' + cur()); } if (q.get('app') === 'failed') { toast('Not connected. Try again.'); history.replaceState(null, '', '#' + cur()); } if (q.get('apperr')) { toast(q.get('apperr')); history.replaceState(null, '', '#' + cur()); } }
   if (route().q.get('google') === 'connected') { toast('Google connected'); history.replaceState(null, '', '#' + cur()); }
   shell();
 }

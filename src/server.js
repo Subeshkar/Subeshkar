@@ -12,6 +12,7 @@ import * as G from './google.js';
 import * as O from './owner.js';
 import * as W from './wa.js';
 import * as M from './imap.js';
+import * as A from './apps.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT || 8080);
@@ -111,7 +112,7 @@ const routes = [];
 const on = (method, pattern, fn, opts = {}) => routes.push({ method, re: new RegExp('^' + pattern.replace(/:(\w+)/g, '(?<$1>[^/]+)') + '$'), fn, ...opts });
 
 on('GET', '/api/owner/pubkey', (req, res) => send(res, 200, O.publicKey(), { 'content-type': 'text/plain' }), { open: true });
-on('GET', '/api/health', (req, res) => send(res, 200, { ok: true, ai: !!process.env.ANTHROPIC_API_KEY, google: G.enabled(), mail: !!process.env.RESEND_API_KEY }), { open: true });
+on('GET', '/api/health', (req, res) => send(res, 200, { ok: true, ai: !!process.env.ANTHROPIC_API_KEY, google: G.enabled(), mail: !!process.env.RESEND_API_KEY, apps: A.enabled() }), { open: true });
 
 on('POST', '/api/auth/start', async (req, res) => {
   const { email: raw } = await json(req);
@@ -301,6 +302,28 @@ on('DELETE', '/api/files/:id', (req, res, u, p) => {
   if (f) { fs.rmSync(path.join(fileDir(u.id), f.id), { force: true }); run('DELETE FROM files WHERE id = ?', f.id); }
   send(res, 200, { ok: true });
 });
+
+// One-tap app connections (Composio)
+const pub = () => (process.env.PUBLIC_URL || 'http://localhost:8080').replace(/\/$/, '');
+const slugOk = (s) => /^[a-z0-9_]{2,40}$/.test(s || '');
+on('GET', '/api/apps', async (req, res, u) => {
+  let connected = []; try { connected = (await A.connected(u.id)).map((x) => x.slug); } catch {}
+  send(res, 200, { enabled: A.enabled(), catalog: A.CATALOG, connected });
+});
+on('GET', '/connect/app', async (req, res, u) => {
+  const q = new URL(req.url, 'http://x').searchParams, slug = q.get('slug'), to = /^[a-z]{2,10}$/.test(q.get('to') || '') ? q.get('to') : 'home';
+  if (!slugOk(slug)) return send(res, 302, '', { location: '/#' + to });
+  try { send(res, 302, '', { location: await A.link(u.id, slug, `${pub()}/connect/done?to=${to}`) }); }
+  catch (e) { send(res, 302, '', { location: `/#${to}?apperr=${encodeURIComponent(e.message)}` }); }
+}, { page: true });
+on('GET', '/connect/done', (req, res) => {
+  const q = new URL(req.url, 'http://x').searchParams, to = /^[a-z]{2,10}$/.test(q.get('to') || '') ? q.get('to') : 'home';
+  const ok = !/fail|error/i.test(q.get('status') || '');
+  send(res, 302, '', { location: `/#${to}?app=${ok ? 'connected' : 'failed'}` });
+}, { open: true });
+on('DELETE', '/api/apps', async (req, res, u) => { const b = await json(req); if (!slugOk(b.slug)) return fail(res, 400, 'Unknown app.'); await A.disconnect(u.id, b.slug); send(res, 200, { ok: true }); });
+on('GET', '/api/apps/inbox', async (req, res, u) => { const slug = new URL(req.url, 'http://x').searchParams.get('slug'); if (!slugOk(slug)) return fail(res, 400, 'Unknown app.'); send(res, 200, { mail: await A.inbox(u.id, slug) }); });
+on('POST', '/api/apps/run', async (req, res, u) => { const b = await json(req); if (!/^[A-Z0-9_]{3,80}$/.test(b.tool || '')) return fail(res, 400, 'Unknown action.'); send(res, 200, { data: await A.exec(u.id, b.tool, b.args || {}) }); });
 
 // Google connect
 on('GET', '/auth/google', (req, res, u) => {
