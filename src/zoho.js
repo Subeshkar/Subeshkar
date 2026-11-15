@@ -10,7 +10,7 @@ import { mcpToken } from './mcp.js';
 const FILE = (svc = 'mail') => path.join(process.env.DATA_DIR || './data', svc === 'books' ? 'zoho-books.json' : svc === 'cal' ? 'zoho-cal.json' : 'zoho.json');
 const load = (svc) => { try { return JSON.parse(fs.readFileSync(FILE(svc), 'utf8')); } catch { return {}; } };
 const store = (o, svc) => { fs.mkdirSync(path.dirname(FILE(svc)), { recursive: true }); fs.writeFileSync(FILE(svc), JSON.stringify(o), { mode: 0o600 }); };
-const SCOPE = { mail: 'ZohoMail.messages.READ,ZohoMail.accounts.READ,ZohoMail.folders.READ', books: 'ZohoBooks.fullaccess.all,ZohoCRM.modules.ALL,ZohoCRM.settings.READ,ZohoCRM.users.READ', cal: 'ZohoCalendar.calendar.READ,ZohoCalendar.event.ALL' };
+const SCOPE = { mail: 'ZohoMail.messages.ALL,ZohoMail.accounts.READ,ZohoMail.folders.READ', books: 'ZohoBooks.fullaccess.all,ZohoCRM.modules.ALL,ZohoCRM.settings.READ,ZohoCRM.users.READ', cal: 'ZohoCalendar.calendar.READ,ZohoCalendar.event.ALL' };
 const SCOPES = SCOPE.mail;
 
 export const zohoToken = () => crypto.createHmac('sha256', mcpToken()).update('dioma-zoho').digest('hex').slice(0, 32);
@@ -303,4 +303,21 @@ export function mountZoho(app) {
       res.send(page(`✅ Connected. Dioma can read RedexGo mail now (${list.length} recent emails found). You can close this page.`));
     } catch (e) { zohoLastTry.step = 'error: ' + String(e.message || e); res.send(page('Something went wrong: ' + String(e.message || e), svc)); }
   });
+}
+
+// Send a RedexGo email with real attachments (needs ZohoMail.messages.ALL; older connections are READ only).
+export async function zohoSendWithFiles({ to, cc, subject, body, files = [] }) {
+  const a = await account(); const c = load(); const tok = await accessToken();
+  const base = `${c.api || 'https://mail.zoho.com'}/api/accounts/${a.accountId}`;
+  const atts = [];
+  for (const f of files) {
+    const r = await fetch(`${base}/messages/attachments?` + new URLSearchParams({ fileName: f.name }), { method: 'POST', headers: { Authorization: 'Zoho-oauthtoken ' + tok, 'Content-Type': 'application/octet-stream' }, body: f.buf });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || (j.status && j.status.code >= 400)) { const why = (j.data && (j.data.errorCode || j.data.moreInfo)) || r.status; throw Object.assign(new Error('Zoho attachment upload: ' + why), { scope: /scope|INVALID_OAUTHSCOPE|401|403/i.test(String(why)) }); }
+    const d = Array.isArray(j.data) ? j.data[0] : j.data; atts.push({ storeName: d.storeName, attachmentPath: d.attachmentPath, attachmentName: d.attachmentName });
+  }
+  const r = await fetch(`${base}/messages`, { method: 'POST', headers: { Authorization: 'Zoho-oauthtoken ' + tok, 'Content-Type': 'application/json' }, body: JSON.stringify({ fromAddress: a.email, toAddress: to, ccAddress: cc || undefined, subject, content: body, mailFormat: 'plaintext', attachments: atts }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || (j.status && j.status.code >= 400)) { const why = (j.data && (j.data.errorCode || j.data.moreInfo)) || r.status; throw Object.assign(new Error('Zoho send: ' + why), { scope: /scope|INVALID_OAUTHSCOPE|401|403/i.test(String(why)) }); }
+  return { ok: true, from: a.email, attached: atts.length };
 }

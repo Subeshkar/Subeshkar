@@ -18,7 +18,7 @@ import { xStatus, xPost, xLike, xReply, xFollow, xSearch } from './xpost.js';
 import { liStatus, liPost, liInbox, liInboxChunk, igDmSnap, igInboxSave } from './linkedin.js';
 import { igapiStatus, igapiInbox, igapiThread, igapiSend, igapiMyPosts, igapiComments, igapiReply } from './igapi.js';
 import { igStatus, igFeed, igComments, igComment, igInbox, igThread, igSend, igImage, igLastError } from './ig.js';
-import { zohoList, zohoRead, zohoLinked, zohoSetupLink, booksSummary, booksContact, crmSummary, booksRecordPayment, booksBalances, booksInvoiceTotals, booksOrgs, booksFindContacts, booksCreateInvoice, booksEmailInvoice, booksGetInvoice, booksAddVat, zohoAttachments, zcalEvents, zcalCreate, calSetupLink, zohoLastTry } from './zoho.js';
+import { zohoList, zohoRead, zohoLinked, zohoSetupLink, booksSummary, booksContact, crmSummary, booksRecordPayment, booksBalances, booksInvoiceTotals, booksOrgs, booksFindContacts, booksCreateInvoice, booksEmailInvoice, booksGetInvoice, booksAddVat, zohoAttachments, zohoSendWithFiles, zcalEvents, zcalCreate, calSetupLink, zohoLastTry } from './zoho.js';
 import { anyFileText, uploadStatement, addTx, listTx, setCategory, clearAcct, fileText, clearFileTx, accounts } from './wealth.js';
 const { personalStatus, listChats, listMessages, sendPersonal, markChatRead } = P;
 
@@ -123,6 +123,8 @@ function buildServer() {
     if (chat_id.startsWith('__booksnewinv__|')) { try { return json(await booksCreateInvoice(JSON.parse(decodeURIComponent(chat_id.slice(16))))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__booksvat__|')) { try { return json(await booksAddVat(chat_id.slice(13))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__booksmailinv__|')) { try { return json(await booksEmailInvoice(JSON.parse(decodeURIComponent(chat_id.slice(17))))); } catch (e) { return json({ error: String(e.message || e) }); } }
+    if (chat_id.startsWith('__fileget__|')) { const f = fileGet(chat_id.split('|')[1]); if (!f) return json({ error: 'File not found' }); return json({ name: f.name, mime: f.mime, bytes: f.bytes, b64: fileData(f).toString('base64') }); }
+    if (chat_id.startsWith('__zohosend__|')) { try { const o = JSON.parse(Buffer.from(chat_id.slice(13), 'base64').toString('utf8')); const files = []; for (const id of o.fileIds || []) { const f = fileGet(id); if (!f) throw new Error('File not found: ' + id); files.push({ name: f.name, buf: fileData(f) }); } return json(await zohoSendWithFiles({ to: o.to, cc: o.cc, subject: o.subject, body: o.body, files })); } catch (e) { return json({ error: String(e.message || e), scope: !!e.scope }); } }
     if (chat_id.startsWith('__fileup__|')) { const [, name, mime, folder, b64] = chat_id.split('|'); try { return json(fileSave(decodeURIComponent(name), mime, b64, decodeURIComponent(folder || ''))); } catch (e) { return json({ error: String(e.message || e) }); } }
     if (chat_id.startsWith('__filedel__|')) return json(fileDelete(chat_id.slice(12)));
     if (chat_id.startsWith('__fileren__|')) { const [, id, name, folder] = chat_id.split('|'); try { return json(fileRename(id, decodeURIComponent(name || ''), decodeURIComponent(folder || ''))); } catch (e) { return json({ error: String(e.message || e) }); } }
