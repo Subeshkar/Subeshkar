@@ -383,6 +383,24 @@ on('POST', '/api/loc', async (req, res, u) => {
   run('INSERT INTO locations (user_id, lat, lng, acc, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET lat = excluded.lat, lng = excluded.lng, acc = excluded.acc, at = excluded.at', u.id, lat, lng, Number(b.acc) || null, Date.now());
   send(res, 200, { ok: true });
 });
+// iPhone Shortcut: a private link the phone calls with its location (no sign-in needed; the token is the key).
+const locLink = (t) => `${pub()}/api/loc/hook?t=${t}&lat=`;
+on('GET', '/api/loc/shortcut', (req, res, u) => {
+  let t = u.loc_token; if (!t) { t = token(18); run('UPDATE users SET loc_token = ? WHERE id = ?', t, u.id); }
+  send(res, 200, { link: locLink(t), last: one('SELECT at FROM locations WHERE user_id = ?', u.id)?.at || null });
+});
+on('POST', '/api/loc/shortcut/reset', (req, res, u) => { const t = token(18); run('UPDATE users SET loc_token = ? WHERE id = ?', t, u.id); send(res, 200, { link: locLink(t) }); });
+on('GET', '/api/loc/hook', (req, res) => {
+  const q = new URL(req.url, 'http://x').searchParams, t = q.get('t') || '';
+  if (!/^[A-Za-z0-9_-]{16,64}$/.test(t)) return fail(res, 404, 'Not found');
+  if (limited('lochook:' + t, 240, DAY)) return fail(res, 429, 'Too many');
+  const u = one('SELECT id FROM users WHERE loc_token = ?', t); if (!u) return fail(res, 404, 'Not found');
+  const n = (v) => Number(String(v || '').replace(',', '.').replace(/[^0-9.+-]/g, ''));
+  const lat = n(q.get('lat')), lng = n(q.get('lng'));
+  if (!(Math.abs(lat) <= 90 && Math.abs(lng) <= 180) || (!lat && !lng)) return fail(res, 400, 'Bad location');
+  run('INSERT INTO locations (user_id, lat, lng, acc, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET lat = excluded.lat, lng = excluded.lng, acc = excluded.acc, at = excluded.at', u.id, lat, lng, null, Date.now());
+  send(res, 200, { ok: true, message: 'Dioma has your location.' });
+}, { open: true });
 on('DELETE', '/api/loc', (req, res, u) => { run('DELETE FROM locations WHERE user_id = ?', u.id); send(res, 200, { ok: true }); });
 
 // Notifications (pop-up + vibration, also on a locked phone)

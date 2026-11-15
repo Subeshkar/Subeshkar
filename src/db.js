@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS waitlist (email TEXT PRIMARY KEY, created INTEGER NOT
 try { db.exec('ALTER TABLE users ADD COLUMN role TEXT'); } catch { /* already there */ }
 try { db.exec('ALTER TABLE users ADD COLUMN nav TEXT'); } catch { /* already there */ }
 try { db.exec('ALTER TABLE users ADD COLUMN plan TEXT'); } catch { /* already there */ }
+try { db.exec('ALTER TABLE users ADD COLUMN loc_token TEXT'); } catch { /* already there */ }
 try { db.exec('ALTER TABLE users ADD COLUMN plan_status TEXT'); } catch { /* already there */ }
 db.exec('CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)');
 db.exec('CREATE TABLE IF NOT EXISTS locations (user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, lat REAL, lng REAL, acc REAL, at INTEGER)');

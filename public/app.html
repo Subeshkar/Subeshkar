@@ -542,7 +542,7 @@ async function viewMe() {
       <textarea class="field" id="pa" rows="2" placeholder="What you do, helps Dioma prioritise" maxlength="300">${esc(m.about || '')}</textarea>
       <button class="btn sm" style="justify-self:start">Save</button></form></section>
     <section class="sec"><h2>Your plan</h2><div id="plansec"><div class="empty">Loading…</div></div></section>
-    <section class="sec"><h2>Your phone</h2>${phoneCard()}${locCard()}</section>
+    <section class="sec"><h2>Your phone</h2>${phoneCard()}${locCard()}<div id="shortcut"></div></section>
     <section class="sec"><h2>Top and bottom bars</h2>${navPicker()}</section>
     <section class="sec"><h2>Look</h2><div class="seg" id="tone"><button data-t="mono" class="${tone === 'mono' ? 'on' : ''}">Mono</button><button data-t="sun" class="${tone === 'sun' ? 'on' : ''}">Sunrise</button></div></section>
     <section class="sec"><h2>Plan</h2><p>Early access · free</p><p class="note">${m.ai.used} of ${m.ai.cap} asks used today · ${kb(m.storage.used)} of ${kb(m.storage.quota)} storage</p></section>
@@ -551,7 +551,7 @@ async function viewMe() {
   $('#gd')?.addEventListener('click', async () => { await api('DELETE', '/api/google'); toast('Google disconnected'); viewMe(); });
   $('#pf').addEventListener('submit', async (e) => { e.preventDefault(); await api('POST', '/api/me', { name: $('#pn').value, about: $('#pa').value }); toast('Saved'); viewMe(); });
   $('#tone').addEventListener('click', (e) => { const t = e.target.dataset.t; if (t) setTone(t); });
-  wirePicker(viewMe); wirePhone(viewMe); planSection();
+  wirePicker(viewMe); wirePhone(viewMe); planSection(); shortcutCard();
   $('#lo').addEventListener('click', signOutAsk);
   $('#del').addEventListener('click', () => {
     $('#delrow').innerHTML = `<form class="stack card" id="df" style="margin-top:12px"><p>This deletes your account, to-dos, chats and files, and disconnects Google. It can't be undone.</p><input class="field" id="dc" placeholder="Type ${esc(m.email)} to confirm" autocomplete="off"><button class="btn sm bad" style="justify-self:start">Delete everything</button><div class="err" id="derr"></div></form>`;
@@ -747,6 +747,37 @@ async function planSection() {
     const mk = e.target.closest('[data-mark]'); if (mk) { await api('POST', '/api/billing/mark', { email: mk.dataset.mark, status: 'active' }).catch(() => {}); toast('Marked as paid'); planSection(); }
   };
   if (b.owner) { const c = await api('GET', '/api/billing/customers').catch(() => ({ customers: [] })); const box = $('#custs'); if (box && c.customers.length) box.innerHTML = `<p class="eyebrow" style="margin-top:8px">Customers who chose a plan</p><div class="list">${c.customers.map((x) => `<div class="item"><div class="grow"><div class="t">${esc(x.name || x.email)}</div><div class="s">${esc(x.email)} · ${esc(x.plan)} · ${esc(st[x.plan_status] || x.plan_status || '')}</div></div>${x.plan_status !== 'active' ? `<button class="btn sm" data-mark="${esc(x.email)}">Mark paid</button>` : ''}</div>`).join('')}</div>`; }
+}
+// iPhone Shortcut: the phone sends its location to Dioma by itself (when you leave or arrive somewhere, or at set times)
+async function shortcutCard() {
+  const el = $('#shortcut'); if (!el) return;
+  const d = await api('GET', '/api/loc/shortcut').catch(() => null); if (!d || !$('#shortcut')) return;
+  const last = d.last ? new Date(d.last).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : 'not yet';
+  el.innerHTML = `<details class="card" style="margin-top:10px"><summary style="cursor:pointer;font-weight:500">iPhone Shortcut: location without opening Dioma</summary>
+    <div class="stack" style="margin-top:12px">
+      <p class="dim">Your iPhone sends its location to Dioma by itself, so leave-now alerts work even when Dioma is closed. Last location received: <b style="font-weight:500;color:var(--fg)">${esc(last)}</b>.</p>
+      <p class="eyebrow">Your private link (keep it to yourself)</p>
+      <div class="row" style="gap:6px"><input class="field grow" id="sclink" readonly value="${esc(d.link)}"><button class="btn sm pri" id="sccopy">Copy</button></div>
+      <p class="eyebrow" style="margin-top:6px">A. Make the shortcut (once, 2 minutes)</p>
+      <ol style="margin:0;padding-left:20px;line-height:1.75">
+        <li>Open the <b style="font-weight:500">Shortcuts</b> app → tap <b style="font-weight:500">+</b> → name it <b style="font-weight:500">Dioma location</b>.</li>
+        <li>Tap <b style="font-weight:500">Add Action</b>, search <b style="font-weight:500">Get Current Location</b>, tap it.</li>
+        <li>Add action <b style="font-weight:500">Get Contents of URL</b>. Tap the <b style="font-weight:500">URL</b> field and paste your link (it ends with <b style="font-weight:500">lat=</b>).</li>
+        <li>Right after <b style="font-weight:500">lat=</b>, tap <b style="font-weight:500">Current Location</b> above the keyboard, then tap the inserted bubble and choose <b style="font-weight:500">Latitude</b>.</li>
+        <li>Type <b style="font-weight:500">&amp;lng=</b>, insert <b style="font-weight:500">Current Location</b> again and choose <b style="font-weight:500">Longitude</b>. Tap <b style="font-weight:500">Done</b>.</li>
+        <li>Tap the shortcut once to test, and allow location. Then refresh this page: "Last location received" changes to now.</li>
+      </ol>
+      <p class="eyebrow" style="margin-top:6px">B. Make it run by itself</p>
+      <ol style="margin:0;padding-left:20px;line-height:1.75">
+        <li>In Shortcuts tap <b style="font-weight:500">Automation</b> → <b style="font-weight:500">+</b>.</li>
+        <li>Choose <b style="font-weight:500">Leave</b> (pick Home, then your office) or <b style="font-weight:500">Time of Day</b> (for example 7:30, 12:00, 16:00).</li>
+        <li>Pick <b style="font-weight:500">Run Immediately</b>, then choose your <b style="font-weight:500">Dioma location</b> shortcut.</li>
+        <li>Repeat for each place or time you want. More automations means fresher leave-now alerts.</li>
+      </ol>
+      <button class="btn sm" id="screset" style="justify-self:start">Make a new link (old one stops working)</button>
+    </div></details>`;
+  $('#sccopy').onclick = async () => { const i = $('#sclink'); try { await navigator.clipboard.writeText(i.value); toast('Link copied'); } catch { i.select(); toast('Selected. Tap Copy.'); } };
+  $('#screset').onclick = async () => { await api('POST', '/api/loc/shortcut/reset').catch(() => {}); toast('New link made. Update your shortcut.'); shortcutCard(); };
 }
 // More: everything not on the bottom bar, plus the layout setting
 function viewMore() {
