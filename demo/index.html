@@ -118,7 +118,7 @@ textarea:focus,.field:focus{border-color:var(--y)}
 .toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:#000;font-weight:500;font-size:13.5px;border-radius:99px;padding:9px 16px;z-index:20;opacity:0;transition:opacity .3s;pointer-events:none;max-width:calc(100vw - 32px);text-align:center}
 .toast.on{opacity:1}
 .empty{color:var(--faint);font-size:14px;padding:6px 2px}
-.stabs{display:grid;grid-template-columns:repeat(8,minmax(56px,1fr));gap:2px;overflow-x:auto;scrollbar-width:none;margin:10px -4px 4px;padding:4px 0 10px;border-bottom:1px solid var(--line)}
+.stabs{display:grid;grid-template-columns:repeat(8,minmax(58px,1fr));gap:2px;overflow-x:auto;scrollbar-width:none;margin:12px -4px 4px;padding:4px 0 10px;border-bottom:1px solid var(--line)}
 .stabs::-webkit-scrollbar{display:none}
 .stabs button{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:5px;padding:6px 2px;color:var(--mute);font-size:13px;font-weight:500;position:relative;border-radius:12px}
 .stabs button svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
@@ -264,7 +264,7 @@ const B = {};
 // ---------- Home ----------
 V.home = () => {
   const a = actions();
-  return `<div class="eyebrow">Sunday 15 Nov · Dubai 24°</div><h1>Good morning, <span>Sara</span></h1><div class="sun"></div>
+  return `${stabs('')}<div class="eyebrow">Sunday 15 Nov · Dubai 24°</div><h1>Good morning, <span>Sara</span></h1><div class="sun"></div>
   <div class="ycard"><div class="lbl">YOUR BRIEF</div><ul>
     <li><b>${a.length} things</b> need you today${a.some((x) => x.urgent) ? ', 1 urgent: Falcon Freight wants December rates' : ''}.</li>
     <li><b>11:00</b> site visit at Harbor Foods, DIP. Leave by 10:25 — 18 min drive.</li>
@@ -283,11 +283,11 @@ V.home = () => {
   </div>
   <p class="sub" style="margin:18px 0 0">Everything here is a demo. In your own Dioma it reads your real WhatsApp, Gmail, Outlook, Zoho and calendar — and nothing is sent until you tap Approve.</p>`;
 };
-B.home = () => $$('[data-act]').forEach((el) => (el.onclick = () => { const x = actions().find((a) => a.id === el.dataset.act); S.tab = 'assistant'; x.go(); render(); scrollTo({ top: 0 }); }));
+B.home = () => $$('[data-sub]').forEach((b) => (b.onclick = () => go('assistant', b.dataset.sub))) || $$('[data-act]').forEach((el) => (el.onclick = () => { const x = actions().find((a) => a.id === el.dataset.act); S.tab = 'assistant'; x.go(); render(); scrollTo({ top: 0 }); }));
 
 // ---------- Assistant ----------
-V.assistant = () => `<div class="eyebrow">Assistant</div>
-  <div class="stabs" role="tablist">${SUBS.map(([k, l]) => { const c = subCount(k); return `<button type="button" data-sub="${k}" aria-pressed="${S.sub === k}"><svg viewBox="0 0 24 24">${SIC[k]}</svg>${l}${c ? `<span class="badge">${c > 99 ? '99+' : c}</span>` : ''}</button>`; }).join('')}</div>
+const stabs = (on) => `<div class="stabs" role="tablist">${SUBS.map(([k, l]) => { const c = subCount(k); return `<button type="button" data-sub="${k}" aria-pressed="${on === k}"><svg viewBox="0 0 24 24">${SIC[k]}</svg>${l}${c ? `<span class="badge">${c > 99 ? '99+' : c}</span>` : ''}</button>`; }).join('')}</div>`;
+V.assistant = () => `${stabs(S.sub)}
   <div id="subv">${SV[S.sub]()}</div>`;
 B.assistant = () => { $$('[data-sub]').forEach((b) => (b.onclick = () => { S.sub = b.dataset.sub; S.openMail = null; S.openWa = null; render(); })); SB[S.sub]?.(); };
 const SV = {}, SB = {};
