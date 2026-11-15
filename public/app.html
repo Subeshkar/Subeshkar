@@ -165,7 +165,8 @@ const KEYS = ITEMS.map((i) => i[0]);
 const LABEL = Object.fromEntries(ITEMS.map((i) => [i[0], i[1]])), ICON = Object.fromEntries(ITEMS.map((i) => [i[0], i[2]]));
 const DEF_NAV = { top: ['todo','wa','social','mail','cal','act','wealth','biz','ask'], bottom: ['home','wa','mail','ask'] };
 const MAXB = 4;
-const NAVP = () => { const n = S.me && S.me.nav; return n && Array.isArray(n.top) && Array.isArray(n.bottom) ? n : DEF_NAV; };
+// Saved bars + any new section added since they were saved goes to the top bar (so new features are never hidden).
+const NAVP = () => { const n = S.me && S.me.nav; if (!(n && Array.isArray(n.top) && Array.isArray(n.bottom))) return DEF_NAV; const known = n.known || ['home','todo','wa','social','mail','cal','act','biz','ask','files','me']; const fresh = KEYS.filter((k) => !known.includes(k) && !n.top.includes(k) && !n.bottom.includes(k)); return fresh.length ? { ...n, top: [...n.top, ...fresh] } : n; };
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 const S = { me: null, folder: '', newFolders: [], chat: null, busy: false };
@@ -581,9 +582,9 @@ function wirePicker(again) {
     let top = n.top.filter((x) => x !== k), bottom = n.bottom.filter((x) => x !== k);
     if (w === 'bottom') { if (bottom.length >= MAXB) return toast(`The bottom bar holds ${MAXB}. Move one to Top or More first.`); bottom.push(k); }
     if (w === 'top') top.push(k);
-    save({ top: KEYS.filter((x) => top.includes(x)), bottom });
+    save({ top: KEYS.filter((x) => top.includes(x)), bottom, known: [...KEYS] });
   });
-  $('#pickreset').addEventListener('click', () => save({ top: [...DEF_NAV.top], bottom: [...DEF_NAV.bottom] }));
+  $('#pickreset').addEventListener('click', () => save({ top: [...DEF_NAV.top], bottom: [...DEF_NAV.bottom], known: [...KEYS] }));
 }
 const prov = (items) => `<div class="prov">${items.map(([name, desc, href]) => `<div class="item"><div class="grow"><div class="t">${name}</div><div class="s">${desc}</div></div>${href ? `<a class="btn sm pri" href="${href}">Connect</a>` : '<span class="soon">Coming soon</span>'}</div>`).join('')}</div>`;
 const gOK = () => !!S.me.google, gHref = () => (S.me.googleAvailable ? '/auth/google' : '');

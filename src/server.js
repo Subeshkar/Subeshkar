@@ -177,7 +177,7 @@ on('POST', '/api/me', async (req, res, u) => {
   if (b.nav && Array.isArray(b.nav.top) && Array.isArray(b.nav.bottom)) {
     const clean = (a) => [...new Set(a.filter((k) => NAVKEYS.includes(k)))];
     const bottom = clean(b.nav.bottom).slice(0, 4), top = clean(b.nav.top).filter((k) => !bottom.includes(k));
-    nav = JSON.stringify({ top, bottom });
+    nav = JSON.stringify({ top, bottom, known: Array.isArray(b.nav.known) ? clean(b.nav.known) : NAVKEYS });
   }
   run('UPDATE users SET name = ?, about = ?, tz = ?, role = ?, nav = ?, onboarded = ? WHERE id = ?', name, about, tz, role, nav ?? null, b.onboarded ? 1 : u.onboarded, u.id);
   send(res, 200, { ok: true });
@@ -428,6 +428,9 @@ if (secure()) SEC['strict-transport-security'] = 'max-age=31536000';
 http.createServer(async (req, res) => {
   for (const [k, v] of Object.entries(SEC)) res.setHeader(k, v);
   const url = new URL(req.url, 'http://x');
+  // Customers only ever see the Dioma address: the Railway address forwards to PUBLIC_URL (app.dioma.life).
+  const canon = (process.env.PUBLIC_URL || '').replace(/\/$/, ''), host = String(req.headers.host || '');
+  if (canon.startsWith('https://') && host.endsWith('.up.railway.app') && !canon.includes(host) && url.pathname !== '/api/health') { res.writeHead(301, { location: canon + req.url }); return res.end(); }
   try {
     const file = STATIC[url.pathname] || (/^\/(icon\.svg|manifest\.webmanifest|shim\.js)$/.test(url.pathname) ? url.pathname.slice(1) : null);
     if (req.method === 'GET' && file) {
