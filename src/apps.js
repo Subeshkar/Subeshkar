@@ -98,15 +98,26 @@ export async function events(uid) {
   let ev = [];
   try {
     const on = (await connected(uid)).map((x) => x.slug);
-    const now = new Date(), end = new Date(Date.now() + 36 * 3600e3);
-    for (const slug of ['googlecalendar', 'outlook'].filter((s) => on.includes(s))) {
+    const now = new Date(); now.setHours(0, 0, 0, 0); const end = new Date(now.getTime() + 2 * 864e5);
+    for (const slug of ['zoho', 'googlecalendar', 'outlook'].filter((s) => on.includes(s))) {
+      if (slug === 'zoho') {
+        try {
+          const tool = await findTool('zoho', /CALENDAR.*EVENTS?$|LIST.*EVENTS?$|GET.*EVENTS$/); if (!tool) continue;
+          const data = await runFill(uid, tool, { 'start|from|range_start|timeMin': now.toISOString(), 'end|to|range_end|timeMax': end.toISOString() }).catch(() => exec(uid, tool, {}));
+          for (const e of firstArray(data) || []) {
+            const st = e.dateandtime?.start || e.start?.dateTime || e.start || e.startTime || e.Start_DateTime;
+            if (st) ev.push({ id: String(e.uid || e.id || st), title: e.title || e.Event_Title || e.summary || '(no title)', start: /^\d{8}T\d{6}/.test(st) ? st.replace(/^(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d)(\d\d)(.*)$/, '$1-$2-$3T$4:$5:$6$7') : st, allDay: !!e.isallday, where: e.location || e.Venue || '', src: 'business' });
+          }
+        } catch {}
+        continue;
+      }
       const tool = await findTool(slug, /(LIST|FIND).*EVENTS?$/) || await findTool(slug, /(LIST|FIND|GET).*EVENT/); if (!tool) continue;
       const args = slug === 'googlecalendar' ? { timeMin: now.toISOString(), timeMax: end.toISOString(), singleEvents: true, orderBy: 'startTime', maxResults: 25 } : { start_datetime: now.toISOString(), end_datetime: end.toISOString(), top: 25 };
       const data = await exec(uid, tool, args).catch(() => exec(uid, tool, {}));
       for (const e of firstArray(data) || []) {
         const st = e.start?.dateTime || e.start?.date || e.start || e.startDateTime;
         const where = typeof e.location === 'string' ? e.location : e.location?.displayName || e.location?.address?.street || '';
-        if (st) ev.push({ id: String(e.id || e.iCalUId || st), title: e.summary || e.subject || '(no title)', start: st, allDay: !!e.start?.date && !e.start?.dateTime || !!e.isAllDay, where });
+        if (st) ev.push({ id: String(e.id || e.iCalUId || st), title: e.summary || e.subject || '(no title)', start: st, allDay: !!e.start?.date && !e.start?.dateTime || !!e.isAllDay, where, src: slug === 'outlook' ? 'business' : 'personal' });
       }
     }
   } catch (x) { console.error('events', x.message); }

@@ -79,12 +79,13 @@ main{padding-block:22px calc(110px + env(safe-area-inset-bottom,0px))}
 nav.bot{position:fixed;left:0;right:0;bottom:0;z-index:10;background:rgba(0,0,0,.9);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
 nav.bot .wrap{display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
 [hidden]{display:none!important}
-#tabs{padding-top:14px}
+#tabs{padding-top:14px;position:sticky;top:calc(56px + env(safe-area-inset-top,0px));z-index:9;background:#000}
 .srcb{display:inline-block;margin-top:3px;font:500 10.5px var(--mono);letter-spacing:.04em;color:var(--acc);border:1px solid rgba(var(--accrgb),.4);border-radius:999px;padding:1px 7px}
 .wsug{display:flex;gap:6px;margin-top:8px;align-items:center}.wsug .field{flex:1;min-width:0;min-height:36px;padding:6px 10px;font-size:14px}.wsug .btn{flex:none}
-.wtop{position:sticky;z-index:5;background:var(--bg);padding:10px 0 10px;gap:10px;border-bottom:1px solid var(--line);margin:-10px 0 0}
+.wexp{margin:-2px 0 10px;padding:12px}.wexm{display:flex;flex-direction:column;gap:6px;max-height:300px;overflow:auto}
+.wtop{position:sticky;z-index:5;background:var(--bg);padding:8px 0;gap:8px;border-bottom:1px solid var(--line)}
 .wstats{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px}
-@media (max-width:620px){.wstats{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.wst{padding:5px 3px;border-radius:10px}.wst b{font-size:15px}.wst span{font-size:10px}.wsug{flex-wrap:wrap}.wsug .field{flex:1 1 100%}}
+@media (max-width:620px){#cst.wstats{grid-template-columns:repeat(3,minmax(0,1fr))!important}.wstats{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.wst{padding:5px 3px;border-radius:10px}.wst b{font-size:15px}.wst span{font-size:10px}.wsug{flex-wrap:wrap}.wsug .field{flex:1 1 100%}}
 .wst{cursor:pointer;background:transparent;color:var(--fg);font:inherit;border:1px solid var(--line2);border-radius:12px;padding:8px 6px;text-align:center;display:flex;flex-direction:column;gap:2px}
 .wst b{font-size:17px;font-weight:600;line-height:1.1}.wst span{font-size:10.5px;color:var(--dim);line-height:1.2}
 .wst.hi{background:var(--acc);border-color:var(--acc)}.wst.hi b,.wst.hi span{color:var(--accink)}
@@ -464,7 +465,7 @@ async function viewAsk() {
   if (!S.chat) S.chat = await api('GET', '/api/chat').catch(() => ({ messages: [], used: 0, cap: 30 }));
   if (cur() !== 'ask') return;
   const draw = () => {
-    main.innerHTML = `${stabs()}<div class="row" style="justify-content:space-between"><h1>Ask Dioma</h1><div class="row" style="gap:6px"><button class="btn sm" id="spk" aria-pressed="${SPEAK}">${SPEAK ? 'Voice on' : 'Voice off'}</button>${S.chat.messages.length ? '<button class="btn sm" id="clr">Clear</button>' : ''}</div></div>
+    main.innerHTML = `${stabs()}<div class="row" style="justify-content:flex-end"><div class="row" style="gap:6px"><button class="btn sm" id="spk" aria-pressed="${SPEAK}">${SPEAK ? 'Voice on' : 'Voice off'}</button>${S.chat.messages.length ? '<button class="btn sm" id="clr">Clear</button>' : ''}</div></div>
       <div class="chat" id="chat" style="margin-top:20px">${S.chat.messages.length ? S.chat.messages.map((m) => `<div class="msg ${m.role}">${esc(m.text)}</div>`).join('') : `<p class="dim">Ask about your day, your mail, or tell Dioma what to remember.</p><div class="chips">${['What should I do first today?', 'Summarise my unread email', 'Remind me to call the bank tomorrow', 'What meetings do I have today?'].map((c) => `<button class="chip">${esc(c)}</button>`).join('')}</div>`}
       ${S.busy ? '<div class="msg assistant"><span class="typing"><i></i><i></i><i></i></span></div>' : ''}</div>
       <p class="note mono" style="margin-top:14px;font-size:11.5px">${S.chat.used} of ${S.chat.cap} asks today${S.me.ai.live ? '' : ' · test mode'}</p>`;
@@ -506,7 +507,7 @@ async function viewFiles() {
   const here = d.files.filter((f) => f.folder === cur);
   const count = (fo) => d.files.filter((f) => f.folder === fo || f.folder.startsWith(fo + '/')).length;
   const crumbs = ['', ...cur.split('/').filter(Boolean).map((_, i, a) => a.slice(0, i + 1).join('/'))];
-  main.innerHTML = `<div class="row" style="justify-content:space-between"><h1>Files</h1><span class="note mono" style="font-size:11.5px">${kb(d.used)} of ${kb(d.quota)}</span></div>
+  main.innerHTML = `<div class="row" style="justify-content:flex-end"><span class="note mono" style="font-size:11.5px">${kb(d.used)} of ${kb(d.quota)}</span></div>
     <div class="crumbs" style="margin-top:14px">${crumbs.map((c) => `<button data-go="${esc(c)}">${c ? esc(c.split('/').pop()) : 'All files'}</button>`).join('<span class="faint">/</span>')}</div>
     <div class="row" style="margin-top:14px;flex-wrap:wrap"><label class="btn pri sm">Upload<input type="file" id="up" multiple hidden></label><button class="btn sm" id="nf">New folder</button></div>
     <div id="nfrow"></div>
@@ -627,8 +628,7 @@ async function viewWealth() {
   const d = await api('GET', '/api/wealth?days=' + WDAYS).catch((x) => (toast(x.message), null)); if (!d || cur() !== 'wealth') return;
   const spent = d.byCat.reduce((a, c) => a + c.total, 0), max = Math.max(1, ...d.byCat.map((c) => c.total));
   const acc = (o) => d.accounts.filter((a) => a.owner === o);
-  main.innerHTML = `<h1>Wealth</h1>
-    <p class="dim" style="margin:8px 0 6px">Your bank accounts and cards in one place: where the money goes, account by account.</p>
+  main.innerHTML = `
     ${d.accounts.length ? `<div class="seg" id="wdays" style="margin:12px 0">${[[30, '30 days'], [90, '3 months'], [365, '12 months']].map(([v, l]) => `<button data-d="${v}" class="${WDAYS === v ? 'on' : ''}">${l}</button>`).join('')}</div>
     <section class="card stack"><div class="eyebrow">Spent, last ${WDAYS === 365 ? '12 months' : WDAYS === 90 ? '3 months' : '30 days'}</div><div style="font-size:30px">${money(spent)}</div>
       <div class="row" style="gap:14px;flex-wrap:wrap">${d.byOwner.map((o) => `<span class="dim">${OWN[o.owner]}: ${money(o.total)}</span>`).join('')}</div></section>
@@ -685,7 +685,7 @@ async function viewBrowser() {
   BRS = await api('GET', '/api/browser/state').catch(() => ({ open: false }));
   const w = await api('GET', '/api/wealth').catch(() => ({ accounts: [] }));
   if (cur() !== 'browser') return;
-  main.innerHTML = `<h1>Browser</h1><p class="dim" style="margin:8px 0 14px">A private browser inside Dioma. Open your bank, sign in yourself, open your transactions, then tap <b style="font-weight:500">Add this page to Wealth</b>. Dioma never saves your password, and everything is wiped when you close it.</p>
+  main.innerHTML = `<p class="dim" style="margin:0 0 14px">A private browser inside Dioma. Open your bank, sign in yourself, open your transactions, then tap <b style="font-weight:500">Add this page to Wealth</b>. Dioma never saves your password, and everything is wiped when you close it.</p>
     <form class="row" id="bru" style="gap:8px"><input class="field grow" id="bra" placeholder="Website, for example emiratesnbd.com" value="${esc(BRS.url && BRS.url !== 'about:blank' ? BRS.url : '')}"><button class="btn pri" style="height:48px">Go</button></form>
     <div class="row" style="flex-wrap:wrap;gap:6px;margin-top:10px">${BANKS.map(([n, u]) => `<button class="btn sm" data-bank="${u}">${n}</button>`).join('')}</div>
     <div id="brv" style="margin-top:14px">${BRS.open ? '' : '<div class="empty">Pick your bank above or type a website.</div>'}</div>`;
@@ -809,7 +809,7 @@ async function shortcutCard() {
   $('#screset').onclick = async () => { await api('POST', '/api/loc/shortcut/reset').catch(() => {}); toast('New link made. Update your shortcut.'); shortcutCard(); };
 }
 // ---------- Social: comments, posts, create (nothing goes out until you tap Post / Send) ----------
-let SOT = 'comments', SOD = null, SOPRE = '';
+let SOT = 'comments', SOD = null, SOPRE = '', SONET = 'all';
 const NETN = { instagram: 'Instagram', facebook: 'Facebook', linkedin: 'LinkedIn', twitter: 'X', youtube: 'YouTube', tiktok: 'TikTok' };
 const aiw = (kind, input) => api('POST', '/api/ai/write', { kind, input });
 async function viewSocial() {
@@ -817,25 +817,29 @@ async function viewSocial() {
   await loadApps(true); if (cur() !== 'social') return;
   const on = ((APPS && APPS.catalog.social) || []).filter(([k]) => appOn(k));
   if (!on.length && SOT !== 'weekly') { main.innerHTML = connBlock('social', 'social', 'Add account') + '<button class="btn" id="sowk" style="margin-top:14px">Write this week\'s posts without connecting</button>'; $('#sowk').onclick = () => { SOT = 'weekly'; viewSocial(); }; return; }
-  main.innerHTML = `<div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><div class="row" style="gap:6px;flex-wrap:wrap">${on.map(([k, n]) => `<span class="srcb" style="font-size:12px;padding:4px 10px">${n}</span>`).join('')}</div><button class="btn sm pri" data-addmore="social">+ Add account</button></div>
+  const nets = [['all', 'All'], ...((APPS && APPS.catalog.social) || []).map(([k, n]) => [k, n]), ['snapchat', 'Snapchat']];
+  main.innerHTML = `<div class="row" style="gap:8px;align-items:center"><div class="seg wtabs grow" id="sonet" style="display:flex;overflow-x:auto;scrollbar-width:none;min-width:0">${nets.map(([k, n]) => `<button data-n="${k}" class="${SONET === k ? 'on' : ''}" style="white-space:nowrap;flex:none">${n}${k !== 'all' && appOn(k) ? ' <span style="color:#3ecf6e">●</span>' : ''}</button>`).join('')}</div><button class="btn sm pri" data-addmore="social" style="flex:none">+ Add</button></div>
     <div id="more-social" hidden style="margin-top:10px">${appList('social', 'social')}</div>
     <div class="seg wtabs" id="sot" style="margin-top:14px">${[['comments', 'Comments'], ['posts', 'Posts'], ['create', 'Create post'], ['weekly', 'Write this week\'s posts']].map(([k, l]) => `<button data-t="${k}" class="${SOT === k ? 'on' : ''}">${l}</button>`).join('')}</div>
     <div id="sov" style="margin-top:14px"><div class="empty">Loading…</div></div>`;
+  $('#sonet').onclick = (e) => { const b = e.target.closest('[data-n]'); if (!b) return; SONET = b.dataset.n; $('#sonet').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); drawSo(on); };
   $('#sot').onclick = (e) => { const b = e.target.closest('[data-t]'); if (!b) return; SOT = b.dataset.t; $('#sot').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); drawSo(on); };
   if (SOT !== 'create' && SOT !== 'weekly') SOD = await api('GET', '/api/social/feed').catch((x) => ({ posts: [], errors: [x.message] }));
   drawSo(on);
 }
 async function drawSo(on) {
   const v = $('#sov'); if (!v) return;
-  if (SOT === 'create') return drawCreate(on);
+  if (SONET !== 'all' && SOT !== 'weekly' && !appOn(SONET)) { v.innerHTML = SONET === 'snapchat' ? '<div class="empty">Snapchat has no connection for apps. Dioma writes your posts (Write this week\'s posts) and you post them from the Snapchat app.</div>' : `<p class="note">${esc(NETN[SONET] || SONET)} is not connected yet.</p>${appList('social', 'social', ((APPS && APPS.catalog.social) || []).map(([k]) => k).filter((k) => k !== SONET))}`; return; }
+  if (SOT === 'create') return drawCreate(SONET === 'all' ? on : on.filter(([k]) => k === SONET));
   if (SOT === 'weekly') return drawWeekly();
   if (!SOD) SOD = await api('GET', '/api/social/feed').catch((x) => ({ posts: [], errors: [x.message] }));
+  const PS = SOD.posts.filter((p) => SONET === 'all' || p.net === SONET);
   const errs = (SOD.errors || []).map((e) => `<p class="err">${esc(e)}</p>`).join('');
   if (SOT === 'posts') {
-    v.innerHTML = errs + (SOD.posts.length ? `<div class="list">${SOD.posts.map((p) => `<div class="item" style="align-items:flex-start">${p.image ? `<img src="${esc(p.image)}" alt="" style="width:64px;height:64px;object-fit:cover;border-radius:10px;flex:none">` : ''}<div class="grow"><div class="s">${NETN[p.net]} · ${p.at ? ago(p.at) : ''} · ${p.comments.length} comments${p.likes ? ' · ' + p.likes + ' likes' : ''}</div><div class="t" style="white-space:pre-wrap">${esc((p.text || '').slice(0, 220))}</div>${p.link ? `<a class="note" href="${esc(p.link)}" target="_blank" rel="noopener" style="color:var(--acc)">Open ↗</a>` : ''}</div></div>`).join('')}</div>` : '<div class="empty">No posts found yet. LinkedIn does not share your past posts with apps, so only Instagram and Facebook Page posts show here.</div>');
+    v.innerHTML = errs + (PS.length ? `<div class="list">${PS.map((p) => `<div class="item" style="align-items:flex-start">${p.image ? `<img src="${esc(p.image)}" alt="" style="width:64px;height:64px;object-fit:cover;border-radius:10px;flex:none">` : ''}<div class="grow"><div class="s">${NETN[p.net]} · ${p.at ? ago(p.at) : ''} · ${p.comments.length} comments${p.likes ? ' · ' + p.likes + ' likes' : ''}</div><div class="t" style="white-space:pre-wrap">${esc((p.text || '').slice(0, 220))}</div>${p.link ? `<a class="note" href="${esc(p.link)}" target="_blank" rel="noopener" style="color:var(--acc)">Open ↗</a>` : ''}</div></div>`).join('')}</div>` : '<div class="empty">No posts found yet. LinkedIn does not share your past posts with apps, so only Instagram and Facebook Page posts show here.</div>');
     return;
   }
-  const cm = SOD.posts.flatMap((p) => p.comments.map((c) => ({ ...c, net: p.net, post: p.text }))).sort((a, b) => b.at - a.at);
+  const cm = PS.flatMap((p) => p.comments.map((c) => ({ ...c, net: p.net, post: p.text }))).sort((a, b) => b.at - a.at);
   v.innerHTML = errs + (cm.length ? `<div class="list">${cm.slice(0, 60).map((c, i) => `<div class="item" style="flex-direction:column;align-items:stretch;gap:8px"><div><div class="s">${NETN[c.net]} · ${esc(c.who || 'Someone')} · ${c.at ? ago(c.at) : ''}</div><div class="t">${esc(c.text)}</div><div class="note">On: ${esc((c.post || '').slice(0, 80))}</div></div>
       <textarea class="field" rows="2" id="cr${i}" placeholder="Your reply…"></textarea><div class="row" style="gap:6px"><button class="btn sm" data-air="${i}">AI reply</button><button class="btn sm pri" data-send="${i}">Send reply</button></div></div>`).join('')}</div>` : '<div class="empty">No comments to answer.</div>');
   v.onclick = async (e) => {
@@ -1317,7 +1321,7 @@ async function drawGame(st) {
 // More: everything not on the bottom bar, plus the layout setting
 function viewMore() {
   const bot = NAVP().bottom;
-  $('#main').innerHTML = `<h1>More</h1><div class="morel" style="margin-top:18px">${KEYS.filter((k) => !bot.includes(k)).map((k) => `<a href="#${k}"><svg viewBox="0 0 24 24">${I[ICON[k]]}</svg>${LABEL[k]}</a>`).join('')}</div>
+  $('#main').innerHTML = `<div class="morel">${KEYS.filter((k) => !bot.includes(k)).map((k) => `<a href="#${k}"><svg viewBox="0 0 24 24">${I[ICON[k]]}</svg>${LABEL[k]}</a>`).join('')}</div>
     <section class="sec"><h2>Your bars</h2>${navPicker()}</section>
     <section class="sec"><h2>Account</h2><button class="btn sm" id="lo2">Sign out</button></section>`;
   wirePicker(viewMore);
@@ -1420,8 +1424,7 @@ async function viewMail() {
     return wireChooser();
   }
   const FL = [['reply', 'To reply'], ['unread', 'Unread'], ['inbox', 'Inbox'], ['sent', 'Sent'], ['drafts', 'Drafts']];
-  main.innerHTML = `<a href="#home" class="back" style="color:var(--acc);text-decoration:none;font-weight:500">← Home</a>
-    <div class="row" style="justify-content:space-between;margin-top:8px;align-items:flex-end;flex-wrap:wrap;gap:10px"><h1 style="text-transform:uppercase;font-weight:600;letter-spacing:-.02em;font-size:28px">Your mail <span class="eyebrow" style="font-size:12px">Email</span></h1><button class="btn sm" id="madd">+ Add mailbox</button></div>
+  main.innerHTML = `<div class="row" style="justify-content:space-between;align-items:center"><a href="#home" class="back" style="color:var(--acc);text-decoration:none;font-weight:500">← Home</a><button class="btn sm" id="madd">+ Add mailbox</button></div>
     <div class="wstats" id="mst"></div>
     <div class="card stack" style="margin-top:14px">
       <div class="row" style="gap:8px"><div class="seg wtabs grow" id="macc" style="display:flex;overflow-x:auto"></div><button class="btn sm" id="mmore" title="Mailbox options" style="height:44px">▾</button></div>
@@ -1469,29 +1472,44 @@ async function viewMail() {
     $('#maddbox').scrollIntoView({ behavior: 'smooth' });
   });
 }
+let CALF = 'all';
 async function viewCal() {
   const main = $('#main');
   await loadApps(true); if (cur() !== 'cal') return;
   const calApps = ((APPS.catalog.cal) || []).filter(([k]) => appOn(k));
-  if (!gOK() && calApps.length) {
-    main.innerHTML = `<div class="row" style="justify-content:flex-end"><button class="btn sm pri" data-addmore="cal">+ Add calendar</button></div><div id="more-cal" hidden style="margin-top:10px">${appList('cal', 'cal')}</div><div class="list" id="cl" style="margin-top:12px"><div class="empty">Loading…</div></div>`;
-    const d = await api('GET', '/api/apps/events').catch(() => ({ events: [] }));
-    if ($('#cl')) $('#cl').innerHTML = d.events.length ? d.events.map((e) => `<div class="item"><span class="when">${e.allDay ? 'All day' : new Date(e.start).toLocaleString('en-GB', { weekday: 'short', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: S.me.tz })}</span><div class="grow"><div class="t">${esc(e.title)}</div>${e.where ? `<div class="s">${esc(e.where)}</div>` : ''}</div></div>`).join('') : '<div class="empty">Nothing in the next day and a half.</div>';
-    return;
-  }
-  if (!gOK()) {
+  if (!gOK() && !calApps.length) {
     main.innerHTML = `<p class="dim" style="margin:4px 0 14px">Connect your calendar. Dioma plans your day around it.</p>
       ${APPS.enabled ? appList('cal', 'cal') : prov([['Google Calendar', 'Personal or Google Workspace', gHref()], ['Outlook Calendar', 'Outlook.com or Microsoft 365', ''], ['Zoho Calendar', 'Business calendar on Zoho', '']])}`;
     return;
   }
-  main.innerHTML = `${stabs()}<h1>Today</h1><div class="list" id="cl" style="margin-top:14px"><div class="empty">Loading…</div></div>`;
-  const d = await api('GET', '/api/home').catch(() => ({ events: [] }));
-  if (cur() !== 'cal') return;
-  $('#cl').innerHTML = d.events.length ? d.events.map((e) => `<div class="item"><span class="when">${hm(e.start, e.allDay)}</span><div class="grow"><div class="t">${esc(e.title)}</div>${e.where ? `<div class="s">${esc(e.where)}</div>` : ''}</div>${e.link ? `<a class="pill" href="${esc(e.link)}" target="_blank" rel="noopener">Join</a>` : e.where ? `<a class="pill" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.where)}">Map</a>` : ''}</div>`).join('') : '<div class="empty">Nothing on your calendar today.</div>';
+  main.innerHTML = `<div class="row" style="justify-content:flex-end;gap:6px"><button class="btn sm" id="calr">↻</button><button class="btn sm pri" data-addmore="cal">+ Add calendar</button></div><div id="more-cal" hidden style="margin-top:10px">${appList('cal', 'cal')}</div>
+    <div class="wstats" id="cst" style="margin-top:12px;grid-template-columns:repeat(6,minmax(0,1fr))"></div>
+    <div class="seg wtabs" id="cseg" style="margin-top:12px;display:grid;grid-template-columns:repeat(3,1fr)">${[['all', 'All'], ['business', 'Business'], ['personal', 'Personal']].map(([k, l]) => `<button data-t="${k}" class="${CALF === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+    <div id="cl" style="margin-top:12px"><div class="empty">Loading…</div></div>`;
+  const load = async () => {
+    const [g, a, t] = await Promise.all([gOK() ? api('GET', '/api/home').catch(() => ({ events: [] })) : { events: [] }, calApps.length ? api('GET', '/api/apps/events').catch(() => ({ events: [] })) : { events: [] }, api('GET', '/api/todos').catch(() => ({ open: [] }))]);
+    if (cur() !== 'cal') return;
+    const seen = new Set(), ev = [...(g.events || []).map((e) => ({ ...e, src: 'personal' })), ...(a.events || []).map((e) => ({ ...e, src: e.src || 'personal' }))].filter((e) => { const k = e.title + '|' + e.start; if (seen.has(k)) return false; seen.add(k); return true; }).sort((x, y) => Date.parse(x.start) - Date.parse(y.start));
+    const dk = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: S.me.tz || 'Asia/Dubai' }).format(d), td = dk(new Date()), tm = dk(new Date(Date.now() + 864e5));
+    const today = ev.filter((e) => dk(new Date(e.start)) === td), tomo = ev.filter((e) => dk(new Date(e.start)) === tm);
+    const nxt = today.find((e) => !e.allDay && Date.parse(e.start) > Date.now());
+    const draw = () => {
+      const f = (l) => l.filter((e) => CALF === 'all' || e.src === CALF);
+      $('#cst').innerHTML = [[today.length, 'Today', 'all'], [today.filter((e) => e.src === 'business').length, 'Business', 'business'], [today.filter((e) => e.src === 'personal').length, 'Personal', 'personal'], [nxt ? hm(nxt.start) : '—', 'Next meeting', 'next'], [tomo.length, 'Tomorrow', 'tomo'], [(t.open || []).length, 'Promises', 'todo']].map(([n, l, k]) => `<button type="button" class="wst ${CALF === k ? 'hi' : ''}" data-st="${k}"><b>${n}</b><span>${l}</span></button>`).join('');
+      const row = (e) => `<div class="item" style="border-left:4px solid ${e.src === 'business' ? 'var(--acc)' : '#7FD8C4'};padding-left:10px"><span class="when">${hm(e.start, e.allDay)}</span><div class="grow"><div class="t">${esc(e.title)}</div>${e.where ? `<div class="s">${esc(e.where)}</div>` : ''}</div><span class="srcb" style="font-size:10px;${e.src === 'business' ? '' : 'color:#7FD8C4;border-color:#7FD8C4'}">${e.src === 'business' ? 'BUSINESS' : 'PERSONAL'}</span>${e.link ? `<a class="pill" href="${esc(e.link)}" target="_blank" rel="noopener">Join</a>` : ''}</div>`;
+      const T = f(today), M = f(tomo);
+      $('#cl').innerHTML = `<b style="font-weight:600">Today</b><div class="list" style="margin-top:6px">${T.length ? T.map(row).join('') : '<div class="empty">Nothing.</div>'}</div><b style="font-weight:600;display:block;margin-top:16px">Tomorrow</b><div class="list" style="margin-top:6px">${M.length ? M.map(row).join('') : '<div class="empty">Nothing.</div>'}</div>`;
+    };
+    draw();
+    $('#cst').onclick = (e) => { const b = e.target.closest('[data-st]'); if (!b) return; const k = b.dataset.st; if (k === 'todo') { location.hash = '#todo'; return; } if (k === 'tomo' || k === 'next') { $('#cl').lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; } CALF = k; $('#cseg').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x.dataset.t === CALF)); draw(); };
+    $('#cseg').onclick = (e) => { const b = e.target.closest('[data-t]'); if (!b) return; CALF = b.dataset.t; $('#cseg').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); draw(); };
+  };
+  $('#calr').onclick = load;
+  load();
 }
 async function viewActivity() {
   const main = $('#main');
-  main.innerHTML = `${stabs()}<h1>Activity</h1><p class="dim" style="margin:8px 0 14px">What you and Dioma did recently.</p><div class="list" id="al"><div class="empty">Loading…</div></div>`;
+  main.innerHTML = `<div class="list" id="al"><div class="empty">Loading…</div></div>`;
   const [t, c] = await Promise.all([api('GET', '/api/todos').catch(() => ({ done: [] })), api('GET', '/api/chat').catch(() => ({ messages: [] }))]);
   if (cur() !== 'act') return;
   const rows = [...t.done.map((x) => [x.done_at, 'Done', x.text]), ...c.messages.filter((m) => m.role === 'user').map((m) => [m.at, 'Asked', m.text])].sort((a, b) => b[0] - a[0]).slice(0, 30);
@@ -1531,6 +1549,32 @@ function waGroups(d) {
   const list = pool.filter(F[WAF.f] || F.all).filter((c) => !q || (c.name + ' ' + c.jid).toLowerCase().includes(q));
   return { stats, counts, list, other: C.filter((c) => tabOf(c) === 'other').length };
 }
+// Tap a chat: it opens right here in the list (last messages + reply box). "Full chat" opens the whole conversation.
+let WEXP = null;
+async function waExpand(jid, name) {
+  document.querySelectorAll('.wexp').forEach((x) => x.remove());
+  if (WEXP === jid) { WEXP = null; return; }
+  WEXP = jid; const row = document.querySelector(`#wl [data-jid="${CSS.escape(jid)}"]`); if (!row) return;
+  const box = document.createElement('div'); box.className = 'wexp card stack'; box.dataset.jid = jid; box.dataset.name = name;
+  box.innerHTML = '<div class="note">Loading…</div>'; row.after(box);
+  const d = await api('GET', '/api/wa/messages?jid=' + encodeURIComponent(jid)).catch(() => ({ messages: [] }));
+  if (WEXP !== jid || !box.isConnected) return;
+  const sk = Object.keys(WSUG).find((k) => k.startsWith(jid + ':')), pre = sk && !WSUG[sk].sent ? WSUG[sk].text : '';
+  box.innerHTML = `<div class="wexm">${d.messages.slice(-8).map((m) => `<div class="msg ${m.from_me ? 'user' : 'assistant'}" style="max-width:92%;font-size:14px;padding:8px 12px;${m.from_me ? '' : 'background:var(--card);border:1px solid var(--line2)'}">${esc(m.text)}<div class="note" style="font-size:10.5px;margin-top:2px">${new Date(m.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div></div>`).join('') || '<div class="note">No messages yet.</div>'}</div>
+    <textarea class="field" rows="2" placeholder="Your reply…">${esc(pre)}</textarea>
+    <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm" data-x="reply">AI reply</button><button class="btn sm" data-x="fix">Fix</button><button class="btn sm pri" data-x="send">Send</button><button class="btn sm" data-x="full" style="margin-left:auto">Full chat ↗</button></div>`;
+  const m = box.querySelector('.wexm'); m.scrollTop = m.scrollHeight;
+}
+async function expClick(e) {
+  const box = e.target.closest('.wexp'), b = e.target.closest('[data-x]'); if (!b) return; e.stopPropagation();
+  const jid = box.dataset.jid, ta = box.querySelector('textarea'), k = b.dataset.x;
+  if (k === 'full') { WEXP = null; waOpen = { jid, name: box.dataset.name }; return waChat(waOpen); }
+  if (k === 'send') { const t = ta.value.trim(); if (!t) return toast('Write a message first.'); b.disabled = true; try { await api('POST', '/api/wa/send', { jid, text: t }); toast('Sent'); ta.value = ''; WEXP = null; box.remove(); } catch (x) { toast(x.message); } b.disabled = false; return; }
+  if (k === 'fix' && !ta.value.trim()) return toast('Write something first.');
+  b.disabled = true; const l = b.textContent; b.textContent = 'Writing…';
+  try { const r = await api('POST', '/api/wa/draft', { jid, mode: k, text: ta.value }); ta.value = r.text; } catch (x) { toast(x.message); }
+  b.disabled = false; b.textContent = l;
+}
 // One-line AI reply under each chat waiting for you. Edit it, tap Send, done. Nothing goes out until you tap Send.
 const WSUG = {}; let sugBusy = false;
 const skey = (c) => c.jid + ':' + c.last_at;
@@ -1561,15 +1605,15 @@ async function viewWa() {
   if (waOpen) return waChat(waOpen);
   const midnight = new Date(); midnight.setHours(0, 0, 0, 0); WAF.midnight = midnight.getTime();
   const FL = [['action', 'Action'], ['priority', 'Priority'], ['follow', 'Follow-up'], ['unread', 'Unread'], ['all', 'All'], ['groups', 'Groups'], ['noise', 'Noise']];
-  main.innerHTML = `<div id="wtop" class="wtop stack">
-      <div class="row" style="justify-content:space-between;align-items:center;gap:8px"><a href="#home" class="back" style="color:var(--acc);text-decoration:none;font-weight:500">← Home</a><div class="row" style="gap:6px"><button class="btn sm" id="wref">Refresh</button><button class="btn sm" id="wd">Disconnect</button></div></div>
+  main.innerHTML = `<div class="row" style="justify-content:space-between;align-items:center;gap:8px"><a href="#home" class="back" style="color:var(--acc);text-decoration:none;font-weight:500">← Home</a><div class="row" style="gap:6px"><button class="btn sm" id="wref">Refresh</button><button class="btn sm" id="wd">Disconnect</button></div></div>
+    <div id="wtop" class="wtop stack" style="margin-top:10px">
       <div class="wstats" id="wst"></div>
       <div class="seg wtabs" id="wtab">${[['personal', 'Personal'], ['business', 'Business'], ['other', 'Other']].map(([k, l]) => `<button data-t="${k}" class="${WAF.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
-      <form class="row" id="wsf" style="gap:8px"><input class="field grow" id="wq" placeholder="Search name or number" value="${esc(WAF.q)}"><button class="btn sm" style="height:48px">Search</button></form>
       <div id="wfl" hidden></div>
     </div>
+    <form class="row" id="wsf" style="gap:8px;margin-top:10px"><input class="field grow" id="wq" placeholder="Search name or number" value="${esc(WAF.q)}"><button class="btn sm" style="height:48px">Search</button></form>
     <div class="list" id="wl" style="margin-top:6px"><div class="empty">Loading your chats…</div></div>`;
-  const pin = () => { const h = document.querySelector('header.top'); if (h && $('#wtop')) $('#wtop').style.top = Math.round(h.getBoundingClientRect().height) + 'px'; };
+  const pin = () => { const h = document.querySelector('header.top'), t = $('#tabs'); if (h && $('#wtop')) $('#wtop').style.top = Math.round(h.getBoundingClientRect().height + (t ? t.getBoundingClientRect().height : 0)) + 'px'; };
   pin(); addEventListener('resize', pin, { passive: true });
   const draw = (d) => {
     if (cur() !== 'wa' || !$('#wl')) return;
@@ -1577,7 +1621,7 @@ async function viewWa() {
     const sel = WAF.tab === 'business' ? 'business' : WAF.f;
     $('#wst').innerHTML = [[g.stats.reply, 'Need reply', 'action'], [g.stats.priority, 'Priority', 'priority'], [g.counts.follow || 0, 'Follow-up', 'follow'], [g.stats.unread, 'Unread', 'dunread'], [g.stats.groups, 'Groups', 'gunread'], [g.counts.noise || 0, 'Noise', 'noise'], [g.counts.all || 0, 'All', 'all'], [g.stats.sent, 'Sent today', 'sent']].map(([n, l, k]) => `<button type="button" class="wst ${sel === k ? 'hi' : ''}" data-st="${k}"><b>${n}</b><span>${l}</span></button>`).join('');
     if (false) $('#wfl').innerHTML = FL.map(([k, l]) => `<button data-f="${k}" class="${WAF.f === k ? 'on' : ''}">${l}${g.counts[k] && ['action', 'priority', 'noise', 'follow'].includes(k) ? ' ' + g.counts[k] : ''}</button>`).join('');
-    if (document.activeElement && document.activeElement.closest && document.activeElement.closest('#wl .wsug')) return; // you are typing a reply: do not redraw
+    if ((document.activeElement && document.activeElement.closest && document.activeElement.closest('#wl .wsug')) || (WEXP && document.querySelector('.wexp'))) return; // you are typing a reply: do not redraw
     if (WAF.tab === 'business') { $('#wl').innerHTML = '<div class="empty">Business WhatsApp (your company number) is coming soon. Your personal chats are in Personal.</div>'; return; }
     $('#wl').innerHTML = g.list.length ? g.list.slice(0, 120).map((c) => `<div class="item" data-jid="${esc(c.jid)}" data-name="${esc(c.name)}" style="cursor:pointer"><span class="ficon mono">${esc((c.name || '?').replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase() || '#')}</span><div class="grow" style="min-width:0"><div class="t">${esc(c.name)}${c.is_group ? ' <span class="soon">Group</span>' : ''}</div><div class="s">${c.last_from_me ? 'You: ' : ''}${esc(c.last_text || '')}</div>${!c.last_from_me && !c.is_group ? sugBar(c) : ''}</div><div style="text-align:right;flex:none"><div class="when">${ago(c.last_at)}</div>${c.unread ? `<b class="wun">${c.unread}</b>` : ''}</div></div>`).join('') : `<div class="empty">${WAF.f === 'action' ? 'Nobody is waiting for your reply.' : 'Nothing here.'}</div>`;
     sugLoad(g.list.slice(0, 120).filter((c) => !c.last_from_me && !c.is_group));
@@ -1597,7 +1641,7 @@ async function viewWa() {
   $('#wsf').addEventListener('submit', (e) => { e.preventDefault(); WAF.q = $('#wq').value; D && draw(D); });
   $('#wq').addEventListener('input', () => { WAF.q = $('#wq').value; D && draw(D); });
   $('#wref').addEventListener('click', load);
-  $('#wl').addEventListener('click', (e) => { if (e.target.closest('.wsug')) return sugClick(e); const it = e.target.closest('[data-jid]'); if (!it) return; waOpen = { jid: it.dataset.jid, name: it.dataset.name }; waChat(waOpen); });
+  $('#wl').addEventListener('click', (e) => { if (e.target.closest('.wsug')) return sugClick(e); if (e.target.closest('.wexp')) return expClick(e); const it = e.target.closest('[data-jid]'); if (!it) return; if (!e.target.closest('[data-full]')) return waExpand(it.dataset.jid, it.dataset.name); waOpen = { jid: it.dataset.jid, name: it.dataset.name }; waChat(waOpen); });
   $('#wd').addEventListener('click', () => { $('#wd').outerHTML = '<span class="row"><span class="note">Unlink WhatsApp and delete its chats from Dioma?</span><button class="btn sm bad" id="wd2">Disconnect</button></span>'; $('#wd2').addEventListener('click', async () => { await api('DELETE', '/api/wa').catch(() => {}); toast('WhatsApp disconnected'); viewWa(); }); });
   waPoll = setInterval(() => { if (cur() === 'wa' && !waOpen) load(); else clearInterval(waPoll); }, 15000);
 }
