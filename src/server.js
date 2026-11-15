@@ -19,6 +19,7 @@ import * as P from './push.js';
 import * as V from './voice.js';
 import * as AT from './autotodo.js';
 import * as SO from './social.js';
+import * as BZ from './biz.js';
 import * as MP from './maps.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -205,7 +206,7 @@ async function reminders() {
     }
   }
 }
-const NAVKEYS = ['home','todo','wa','social','mail','cal','act','wealth','biz','ask','files','browser','me'];
+const NAVKEYS = ['home','todo','wa','social','mail','cal','act','wealth','biz','career','grow','network','pulse','learn','plan','ask','files','browser','me'];
 const navOf = (u) => { try { return u.nav ? JSON.parse(u.nav) : null; } catch { return null; } };
 on('GET', '/api/me', (req, res, u) => {
   const g = one(`SELECT account FROM connections WHERE user_id = ? AND kind = 'google'`, u.id);
@@ -488,6 +489,37 @@ on('POST', '/api/ai/write', async (req, res, u) => {
   const text = (r.content || []).filter((x) => x.type === 'text').map((x) => x.text).join('').trim();
   let data = null; if (/^\s*[\[{]/.test(text.replace(/^```(json)?/, ''))) { try { const t = text.replace(/^```(json)?|```$/g, ''); data = JSON.parse(t.slice(t.search(/[\[{]/), Math.max(t.lastIndexOf('}'), t.lastIndexOf(']')) + 1)); } catch {} }
   send(res, 200, { text, data });
+});
+
+// Business
+on('GET', '/api/biz', async (req, res, u) => send(res, 200, await BZ.overview(u.id, new URL(req.url, 'http://x').searchParams.get('fresh') === '1')));
+
+// Personal notebook: CV, jobs, goals, habits, people, plan, learning progress, news topics. One JSON value per key.
+db.exec('CREATE TABLE IF NOT EXISTS kv (user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, k TEXT NOT NULL, v TEXT, at INTEGER, PRIMARY KEY (user_id, k))');
+const KV = ['cv', 'jobs', 'goals', 'habits', 'people', 'plan', 'learn', 'pulse'];
+on('GET', '/api/kv', async (req, res, u) => { const o = {}; for (const r of all('SELECT k, v FROM kv WHERE user_id = ?', u.id)) { try { o[r.k] = JSON.parse(r.v); } catch {} } send(res, 200, o); });
+on('POST', '/api/kv', async (req, res, u) => {
+  const b = await json(req); if (!KV.includes(b.k)) return fail(res, 400, 'Unknown item.');
+  const v = JSON.stringify(b.v ?? null); if (v.length > 200000) return fail(res, 413, 'That is too big to save.');
+  run('INSERT INTO kv (user_id, k, v, at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, k) DO UPDATE SET v = excluded.v, at = excluded.at', u.id, b.k, v, Date.now()); send(res, 200, { ok: true });
+});
+
+// Pulse: today's headlines from Google News for the customer's topics (titles and links only).
+const NEWS = new Map();
+async function headlines(topic) {
+  const c = NEWS.get(topic); if (c && Date.now() - c.at < 30 * 60e3) return c.items;
+  const r = await fetch('https://news.google.com/rss/search?hl=en-AE&gl=AE&ceid=AE:en&q=' + encodeURIComponent(topic + ' when:2d'), { signal: AbortSignal.timeout(12e3) });
+  const x = await r.text(), dec = (t) => t.replace(/<!\[CDATA\[|\]\]>/g, '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
+  const items = [...x.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 8).map(([, i]) => ({ title: dec((i.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || ''), link: dec((i.match(/<link>([\s\S]*?)<\/link>/) || [])[1] || ''), source: dec((i.match(/<source[^>]*>([\s\S]*?)<\/source>/) || [])[1] || ''), at: Date.parse((i.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '') || 0 })).filter((i) => i.title && /^https:\/\//.test(i.link));
+  NEWS.set(topic, { at: Date.now(), items }); return items;
+}
+on('GET', '/api/pulse', async (req, res, u) => {
+  const row = one("SELECT v FROM kv WHERE user_id = ? AND k = 'pulse'", u.id); let topics = [];
+  try { topics = JSON.parse(row?.v || 'null')?.topics || []; } catch {}
+  if (!topics.length) topics = ['UAE business', 'Dubai logistics', 'artificial intelligence'];
+  const out = [];
+  for (const t of topics.slice(0, 6)) { try { out.push({ topic: t, items: await headlines(t) }); } catch (e) { out.push({ topic: t, items: [], error: 'Could not load news right now.' }); } }
+  send(res, 200, { topics: out });
 });
 
 // Social

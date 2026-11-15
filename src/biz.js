@@ -1,0 +1,64 @@
+// Business: money owed to you (Zoho Books invoices), what you owe (bills), purchase orders, payments received,
+// CRM leads and deals (Zoho CRM), and opportunity follow-ups found in WhatsApp. Read only.
+import { all } from './db.js';
+import * as A from './apps.js';
+
+const C = new Map(); // uid -> { at, data }
+const arr = (d) => A.arrayIn(d) || [];
+const num = (v) => Number(String(v ?? 0).replace(/[^0-9.-]/g, '')) || 0;
+const DAY = 864e5;
+
+async function org(uid) {
+  const k = uid + ':org'; if (C.has(k)) return C.get(k);
+  const o = arr(await A.runFill(uid, 'ZOHO_BOOKS_LIST_ORGANIZATIONS', {}));
+  const v = String((o.find((x) => x.is_default_org) || o[0] || {}).organization_id || '');
+  if (v) C.set(k, v); return v;
+}
+
+export async function overview(uid, force) {
+  const c = C.get(uid + ':all'); if (!force && c && Date.now() - c.at < 5 * 60e3) return c.data;
+  const on = (await A.connected(uid)).map((x) => x.slug);
+  const today = new Date().toISOString().slice(0, 10);
+  const out = { books: on.includes('zoho_books'), crm: on.includes('zoho'), invoices: [], bills: [], pos: [], payments: [], leads: [], deals: [], followups: [], errors: [], totals: {} };
+  if (out.books) {
+    try {
+      const oid = await org(uid); if (!oid) throw new Error('no organization found');
+      const f = { 'organization_id': oid, 'per_page': 100 };
+      const [inv, bil, po, pay] = await Promise.all([
+        A.runFill(uid, 'ZOHO_BOOKS_LIST_INVOICES', f).catch((e) => (out.errors.push('Invoices: ' + e.message), [])),
+        A.runFill(uid, 'ZOHO_BOOKS_LIST_BILLS', f).catch((e) => (out.errors.push('Bills: ' + e.message), [])),
+        A.runFill(uid, 'ZOHO_BOOKS_LIST_PURCHASE_ORDERS', f).catch((e) => (out.errors.push('Purchase orders: ' + e.message), [])),
+        A.runFill(uid, 'ZOHO_BOOKS_LIST_CUSTOMER_PAYMENTS', f).catch(() => []),
+      ]);
+      out.invoices = arr(inv).map((x) => ({ id: x.invoice_id, no: x.invoice_number, who: x.customer_name, status: x.status, date: x.date, due: x.due_date, total: num(x.total), balance: num(x.balance), cur: x.currency_code || 'AED' }));
+      out.invoices.forEach((x) => { x.overdue = x.balance > 0 && x.due && x.due < today; x.days = x.overdue ? Math.round((Date.parse(today) - Date.parse(x.due)) / DAY) : 0; });
+      out.bills = arr(bil).map((x) => ({ id: x.bill_id, no: x.bill_number, who: x.vendor_name, status: x.status, due: x.due_date, total: num(x.total), balance: num(x.balance), cur: x.currency_code || 'AED' }));
+      out.bills.forEach((x) => { x.overdue = x.balance > 0 && x.due && x.due < today; });
+      out.pos = arr(po).map((x) => ({ id: x.purchaseorder_id, no: x.purchaseorder_number, who: x.vendor_name, status: x.status, date: x.date, due: x.delivery_date, total: num(x.total), cur: x.currency_code || 'AED' }));
+      out.payments = arr(pay).slice(0, 30).map((x) => ({ id: x.payment_id, who: x.customer_name, date: x.date, amount: num(x.amount), mode: x.payment_mode || '', cur: x.currency_code || 'AED' }));
+    } catch (e) { out.errors.push('Zoho Books: ' + e.message); }
+  }
+  if (out.crm) {
+    const [ld, dl] = await Promise.all([
+      A.runFill(uid, 'ZOHO_LIST_LEADS', { 'per_page': 50, 'sort_by': 'Modified_Time', 'sort_order': 'desc' }).catch((e) => (out.errors.push('Leads: ' + e.message), [])),
+      A.runFill(uid, 'ZOHO_LIST_DEALS', { 'per_page': 50, 'sort_by': 'Modified_Time', 'sort_order': 'desc' }).catch((e) => (out.errors.push('Deals: ' + e.message), [])),
+    ]);
+    out.leads = arr(ld).map((x) => ({ id: x.id, who: [x.First_Name, x.Last_Name].filter(Boolean).join(' ') || x.Full_Name || '', company: x.Company || '', status: x.Lead_Status || '', email: x.Email || '', phone: x.Mobile || x.Phone || '', at: Date.parse(x.Modified_Time || x.Created_Time || 0) || 0 }));
+    out.deals = arr(dl).map((x) => ({ id: x.id, name: x.Deal_Name || '', stage: x.Stage || '', amount: num(x.Amount), close: x.Closing_Date || '', who: x.Account_Name?.name || x.Contact_Name?.name || '', at: Date.parse(x.Modified_Time || 0) || 0 }));
+  }
+  // Opportunity follow-ups: people you wrote to on WhatsApp 3 to 30 days ago who never answered.
+  try {
+    const now = Date.now();
+    out.followups = all(`SELECT c.jid, COALESCE(c.name, ct.name) nm, c.last_text, c.last_at FROM wa_chats c LEFT JOIN wa_contacts ct ON ct.user_id = c.user_id AND ct.jid = c.jid
+      WHERE c.user_id = ? AND c.is_group = 0 AND c.last_from_me = 1 AND c.last_at BETWEEN ? AND ? ORDER BY c.last_at DESC LIMIT 25`, uid, now - 30 * DAY, now - 3 * DAY)
+      .filter((x) => x.nm).map((x) => ({ jid: x.jid, who: x.nm, said: String(x.last_text || '').slice(0, 200), at: x.last_at }));
+  } catch {}
+  const sum = (a, f) => a.reduce((s, x) => s + f(x), 0);
+  out.totals = {
+    owed: sum(out.invoices, (x) => x.balance), overdue: sum(out.invoices.filter((x) => x.overdue), (x) => x.balance),
+    youOwe: sum(out.bills, (x) => x.balance), openPOs: out.pos.filter((x) => !/billed|closed|cancel/i.test(x.status || '')).length,
+    pipeline: sum(out.deals.filter((x) => !/closed/i.test(x.stage)), (x) => x.amount), cur: (out.invoices[0] || out.bills[0] || {}).cur || 'AED',
+  };
+  C.set(uid + ':all', { at: Date.now(), data: out });
+  return out;
+}
