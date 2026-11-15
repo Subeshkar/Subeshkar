@@ -692,6 +692,9 @@ on('POST', '/api/wa/suggest', async (req, res, u) => {
   let items = {}; try { items = JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1)); } catch {}
   send(res, 200, { items });
 });
+on('GET', '/api/wa/voice', async (req, res, u) => { const q = new URL(req.url, 'http://x').searchParams; const v = await W.voice(u.id, q.get('jid') || '', q.get('id') || ''); const st = fs.statSync(v.file); res.writeHead(200, { 'content-type': v.type, 'content-length': st.size, 'cache-control': 'private, max-age=86400', 'accept-ranges': 'none' }); fs.createReadStream(v.file).pipe(res); });
+on('POST', '/api/wa/voicetext', async (req, res, u) => { const b = await json(req); const v = await W.voice(u.id, String(b.jid || ''), String(b.id || '')); send(res, 200, { text: await V.listen(fs.readFileSync(v.file), v.type) }); });
+on('POST', '/api/wa/sendvoice', async (req, res, u) => { const q = new URL(req.url, 'http://x').searchParams; const buf = await readBody(req, 16 * 1024 * 1024); if (buf.length < 800) return fail(res, 400, 'The recording is empty. Hold a little longer.'); send(res, 200, await W.sendVoice(u.id, q.get('jid') || '', buf, String(req.headers['content-type'] || ''))); }, { raw: true });
 on('POST', '/api/wa/sendfile', async (req, res, u) => {
   const q = new URL(req.url, 'http://x').searchParams; const buf = await readBody(req, 15 * 1024 * 1024); if (!buf.length) return fail(res, 400, 'Empty file.');
   send(res, 200, await W.sendFile(u.id, q.get('jid') || '', (q.get('name') || 'file').slice(0, 120), String(req.headers['content-type'] || ''), buf, (q.get('caption') || '').slice(0, 1000)));

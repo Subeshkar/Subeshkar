@@ -4,9 +4,11 @@
 // This uses the WhatsApp Web protocol (Baileys). WhatsApp does not officially support it; customers are told before linking.
 import path from 'node:path';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import pino from 'pino';
 import QRCode from 'qrcode';
-import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, Browsers, isJidGroup } from '@whiskeysockets/baileys';
+import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, Browsers, isJidGroup, downloadMediaMessage, BufferJSON } from '@whiskeysockets/baileys';
+import * as AU from './audio.js';
 import { DIR, db, all, one, run } from './db.js';
 
 db.exec(`
@@ -16,6 +18,8 @@ CREATE INDEX IF NOT EXISTS wa_messages_at ON wa_messages (user_id, jid, at);
 CREATE TABLE IF NOT EXISTS wa_contacts (user_id INTEGER NOT NULL, jid TEXT NOT NULL, name TEXT, PRIMARY KEY (user_id, jid));
 `);
 
+try { db.exec('ALTER TABLE wa_messages ADD COLUMN media TEXT'); } catch { /* already there */ }
+const MEDIA = path.join(DIR, 'wa-media'); fs.mkdirSync(MEDIA, { recursive: true });
 db.exec(`CREATE TABLE IF NOT EXISTS wa_flags (user_id INTEGER NOT NULL, jid TEXT NOT NULL, ignored_at INTEGER, noise INTEGER DEFAULT 0, PRIMARY KEY (user_id, jid));`);
 export const ignore = (uid, jid) => run('INSERT INTO wa_flags (user_id, jid, ignored_at) VALUES (?, ?, ?) ON CONFLICT(user_id, jid) DO UPDATE SET ignored_at = excluded.ignored_at', uid, jid, Date.now());
 export const setNoise = (uid, jid, on) => run('INSERT INTO wa_flags (user_id, jid, noise) VALUES (?, ?, ?) ON CONFLICT(user_id, jid) DO UPDATE SET noise = excluded.noise', uid, jid, on ? 1 : 0);
@@ -45,7 +49,10 @@ function saveMessage(uid, m, live) {
   const at = Number(m.messageTimestamp || 0) * 1000 || Date.now();
   const fromMe = m.key.fromMe ? 1 : 0;
   if (!fromMe && m.pushName && !isJidGroup(jid)) run('INSERT INTO wa_contacts (user_id, jid, name) VALUES (?, ?, ?) ON CONFLICT(user_id, jid) DO NOTHING', uid, jid, m.pushName);
-  run('INSERT OR IGNORE INTO wa_messages (user_id, jid, id, from_me, sender_name, text, at) VALUES (?, ?, ?, ?, ?, ?, ?)', uid, jid, m.key.id, fromMe, fromMe ? 'You' : m.pushName || null, text.slice(0, 4000), at);
+  const inner = m.message?.ephemeralMessage?.message || m.message?.viewOnceMessage?.message || m.message || {};
+  // Voice notes: keep what is needed to download them later (only when the customer taps play).
+  const media = m.media || (inner.audioMessage && inner.audioMessage.mediaKey ? JSON.stringify({ key: m.key, message: { audioMessage: inner.audioMessage } }, BufferJSON.replacer) : null);
+  run('INSERT INTO wa_messages (user_id, jid, id, from_me, sender_name, text, at, media) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, jid, id) DO UPDATE SET media = COALESCE(wa_messages.media, excluded.media)', uid, jid, m.key.id, fromMe, fromMe ? 'You' : m.pushName || null, text.slice(0, 4000), at, media);
   run(`INSERT INTO wa_chats (user_id, jid, name, is_group, last_text, last_from_me, last_at, unread) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(user_id, jid) DO UPDATE SET last_text = CASE WHEN excluded.last_at >= wa_chats.last_at THEN excluded.last_text ELSE wa_chats.last_text END,
          last_from_me = CASE WHEN excluded.last_at >= wa_chats.last_at THEN excluded.last_from_me ELSE wa_chats.last_from_me END,
@@ -101,7 +108,7 @@ export function status(uid) {
 export const chats = (uid, q = '') => all(`SELECT c.jid, COALESCE(c.name, ct.name, substr(c.jid, 1, instr(c.jid, '@') - 1)) name, c.is_group, c.unread, c.last_text, c.last_from_me, c.last_at
   FROM wa_chats c LEFT JOIN wa_contacts ct ON ct.user_id = c.user_id AND ct.jid = c.jid
   WHERE c.user_id = ? AND c.last_at > 0 ${q ? 'AND (c.name LIKE ? OR ct.name LIKE ? OR c.jid LIKE ?)' : ''} ORDER BY c.last_at DESC LIMIT 80`, ...(q ? [uid, `%${q}%`, `%${q}%`, `%${q}%`] : [uid]));
-export const messages = (uid, jid) => all('SELECT id, from_me, sender_name, text, at FROM wa_messages WHERE user_id = ? AND jid = ? ORDER BY at DESC LIMIT 60', uid, jid).reverse();
+export const messages = (uid, jid) => all('SELECT id, from_me, sender_name, text, at, (media IS NOT NULL) audio FROM wa_messages WHERE user_id = ? AND jid = ? ORDER BY at DESC LIMIT 60', uid, jid).reverse();
 export const markRead = (uid, jid) => run('UPDATE wa_chats SET unread = 0 WHERE user_id = ? AND jid = ?', uid, jid);
 
 export async function send(uid, jid, text) {
@@ -124,11 +131,46 @@ export async function sendFile(uid, jid, name, mime, buf, caption) {
   return { ok: true };
 }
 
+// Play a voice note: download it from WhatsApp once, keep it, and give the browser a format it plays (m4a for iPhone).
+export async function voice(uid, jid, id) {
+  const row = one('SELECT media FROM wa_messages WHERE user_id = ? AND jid = ? AND id = ?', uid, jid, id);
+  if (!row || !row.media) throw Object.assign(new Error('No voice note here.'), { status: 404 });
+  const dir = path.join(MEDIA, String(uid)); fs.mkdirSync(dir, { recursive: true });
+  const safe = crypto.createHash('sha1').update(jid + '|' + id).digest('hex');
+  const m4a = path.join(dir, safe + '.m4a'), ogg = path.join(dir, safe + '.ogg');
+  if (fs.existsSync(m4a)) return { file: m4a, type: 'audio/mp4' };
+  let raw;
+  if (row.media.startsWith('file:')) raw = fs.readFileSync(path.join(dir, row.media.slice(5)));
+  else if (fs.existsSync(ogg)) raw = fs.readFileSync(ogg);
+  else {
+    const st = S.get(uid); const msg = JSON.parse(row.media, BufferJSON.reviver);
+    raw = await downloadMediaMessage(msg, 'buffer', {}, st?.sock ? { reuploadRequest: st.sock.updateMediaMessage, logger: log } : undefined);
+    fs.writeFileSync(ogg, raw);
+  }
+  if (AU.available()) { try { fs.writeFileSync(m4a, await AU.toM4a(raw)); return { file: m4a, type: 'audio/mp4' }; } catch {} }
+  if (!fs.existsSync(ogg)) fs.writeFileSync(ogg, raw);
+  return { file: ogg, type: 'audio/ogg' };
+}
+// Send a voice note recorded in the app (converted to the WhatsApp voice format).
+export async function sendVoice(uid, jid, buf, mime) {
+  const st = S.get(uid);
+  if (!st || st.status !== 'open') throw Object.assign(new Error('WhatsApp is not connected right now.'), { status: 409 });
+  if (!one('SELECT 1 FROM wa_chats WHERE user_id = ? AND jid = ?', uid, jid)) throw Object.assign(new Error('Unknown chat.'), { status: 404 });
+  let audio = buf, mimetype = mime || 'audio/mp4', ptt = false;
+  if (AU.available()) { audio = await AU.toOpus(buf); mimetype = 'audio/ogg; codecs=opus'; ptt = true; }
+  const r = await st.sock.sendMessage(jid, { audio, mimetype, ptt });
+  const id = r?.key?.id || String(Date.now()), dir = path.join(MEDIA, String(uid)); fs.mkdirSync(dir, { recursive: true });
+  const fname = crypto.createHash('sha1').update(jid + '|' + id).digest('hex') + (ptt ? '.ogg' : '.bin'); fs.writeFileSync(path.join(dir, fname), audio);
+  saveMessage(uid, { key: { remoteJid: jid, id, fromMe: true }, message: { conversation: '🎤 Voice message' }, messageTimestamp: Math.floor(Date.now() / 1000), media: 'file:' + fname }, true);
+  return { ok: true };
+}
+
 export async function forget(uid) {
   const st = S.get(uid); S.delete(uid);
   try { await st?.sock?.logout(); } catch {}
   try { st?.sock?.end?.(); } catch {}
   fs.rmSync(authDir(uid), { recursive: true, force: true });
+  fs.rmSync(path.join(MEDIA, String(uid)), { recursive: true, force: true });
   for (const t of ['wa_chats', 'wa_messages', 'wa_contacts', 'wa_flags']) run(`DELETE FROM ${t} WHERE user_id = ?`, uid);
 }
 
