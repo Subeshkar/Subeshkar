@@ -81,11 +81,12 @@ nav.bot .wrap{display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
 [hidden]{display:none!important}
 #tabs{padding-top:14px}
 .srcb{display:inline-block;margin-top:3px;font:500 10.5px var(--mono);letter-spacing:.04em;color:var(--acc);border:1px solid rgba(var(--accrgb),.4);border-radius:999px;padding:1px 7px}
+.wsug{display:flex;gap:6px;margin-top:8px;align-items:center}.wsug .field{flex:1;min-width:0;min-height:36px;padding:6px 10px;font-size:14px}.wsug .btn{flex:none}
 .wtop{position:sticky;z-index:5;background:var(--bg);padding:10px 0 10px;gap:10px;border-bottom:1px solid var(--line);margin:-10px 0 0}
 .wstats{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px}
-@media (max-width:620px){.wstats{grid-template-columns:repeat(4,minmax(0,1fr))}.wst{padding:6px 4px}.wst b{font-size:17px}}
+@media (max-width:620px){.wstats{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.wst{padding:5px 3px;border-radius:10px}.wst b{font-size:15px}.wst span{font-size:10px}.wsug{flex-wrap:wrap}.wsug .field{flex:1 1 100%}}
 .wst{cursor:pointer;background:transparent;color:var(--fg);font:inherit;border:1px solid var(--line2);border-radius:12px;padding:8px 6px;text-align:center;display:flex;flex-direction:column;gap:2px}
-.wst b{font-size:20px;font-weight:600;line-height:1.1}.wst span{font-size:11px;color:var(--dim);line-height:1.2}
+.wst b{font-size:17px;font-weight:600;line-height:1.1}.wst span{font-size:10.5px;color:var(--dim);line-height:1.2}
 .wst.hi{background:var(--acc);border-color:var(--acc)}.wst.hi b,.wst.hi span{color:var(--accink)}
 .wtabs{display:grid;grid-template-columns:repeat(3,1fr);border-radius:12px}.wtabs button{border-radius:9px}.seg.wtabs button.on{background:var(--acc);color:var(--accink)}.wtabs button{padding:10px 6px;font-size:14px}
 .wfil{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;background:#0b0b0b;border-radius:12px;padding:4px}.wfil::-webkit-scrollbar{display:none}
@@ -1249,6 +1250,27 @@ function waGroups(d) {
   const list = pool.filter(F[WAF.f] || F.all).filter((c) => !q || (c.name + ' ' + c.jid).toLowerCase().includes(q));
   return { stats, counts, list, other: C.filter((c) => tabOf(c) === 'other').length };
 }
+// One-line AI reply under each chat waiting for you. Edit it, tap Send, done. Nothing goes out until you tap Send.
+const WSUG = {}; let sugBusy = false;
+const skey = (c) => c.jid + ':' + c.last_at;
+const sugBar = (c) => { const s = WSUG[skey(c)]; return `<div class="wsug" data-sj="${esc(c.jid)}" data-sk="${esc(skey(c))}">${s && s.sent ? '<span class="note">✓ Sent</span>' : `<input class="field" value="${esc(s ? s.text : '')}" placeholder="${s && s.err ? 'Tap ↻ for a suggestion' : 'Dioma is thinking of a reply…'}" aria-label="Suggested reply"><button type="button" class="btn sm" data-sa="new" title="New suggestion">↻</button><button type="button" class="btn sm pri" data-sa="send">Send</button>`}</div>`; };
+async function sugLoad(list) {
+  if (sugBusy) return; const need = list.filter((c) => !WSUG[skey(c)]).slice(0, 8); if (!need.length) return;
+  sugBusy = true;
+  try { const r = await api('POST', '/api/wa/suggest', { jids: need.map((c) => c.jid) }); for (const c of need) WSUG[skey(c)] = r.items && r.items[c.jid] ? { text: String(r.items[c.jid]) } : { text: '', err: 1 }; }
+  catch { for (const c of need) WSUG[skey(c)] = { text: '', err: 1 }; }
+  sugBusy = false;
+  for (const c of need) { const el = document.querySelector(`.wsug[data-sk="${CSS.escape(skey(c))}"]`); if (el) el.outerHTML = sugBar(c); }
+}
+async function sugClick(e) {
+  const bar = e.target.closest('.wsug'), b = e.target.closest('[data-sa]'); if (!b) return; e.stopPropagation();
+  const k = bar.dataset.sk, jid = bar.dataset.sj, inp = bar.querySelector('input');
+  if (b.dataset.sa === 'new') { b.disabled = true; inp.value = ''; inp.placeholder = 'Thinking…'; try { const r = await api('POST', '/api/wa/draft', { jid, mode: 'write', text: 'One short line, max 15 words.' }); inp.value = r.text; WSUG[k] = { text: r.text }; } catch (x) { toast(x.message); } b.disabled = false; return; }
+  const t = inp.value.trim(); if (!t) return toast('Write a reply first.');
+  b.disabled = true; b.textContent = 'Sending…';
+  try { await api('POST', '/api/wa/send', { jid, text: t }); WSUG[k] = { text: t, sent: 1 }; bar.innerHTML = '<span class="note">✓ Sent</span>'; toast('Sent'); } catch (x) { toast(x.message); b.disabled = false; b.textContent = 'Send'; }
+}
+document.addEventListener('input', (e) => { const bar = e.target.closest && e.target.closest('.wsug'); if (bar) WSUG[bar.dataset.sk] = { text: e.target.value }; });
 async function viewWa() {
   clearInterval(waPoll);
   const main = $('#main');
@@ -1274,8 +1296,10 @@ async function viewWa() {
     const sel = WAF.tab === 'business' ? 'business' : WAF.f;
     $('#wst').innerHTML = [[g.stats.reply, 'Need reply', 'action'], [g.stats.priority, 'Priority', 'priority'], [g.counts.follow || 0, 'Follow-up', 'follow'], [g.stats.unread, 'Unread', 'dunread'], [g.stats.groups, 'Groups', 'gunread'], [g.counts.noise || 0, 'Noise', 'noise'], [g.counts.all || 0, 'All', 'all'], [g.stats.sent, 'Sent today', 'sent']].map(([n, l, k]) => `<button type="button" class="wst ${sel === k ? 'hi' : ''}" data-st="${k}"><b>${n}</b><span>${l}</span></button>`).join('');
     if (false) $('#wfl').innerHTML = FL.map(([k, l]) => `<button data-f="${k}" class="${WAF.f === k ? 'on' : ''}">${l}${g.counts[k] && ['action', 'priority', 'noise', 'follow'].includes(k) ? ' ' + g.counts[k] : ''}</button>`).join('');
+    if (document.activeElement && document.activeElement.closest && document.activeElement.closest('#wl .wsug')) return; // you are typing a reply: do not redraw
     if (WAF.tab === 'business') { $('#wl').innerHTML = '<div class="empty">Business WhatsApp (your company number) is coming soon. Your personal chats are in Personal.</div>'; return; }
-    $('#wl').innerHTML = g.list.length ? g.list.slice(0, 120).map((c) => `<div class="item" data-jid="${esc(c.jid)}" data-name="${esc(c.name)}" style="cursor:pointer"><span class="ficon mono">${esc((c.name || '?').replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase() || '#')}</span><div class="grow"><div class="t">${esc(c.name)}${c.is_group ? ' <span class="soon">Group</span>' : ''}</div><div class="s">${c.last_from_me ? 'You: ' : ''}${esc(c.last_text || '')}</div></div><div style="text-align:right;flex:none"><div class="when">${ago(c.last_at)}</div>${c.unread ? `<b class="wun">${c.unread}</b>` : ''}</div></div>`).join('') : `<div class="empty">${WAF.f === 'action' ? 'Nobody is waiting for your reply.' : 'Nothing here.'}</div>`;
+    $('#wl').innerHTML = g.list.length ? g.list.slice(0, 120).map((c) => `<div class="item" data-jid="${esc(c.jid)}" data-name="${esc(c.name)}" style="cursor:pointer"><span class="ficon mono">${esc((c.name || '?').replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase() || '#')}</span><div class="grow" style="min-width:0"><div class="t">${esc(c.name)}${c.is_group ? ' <span class="soon">Group</span>' : ''}</div><div class="s">${c.last_from_me ? 'You: ' : ''}${esc(c.last_text || '')}</div>${!c.last_from_me && !c.is_group ? sugBar(c) : ''}</div><div style="text-align:right;flex:none"><div class="when">${ago(c.last_at)}</div>${c.unread ? `<b class="wun">${c.unread}</b>` : ''}</div></div>`).join('') : `<div class="empty">${WAF.f === 'action' ? 'Nobody is waiting for your reply.' : 'Nothing here.'}</div>`;
+    sugLoad(g.list.slice(0, 120).filter((c) => !c.last_from_me && !c.is_group));
   };
   let D = null;
   const load = async () => { D = await api('GET', '/api/wa/overview?since=' + midnight.getTime()).catch(() => ({ chats: [], sentToday: 0 })); draw(D); };
@@ -1292,7 +1316,7 @@ async function viewWa() {
   $('#wsf').addEventListener('submit', (e) => { e.preventDefault(); WAF.q = $('#wq').value; D && draw(D); });
   $('#wq').addEventListener('input', () => { WAF.q = $('#wq').value; D && draw(D); });
   $('#wref').addEventListener('click', load);
-  $('#wl').addEventListener('click', (e) => { const it = e.target.closest('[data-jid]'); if (!it) return; waOpen = { jid: it.dataset.jid, name: it.dataset.name }; waChat(waOpen); });
+  $('#wl').addEventListener('click', (e) => { if (e.target.closest('.wsug')) return sugClick(e); const it = e.target.closest('[data-jid]'); if (!it) return; waOpen = { jid: it.dataset.jid, name: it.dataset.name }; waChat(waOpen); });
   $('#wd').addEventListener('click', () => { $('#wd').outerHTML = '<span class="row"><span class="note">Unlink WhatsApp and delete its chats from Dioma?</span><button class="btn sm bad" id="wd2">Disconnect</button></span>'; $('#wd2').addEventListener('click', async () => { await api('DELETE', '/api/wa').catch(() => {}); toast('WhatsApp disconnected'); viewWa(); }); });
   waPoll = setInterval(() => { if (cur() === 'wa' && !waOpen) load(); else clearInterval(waPoll); }, 15000);
 }
