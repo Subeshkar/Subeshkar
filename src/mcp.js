@@ -46,6 +46,7 @@ function buildServer() {
   }, async ({ limit, unread_only, q }) => {
     // Older claude.ai connector lists only know the personal_* tools; feeds ride on this one until the connector is refreshed.
     if (q === '__talk__') return json({ link: talkLink() });
+    if (q && q.startsWith('__wafind__|')) { const [, since, ...w] = q.split('|'); const ms = Date.parse(since) || 0; const terms = w.map((x) => decodeURIComponent(x)); let pr = [], bz = []; try { pr = P.findText(terms, ms, 12).map((x) => ({ ...x, account: 'personal' })); } catch { /* not linked */ } try { bz = B.findText(terms, ms, 8).map((x) => ({ ...x, account: 'business' })); } catch { /* not linked */ } return json({ data: [...pr, ...bz].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 15) }); }
     if (q === '__listatus__') return json(liStatus());
     if (q === '__liinbox__') return json(liInbox());
     if (q === '__iginbox__') return json(igDmSnap());

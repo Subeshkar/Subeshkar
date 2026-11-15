@@ -400,3 +400,13 @@ export function findOpportunities({ days = 300, limit = 120 } = {}) {
   }
   return out;
 }
+
+// Find WhatsApp messages (any chat, groups included) that mention any of the words, newest first.
+// Used before Dioma suggests a follow-up: the topic may already be settled on WhatsApp.
+export function findText(terms = [], sinceMs = 0, limit = 12) {
+  const words = terms.map((t) => String(t || '').trim()).filter((t) => t.length >= 3).slice(0, 6);
+  if (!words.length) return [];
+  const where = words.map(() => 'LOWER(m.text) LIKE ? OR LOWER(c.name) LIKE ?').join(' OR ');
+  const rows = db.prepare(`SELECT m.jid, m.from_me, m.sender, m.text, m.at, c.name, c.is_group FROM wp_messages m LEFT JOIN wp_chats c ON c.jid = m.jid WHERE m.at > ? AND m.text IS NOT NULL AND (${where}) ORDER BY m.at DESC LIMIT ?`).all(Number(sinceMs) || 0, ...words.flatMap((w) => ['%' + w.toLowerCase() + '%', '%' + w.toLowerCase() + '%']), Math.min(40, Math.max(1, limit)));
+  return rows.map((r) => ({ chat: r.is_group ? (r.name || 'Group') : displayName(r.jid), group: !!r.is_group, from: r.from_me ? 'Subesh' : displayName(r.sender || r.jid, null), text: String(r.text).slice(0, 400), at: new Date(r.at).toISOString() }));
+}
