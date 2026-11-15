@@ -79,6 +79,7 @@ main{padding-block:22px calc(110px + env(safe-area-inset-bottom,0px))}
 nav.bot{position:fixed;left:0;right:0;bottom:0;z-index:10;background:rgba(0,0,0,.9);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
 nav.bot .wrap{display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
 #tabs{padding-top:14px}
+.srcb{display:inline-block;margin-top:3px;font:500 10.5px var(--mono);letter-spacing:.04em;color:var(--acc);border:1px solid rgba(var(--accrgb),.4);border-radius:999px;padding:1px 7px}
 .wstats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;margin-top:14px}
 @media (max-width:620px){.wstats{grid-template-columns:repeat(3,minmax(0,1fr))}}
 .wst{cursor:pointer;background:transparent;color:var(--fg);font:inherit;border:1px solid var(--line2);border-radius:12px;padding:8px 6px;text-align:center;display:flex;flex-direction:column;gap:2px}
@@ -383,7 +384,8 @@ async function viewHome(refresh) {
 
 // ---------- To-do ----------
 const dueTxt = (d) => { if (!d) return ''; const t = new Intl.DateTimeFormat('en-CA', { timeZone: S.me.tz }).format(new Date()); if (d === t) return 'Today'; if (d < t) return 'Overdue · ' + d; return new Date(d + 'T12:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }); };
-const todoRows = (ts, done) => ts.map((t) => `<div class="item ${done ? 'done' : ''}" data-id="${t.id}"><button class="chk ${done ? 'on' : ''}" aria-label="${done ? 'Mark not done' : 'Mark done'}"></button><div class="grow"><div class="t">${esc(t.text)}</div>${t.due ? `<div class="s" style="${!done && dueTxt(t.due).startsWith('Overdue') ? 'color:var(--bad)' : ''}">${esc(dueTxt(t.due))}</div>` : ''}</div><button class="x" aria-label="Delete">×</button></div>`).join('');
+const SRC = { whatsapp: 'From WhatsApp', mail: 'From mail', calendar: 'From calendar', ask: 'Added by Dioma' };
+const todoRows = (ts, done) => ts.map((t) => `<div class="item ${done ? 'done' : ''}" data-id="${t.id}"><button class="chk ${done ? 'on' : ''}" aria-label="${done ? 'Mark not done' : 'Mark done'}"></button><div class="grow"><div class="t">${esc(t.text)}</div>${SRC[t.source] ? `<span class="srcb">${SRC[t.source]}</span>` : ''}${t.due ? `<div class="s" style="${!done && dueTxt(t.due).startsWith('Overdue') ? 'color:var(--bad)' : ''}">${esc(dueTxt(t.due))}</div>` : ''}</div><button class="x" aria-label="Delete">×</button></div>`).join('');
 function wireTodos(el, after) {
   el.addEventListener('click', async (e) => {
     const it = e.target.closest('.item'); if (!it) return;
@@ -392,16 +394,22 @@ function wireTodos(el, after) {
     if (e.target.closest('.x')) { it.remove(); await api('DELETE', `/api/todos/${id}`).catch((x) => toast(x.message)); }
   });
 }
-async function viewTodo() {
+let TODOSCAN = 0;
+async function viewTodo(fresh) {
   const main = $('#main');
-  const d = await api('GET', '/api/todos').catch(() => ({ open: [], done: [] }));
+  const scan = fresh === true || Date.now() - TODOSCAN > 10 * 60e3; if (scan) TODOSCAN = Date.now();
+  if (scan && !$('#op')) main.innerHTML = '<h1>To-do</h1><p class="dim" style="margin-top:10px">Checking your WhatsApp, mail and calendar…</p>';
+  const d = await api('GET', '/api/todos' + (scan ? '?scan=1' : '')).catch(() => ({ open: [], done: [] }));
   if (cur() !== 'todo') return;
-  main.innerHTML = `${stabs()}<h1>To-do</h1>
+  const auto = d.open.filter((t) => SRC[t.source] && t.source !== 'ask').length;
+  main.innerHTML = `<div class="row" style="justify-content:space-between"><h1>To-do</h1><button class="btn sm" id="tscan">Check now</button></div>
+    <p class="note" style="margin-top:6px">Dioma adds to-dos by itself from your WhatsApp, mail and calendar${auto ? ` (${auto} open now)` : ''}. Add your own below. Delete one and it never comes back.</p>
     <form id="add" style="margin-top:18px;display:grid;grid-template-columns:1fr auto;gap:8px"><input class="field" id="tt" placeholder="Add a to-do" maxlength="300" style="grid-column:1/-1"><input class="field" id="td" type="date" aria-label="Due date (optional)" style="min-width:0"><button class="btn pri" style="height:48px">Add</button></form>
     <section class="sec"><h2>Open · ${d.open.length}</h2><div class="list" id="op">${todoRows(d.open) || '<div class="empty">All clear.</div>'}</div></section>
     ${d.done.length ? `<section class="sec"><h2>Done this week</h2><div class="list" id="dn">${todoRows(d.done, true)}</div></section>` : ''}`;
   $('#add').addEventListener('submit', async (e) => { e.preventDefault(); const text = $('#tt').value.trim(); if (!text) return; await api('POST', '/api/todos', { text, due: $('#td').value || null }).catch((x) => toast(x.message)); viewTodo(); });
   wireTodos($('#op'), viewTodo); if ($('#dn')) wireTodos($('#dn'), viewTodo);
+  $('#tscan').addEventListener('click', async (e) => { e.target.disabled = true; e.target.textContent = 'Checking…'; const r = await api('POST', '/api/todos/scan').catch((x) => (toast(x.message), null)); if (r) toast(r.added ? `${r.added} new to-do${r.added > 1 ? 's' : ''} added` : 'Nothing new to add'); TODOSCAN = Date.now(); viewTodo(); });
   if (window.innerWidth > 600) $('#tt').focus();
 }
 

@@ -17,6 +17,7 @@ import * as WL from './wealth.js';
 import * as BR from './browser.js';
 import * as P from './push.js';
 import * as V from './voice.js';
+import * as AT from './autotodo.js';
 import * as MP from './maps.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -164,7 +165,13 @@ on('POST', '/api/auth/logout', async (req, res) => {
 }, { open: true });
 
 // Every minute: meetings in 30 minutes, and to-dos due today (9 am), sent once each as a notification.
+let lastAuto = 0;
+async function autoScanAll() {
+  if (Date.now() - lastAuto < 60 * 60e3) return; lastAuto = Date.now();
+  for (const u of all("SELECT * FROM users WHERE onboarded = 1 AND id IN (SELECT DISTINCT user_id FROM wa_chats UNION SELECT DISTINCT user_id FROM connections)")) await AT.scan(u, false).catch(() => {});
+}
 async function reminders() {
+  autoScanAll().catch((e) => console.error('autoscan', e.message));
   for (const { user_id } of all('SELECT DISTINCT user_id FROM push_subs')) {
     const u = one('SELECT * FROM users WHERE id = ?', user_id); if (!u) continue;
     const tz = u.tz || 'Asia/Dubai', ymd = today(u);
@@ -239,10 +246,14 @@ on('DELETE', '/api/me', async (req, res, u) => {
 });
 
 // To-dos
-on('GET', '/api/todos', (req, res, u) => send(res, 200, {
-  open: openTodos(u.id),
-  done: all('SELECT id, text, due, done_at FROM todos WHERE user_id = ? AND done = 1 AND done_at > ? ORDER BY done_at DESC LIMIT 20', u.id, now() - 7 * DAY),
-}));
+on('POST', '/api/todos/scan', async (req, res, u) => send(res, 200, await AT.scan(u, true)));
+on('GET', '/api/todos', async (req, res, u) => {
+  if (new URL(req.url, 'http://x').searchParams.get('scan') === '1') await AT.scan(u, false).catch((e) => console.error('scan', e.message));
+  send(res, 200, {
+  open: all('SELECT id, text, due, source FROM todos WHERE user_id = ? AND done = 0 ORDER BY (due IS NULL), due, created DESC LIMIT 80', u.id),
+  done: all('SELECT id, text, due, done_at, source FROM todos WHERE user_id = ? AND done = 1 AND done_at > ? ORDER BY done_at DESC LIMIT 20', u.id, now() - 7 * DAY),
+  });
+});
 on('POST', '/api/todos', async (req, res, u) => {
   const b = await json(req); const text = String(b.text || '').trim().slice(0, 300);
   if (!text) return fail(res, 400, 'Write something first.');
