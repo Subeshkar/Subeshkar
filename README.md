@@ -31,7 +31,14 @@ npm run dev        # http://localhost:8080, sign-in code is filled in, AI answer
 | `MAIL_FROM` | optional, default `Dioma <noreply@dioma.life>` |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google Cloud OAuth client (Web). Redirect URI: `https://app.dioma.life/auth/google/callback` |
 
+| `OWNER_EMAIL` | The owner's email. Only this account opens `/me`, the owner's full Dioma. |
+| `DIOMA_MCP_URL` | Full address of the owner's Dioma server connection (`https://…/mcp/<token>`). Pasted by the owner; never committed. |
+
 4. Custom domain `app.dioma.life` → CNAME to the Railway domain.
+
+## The owner's Dioma (`/me`)
+
+The owner's existing Dioma app runs unchanged at `app.dioma.life/me`. `public/shim.js` provides what the app expects (connected apps, the AI, saved state, downloads) and every call goes through this backend: his Dioma server for WhatsApp, Zoho, Books and Files; Google APIs for Gmail and Calendar; the Anthropic API for the AI. The app file is uploaded once by the owner at `/me` and kept on the private volume, not in this public repo. Any text naming the platform underneath is reworded to Dioma when served.
 
 ## Google OAuth notes
 

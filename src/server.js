@@ -9,6 +9,7 @@ import { db, DIR, one, all, run } from './db.js';
 import { sendCode } from './mailer.js';
 import { converse, claude } from './ai.js';
 import * as G from './google.js';
+import * as O from './owner.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT || 8080);
@@ -27,14 +28,14 @@ const send = (res, status, body, headers = {}) => {
   res.writeHead(status, { 'content-type': isObj ? 'application/json; charset=utf-8' : 'text/plain; charset=utf-8', 'cache-control': 'no-store', ...headers });
   res.end(isObj ? JSON.stringify(body) : body);
 };
-const fail = (res, status, error) => send(res, status, { error });
+const fail = (res, status, error, code) => send(res, status, { error, ...(code ? { code } : {}) });
 const readBody = (req, limit) => new Promise((ok, bad) => {
   const parts = []; let n = 0;
   req.on('data', (c) => { n += c.length; if (n > limit) { bad(Object.assign(new Error('Too large'), { status: 413 })); req.destroy(); } else parts.push(c); });
   req.on('end', () => ok(Buffer.concat(parts)));
   req.on('error', bad);
 });
-const json = async (req) => { const b = await readBody(req, 256 * 1024); try { return b.length ? JSON.parse(b) : {}; } catch { throw Object.assign(new Error('Bad JSON'), { status: 400 }); } };
+const json = async (req, limit = 256 * 1024) => { const b = await readBody(req, limit); try { return b.length ? JSON.parse(b) : {}; } catch { throw Object.assign(new Error('Bad JSON'), { status: 400 }); } };
 const cookies = (req) => Object.fromEntries((req.headers.cookie || '').split(';').map((s) => s.trim().split('=')).filter((p) => p[0]).map(([k, ...v]) => [k, decodeURIComponent(v.join('='))]));
 const secure = () => (process.env.PUBLIC_URL || '').startsWith('https');
 const setSession = (res, t, maxAge) => res.setHeader('set-cookie', `dsid=${t}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure() ? '; Secure' : ''}`);
@@ -152,7 +153,7 @@ on('GET', '/api/me', (req, res, u) => {
   const g = one(`SELECT account FROM connections WHERE user_id = ? AND kind = 'google'`, u.id);
   const used = one('SELECT COALESCE(SUM(size),0) s FROM files WHERE user_id = ?', u.id).s;
   send(res, 200, { email: u.email, name: u.name, about: u.about, tz: u.tz, onboarded: !!u.onboarded, plan: u.plan,
-    google: g ? { account: g.account } : null, googleAvailable: G.enabled(), ai: { used: usedToday(u), cap: CAP, live: !!process.env.ANTHROPIC_API_KEY }, storage: { used, quota: QUOTA } });
+    owner: O.isOwner(u), google: g ? { account: g.account } : null, googleAvailable: G.enabled(), ai: { used: usedToday(u), cap: CAP, live: !!process.env.ANTHROPIC_API_KEY }, storage: { used, quota: QUOTA } });
 });
 on('POST', '/api/me', async (req, res, u) => {
   const b = await json(req);
@@ -283,22 +284,48 @@ on('DELETE', '/api/files/:id', (req, res, u, p) => {
 // Google connect
 on('GET', '/auth/google', (req, res, u) => {
   if (!G.enabled()) return send(res, 302, '', { location: '/#me' });
-  send(res, 302, '', { location: G.authUrl(u.id) });
+  send(res, 302, '', { location: G.authUrl(u.id, O.isOwner(u) ? G.OWNER_SCOPES : []) });
 }, { page: true });
 on('GET', '/auth/google/callback', async (req, res, u) => {
   const q = new URL(req.url, 'http://x').searchParams;
   if (q.get('error')) return send(res, 302, '', { location: '/#me?google=cancelled' });
-  try { await G.finish(q.get('state'), q.get('code'), u.id); G.forget(u.id); send(res, 302, '', { location: '/#home?google=connected' }); }
+  try { await G.finish(q.get('state'), q.get('code'), u.id); G.forget(u.id); send(res, 302, '', { location: O.isOwner(u) ? '/me' : '/#home?google=connected' }); }
   catch (e) { send(res, 302, '', { location: '/#me?google=' + encodeURIComponent(e.message) }); }
 }, { page: true });
 on('DELETE', '/api/google', async (req, res, u) => { await G.disconnect(u.id); send(res, 200, { ok: true }); });
 
+// ---------- the owner's own Dioma (runs fully on this backend) ----------
+const ownerOnly = (fn) => async (req, res, u, p) => (O.isOwner(u) ? fn(req, res, u, p) : fail(res, 403, 'Not available.'));
+const UPLOAD_PAGE = (msg = '') => `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dioma</title>
+<style>body{margin:0;background:#000;color:#fff;font:16px/1.5 system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;padding:24px}main{max-width:420px;display:grid;gap:14px}label{display:block;background:#ffb547;color:#1a0f00;border-radius:999px;padding:14px;text-align:center;font-weight:600;cursor:pointer}p{color:#9a9a9a}</style>
+<main><h1 style="font-weight:400">Load your Dioma</h1><p>Pick your Dioma app file once. It is kept privately on the Dioma server.</p><p style="color:#ff8a7a">${msg}</p><label>Choose file<input type="file" id="f" accept=".html" hidden></label>
+<p><a href="/auth/google" style="color:#fff">Connect Google (Gmail and Calendar)</a></p></main>
+<script>f.onchange=async()=>{const r=await fetch('/api/owner/app',{method:'POST',headers:{'x-dioma':'1','content-type':'text/html'},body:f.files[0]});if(r.ok)location.reload();else alert((await r.json()).error)}</script>`;
+on('GET', '/me', ownerOnly((req, res) => {
+  if (!O.hasApp() || req.url.includes('update=1')) return send(res, 200, UPLOAD_PAGE(), { 'content-type': 'text/html; charset=utf-8' });
+  send(res, 200, O.appPage(), { 'content-type': 'text/html; charset=utf-8' });
+}), { page: true });
+on('POST', '/api/owner/app', ownerOnly(async (req, res) => { O.saveApp(await readBody(req, 8 * 1024 * 1024)); send(res, 200, { ok: true }); }));
+on('POST', '/api/owner/mcp', ownerOnly(async (req, res, u) => {
+  const b = await json(req, 4 * 1024 * 1024);
+  try { send(res, 200, await O.callTool(u, String(b.server || ''), String(b.tool || ''), b.input || {})); }
+  catch (e) { send(res, e.code === 'server_not_connected' ? 424 : 502, { error: e.message, code: e.code || 'tool_error' }); }
+}));
+on('POST', '/api/owner/sample', ownerOnly(async (req, res) => {
+  const b = await json(req, 6 * 1024 * 1024);
+  if (limited('osample', 120, 60e3)) return fail(res, 429, 'Too many AI calls at once.', 'rate_limited');
+  try { send(res, 200, await O.sample(b)); }
+  catch (e) { send(res, e.code === 'rate_limited' ? 429 : e.code === 'not_granted' ? 403 : 502, { error: e.message, code: e.code }); }
+}));
+on('GET', '/api/owner/db', ownerOnly((req, res) => send(res, 200, { data: O.dbGet(new URL(req.url, 'http://x').searchParams.get('path') || '') })));
+on('POST', '/api/owner/db', ownerOnly(async (req, res) => { const b = await json(req, 8 * 1024 * 1024); O.dbSet(String(b.path || ''), b.data, !!b.merge); send(res, 200, { ok: true }); }));
+
 // ---------- static ----------
 const STATIC = { '/': 'app.html', '/privacy': 'privacy.html', '/terms': 'terms.html' };
-const MIME = { '.html': 'text/html; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json' };
+const MIME = { '.js': 'text/javascript; charset=utf-8', '.html': 'text/html; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json' };
 const SEC = {
   'x-content-type-options': 'nosniff', 'referrer-policy': 'strict-origin-when-cross-origin', 'x-frame-options': 'DENY',
-  'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+  'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
 };
 if (secure()) SEC['strict-transport-security'] = 'max-age=31536000';
 
@@ -306,7 +333,7 @@ http.createServer(async (req, res) => {
   for (const [k, v] of Object.entries(SEC)) res.setHeader(k, v);
   const url = new URL(req.url, 'http://x');
   try {
-    const file = STATIC[url.pathname] || (/^\/(icon\.svg|manifest\.webmanifest)$/.test(url.pathname) ? url.pathname.slice(1) : null);
+    const file = STATIC[url.pathname] || (/^\/(icon\.svg|manifest\.webmanifest|shim\.js)$/.test(url.pathname) ? url.pathname.slice(1) : null);
     if (req.method === 'GET' && file) {
       const fp = path.join(ROOT, 'public', file);
       if (!fs.existsSync(fp)) return fail(res, 404, 'Not found');

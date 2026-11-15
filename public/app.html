@@ -398,6 +398,7 @@ async function boot(force, step) {
     if (em) { history.replaceState(null, '', '/'); $('#email').value = em; $('#f').requestSubmit(); }
     return;
   }
+  if (S.me.owner) { location.replace('/me'); return; }
   if (force === 'onboard' || !S.me.onboarded) return renderOnboard();
   if (step === 'connect' && !S.me.google) return renderConnectStep();
   if (route().q.get('google') === 'connected') { toast('Google connected'); history.replaceState(null, '', '#home'); }

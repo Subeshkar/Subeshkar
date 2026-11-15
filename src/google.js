@@ -3,15 +3,16 @@
 import { seal, open, token } from './crypto.js';
 import { one, run } from './db.js';
 
+export const OWNER_SCOPES = ['https://www.googleapis.com/auth/gmail.modify', 'https://www.googleapis.com/auth/calendar.events'];
 export const SCOPES = ['openid', 'email', 'https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/calendar.readonly'];
 export const enabled = () => !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 const redirect = () => `${(process.env.PUBLIC_URL || 'http://localhost:8080').replace(/\/$/, '')}/auth/google/callback`;
 
 const states = new Map(); // state -> { uid, exp }
-export function authUrl(uid) {
+export function authUrl(uid, extra = []) {
   const state = token(18);
   states.set(state, { uid, exp: Date.now() + 10 * 60e3 });
-  const p = new URLSearchParams({ client_id: process.env.GOOGLE_CLIENT_ID, redirect_uri: redirect(), response_type: 'code', scope: SCOPES.join(' '), access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true', state });
+  const p = new URLSearchParams({ client_id: process.env.GOOGLE_CLIENT_ID, redirect_uri: redirect(), response_type: 'code', scope: [...SCOPES, ...extra].join(' '), access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true', state });
   return `https://accounts.google.com/o/oauth2/v2/auth?${p}`;
 }
 
@@ -49,6 +50,14 @@ async function bearer(uid) {
   if (!r.ok) { if (j.error === 'invalid_grant') run(`DELETE FROM connections WHERE user_id = ? AND kind = 'google'`, uid); return null; }
   access.set(uid, { tok: j.access_token, exp: Date.now() + (j.expires_in - 60) * 1e3 });
   return j.access_token;
+}
+export async function gfetch(uid, url, opts = {}) {
+  const t = await bearer(uid);
+  if (!t) throw Object.assign(new Error('Google is not connected.'), { code: 'server_not_connected' });
+  const r = await fetch(url, { ...opts, headers: { Authorization: `Bearer ${t}`, ...(opts.body && typeof opts.body === 'string' ? { 'content-type': 'application/json' } : {}), ...(opts.headers || {}) } });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(j?.error?.message || `Google ${r.status}`), { code: 'tool_error' });
+  return j;
 }
 async function gget(uid, url) {
   const t = await bearer(uid);
