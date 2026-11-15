@@ -41,7 +41,7 @@ h1{font-weight:400;font-size:36px;letter-spacing:-.025em;line-height:1.1;margin:
     <span class="tag">Founding customer #1 · live</span>
     <div class="apps"><span>WhatsApp</span><span>Mail</span><span>Calendar</span><span>Business</span><span>Files</span><span>Wealth</span></div>
     <div class="bar" id="bar"><i></i></div>
-    <a class="btn" id="open" href="https://claude.ai/artifact/VNREoDcJkbdSm12CYw2C5b">Open my Dioma</a>
+    <a class="btn" id="open" href="https://glorious-flexibility-production-c14c3fc8.up.railway.app/me">Open my Dioma</a>
     <p class="note" style="margin:0" id="msg">Opening your Dioma in a moment…</p>
   </div>
   <p class="note">Your Dioma opens in your secure account. If asked, sign in there once. <a href="https://dioma.life">dioma.life</a></p>
@@ -51,8 +51,8 @@ h1{font-weight:400;font-size:36px;letter-spacing:-.025em;line-height:1.1;margin:
 let t='sun';try{t=localStorage.getItem('dioma-tone')==='mono'?'mono':'sun'}catch(e){}set(t);
 document.querySelectorAll('.tg button').forEach((b)=>b.addEventListener('click',()=>set(b.dataset.tone)));})();
 
-// Your Dioma runs on app.dioma.life. Until that server is online, the current Dioma opens instead.
-const APP = 'https://app.dioma.life/me', OLD = 'https://claude.ai/artifact/VNREoDcJkbdSm12CYw2C5b';
+// Your Dioma runs on its own server: app.dioma.life once that address is live, its Railway address until then.
+const APP = 'https://app.dioma.life/me', OLD = 'https://glorious-flexibility-production-c14c3fc8.up.railway.app/me';
 let URL_ = OLD;
 const ready = fetch('https://app.dioma.life/api/health', { mode: 'no-cors', cache: 'no-store' }).then(() => { URL_ = APP; document.getElementById('open').href = APP; }, () => {});
 if (new URLSearchParams(location.search).get('stay') !== '1') setTimeout(async () => { await ready; location.href = URL_; }, 2600);

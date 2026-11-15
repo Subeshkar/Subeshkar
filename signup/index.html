@@ -68,14 +68,16 @@ ul{margin:0;padding-left:18px;color:var(--dim);font-size:14.5px}li{margin:3px 0}
   </div>
   <p class="note" id="count" style="display:flex;align-items:center;gap:8px;margin:0"><span style="width:8px;height:8px;border-radius:50%;background:#7fd8c4;box-shadow:0 0 0 4px rgba(127,216,196,.15)"></span>1 founding customer live · early access open</p>
   <ul id="perks"><li>Your day in one brief: mail, calendar, to-dos</li><li>Ask Dioma anything, by typing</li><li>Free during early access</li></ul>
-  <p class="note">By continuing you agree to the <a href="https://app.dioma.life/terms">terms</a> and <a href="https://app.dioma.life/privacy">privacy policy</a>. <a href="https://dioma.life">Back to dioma.life</a></p>
+  <p class="note">By continuing you agree to the <a href="https://glorious-flexibility-production-c14c3fc8.up.railway.app/terms">terms</a> and <a href="https://glorious-flexibility-production-c14c3fc8.up.railway.app/privacy">privacy policy</a>. <a href="https://dioma.life">Back to dioma.life</a></p>
 </main>
 <script>
 (function(){const set=(t)=>{if(t==='sun')document.documentElement.dataset.tone='sun';else delete document.documentElement.dataset.tone;document.querySelectorAll('.tg button').forEach((b)=>b.setAttribute('aria-pressed',String(b.dataset.tone===t)));try{localStorage.setItem('dioma-tone',t)}catch(e){}};
 let t='sun';try{t=localStorage.getItem('dioma-tone')==='mono'?'mono':'sun'}catch(e){}set(t);
 document.querySelectorAll('.tg button').forEach((b)=>b.addEventListener('click',()=>set(b.dataset.tone)));})();
 
-const APP = 'https://app.dioma.life';
+let APP = 'https://glorious-flexibility-production-c14c3fc8.up.railway.app';
+// Use app.dioma.life once its address is live; until then the same app on its Railway address.
+fetch('https://app.dioma.life/api/health', { mode: 'no-cors', cache: 'no-store' }).then(() => { APP = 'https://app.dioma.life'; }, () => {});
 const q = new URLSearchParams(location.search);
 let mode = q.get('mode') === 'in' ? 'in' : 'up';
 const plan = (q.get('plan') || '').replace(/[^a-z]/gi, '').slice(0, 20);
@@ -107,7 +109,7 @@ function showMine(m) {
 }
 
 // Is the app online yet? (a no-cors request succeeds only if the server answers)
-const live = fetch(APP + '/api/health', { mode: 'no-cors', cache: 'no-store' }).then(() => true, () => false);
+const live = fetch('https://glorious-flexibility-production-c14c3fc8.up.railway.app/api/health', { mode: 'no-cors', cache: 'no-store' }).then(() => true, () => false);
 
 document.getElementById('f').addEventListener('submit', async (e) => {
   e.preventDefault();
