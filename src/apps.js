@@ -171,3 +171,17 @@ export async function mailbox(uid, slug, folder = 'inbox', q = '') {
   const list = await inbox(uid, slug);
   return list.filter((m) => !q || (m.from + ' ' + m.subject).toLowerCase().includes(q.toLowerCase())).map((m, i) => ({ id: `${slug}:${m.at}:${i}`, ...m, fromAddr: '', unread: folder === 'unread' ? true : !!m.unread, snippet: '' }));
 }
+
+// Run a tool, filling its arguments by the names its own schema uses.
+// want: { 'alias1|alias2': value }  -> picks the first schema property whose name matches an alias (exact first, then contains).
+export async function runFill(uid, tool, want = {}) {
+  const props = await params(tool), names = Object.keys(props), args = {};
+  for (const [aliases, val] of Object.entries(want)) {
+    if (val === undefined || val === null || val === '') continue;
+    const al = aliases.split('|');
+    const k = names.find((n) => al.includes(n)) || names.find((n) => al.some((a) => n.toLowerCase().includes(a.toLowerCase()))) || (names.length ? null : al[0]);
+    if (k) args[k] = val;
+  }
+  return exec(uid, tool, args);
+}
+export { firstArray as arrayIn, pick as pickField };

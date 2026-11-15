@@ -343,7 +343,7 @@ function shell() {
   drawNav();
   $('.composer')?.remove(); $('#main').style.paddingBottom = '';
   const c = cur();
-  ({ home: viewHome, todo: viewTodo, ask: viewAsk, wa: viewWa, social: () => viewConnect('social'), mail: viewMail, cal: viewCal, act: viewActivity, biz: () => viewConnect('biz'), wealth: viewWealth, browser: viewBrowser, files: viewFiles, me: viewMe, more: viewMore })[c]();
+  ({ home: viewHome, todo: viewTodo, ask: viewAsk, wa: viewWa, social: viewSocial, mail: viewMail, cal: viewCal, act: viewActivity, biz: () => viewConnect('biz'), wealth: viewWealth, browser: viewBrowser, files: viewFiles, me: viewMe, more: viewMore })[c]();
   window.scrollTo(0, 0);
 }
 window.addEventListener('hashchange', () => S.me && S.me.onboarded && shell());
@@ -797,6 +797,55 @@ async function shortcutCard() {
     </div></details>`;
   $('#sccopy').onclick = async () => { const i = $('#sclink'); try { await navigator.clipboard.writeText(i.value); toast('Link copied'); } catch { i.select(); toast('Selected. Tap Copy.'); } };
   $('#screset').onclick = async () => { await api('POST', '/api/loc/shortcut/reset').catch(() => {}); toast('New link made. Update your shortcut.'); shortcutCard(); };
+}
+// ---------- Social: comments, posts, create (nothing goes out until you tap Post / Send) ----------
+let SOT = 'comments', SOD = null;
+const NETN = { instagram: 'Instagram', facebook: 'Facebook', linkedin: 'LinkedIn', twitter: 'X', youtube: 'YouTube', tiktok: 'TikTok' };
+const aiw = (kind, input) => api('POST', '/api/ai/write', { kind, input });
+async function viewSocial() {
+  const main = $('#main');
+  await loadApps(true); if (cur() !== 'social') return;
+  const on = ((APPS && APPS.catalog.social) || []).filter(([k]) => appOn(k));
+  if (!on.length) { main.innerHTML = connBlock('social', 'social', 'Add account'); return; }
+  main.innerHTML = `<div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><div class="row" style="gap:6px;flex-wrap:wrap">${on.map(([k, n]) => `<span class="srcb" style="font-size:12px;padding:4px 10px">${n}</span>`).join('')}</div><button class="btn sm pri" data-addmore="social">+ Add account</button></div>
+    <div id="more-social" hidden style="margin-top:10px">${appList('social', 'social')}</div>
+    <div class="seg wtabs" id="sot" style="margin-top:14px">${[['comments', 'Comments'], ['posts', 'Posts'], ['create', 'Create post']].map(([k, l]) => `<button data-t="${k}" class="${SOT === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+    <div id="sov" style="margin-top:14px"><div class="empty">Loading…</div></div>`;
+  $('#sot').onclick = (e) => { const b = e.target.closest('[data-t]'); if (!b) return; SOT = b.dataset.t; $('#sot').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); drawSo(on); };
+  if (SOT !== 'create') SOD = await api('GET', '/api/social/feed').catch((x) => ({ posts: [], errors: [x.message] }));
+  drawSo(on);
+}
+async function drawSo(on) {
+  const v = $('#sov'); if (!v) return;
+  if (SOT === 'create') return drawCreate(on);
+  if (!SOD) SOD = await api('GET', '/api/social/feed').catch((x) => ({ posts: [], errors: [x.message] }));
+  const errs = (SOD.errors || []).map((e) => `<p class="err">${esc(e)}</p>`).join('');
+  if (SOT === 'posts') {
+    v.innerHTML = errs + (SOD.posts.length ? `<div class="list">${SOD.posts.map((p) => `<div class="item" style="align-items:flex-start">${p.image ? `<img src="${esc(p.image)}" alt="" style="width:64px;height:64px;object-fit:cover;border-radius:10px;flex:none">` : ''}<div class="grow"><div class="s">${NETN[p.net]} · ${p.at ? ago(p.at) : ''} · ${p.comments.length} comments${p.likes ? ' · ' + p.likes + ' likes' : ''}</div><div class="t" style="white-space:pre-wrap">${esc((p.text || '').slice(0, 220))}</div>${p.link ? `<a class="note" href="${esc(p.link)}" target="_blank" rel="noopener" style="color:var(--acc)">Open ↗</a>` : ''}</div></div>`).join('')}</div>` : '<div class="empty">No posts found yet. LinkedIn does not share your past posts with apps, so only Instagram and Facebook Page posts show here.</div>');
+    return;
+  }
+  const cm = SOD.posts.flatMap((p) => p.comments.map((c) => ({ ...c, net: p.net, post: p.text }))).sort((a, b) => b.at - a.at);
+  v.innerHTML = errs + (cm.length ? `<div class="list">${cm.slice(0, 60).map((c, i) => `<div class="item" style="flex-direction:column;align-items:stretch;gap:8px"><div><div class="s">${NETN[c.net]} · ${esc(c.who || 'Someone')} · ${c.at ? ago(c.at) : ''}</div><div class="t">${esc(c.text)}</div><div class="note">On: ${esc((c.post || '').slice(0, 80))}</div></div>
+      <textarea class="field" rows="2" id="cr${i}" placeholder="Your reply…"></textarea><div class="row" style="gap:6px"><button class="btn sm" data-air="${i}">AI reply</button><button class="btn sm pri" data-send="${i}">Send reply</button></div></div>`).join('')}</div>` : '<div class="empty">No comments to answer.</div>');
+  v.onclick = async (e) => {
+    const a = e.target.closest('[data-air]'), sd = e.target.closest('[data-send]');
+    if (a) { const c = cm[+a.dataset.air]; a.disabled = true; a.textContent = 'Writing…'; try { const r = await aiw('comment', { post: c.post, comment: c.text, from: c.who }); $('#cr' + a.dataset.air).value = r.text; } catch (x) { toast(x.message); } a.disabled = false; a.textContent = 'AI reply'; }
+    if (sd) { const i = +sd.dataset.send, c = cm[i], t = $('#cr' + i).value.trim(); if (!t) return toast('Write a reply first.'); sd.disabled = true; try { await api('POST', '/api/social/reply', { net: c.net, id: c.id, text: t }); toast('Reply posted'); sd.textContent = 'Sent ✓'; } catch (x) { toast(x.message); sd.disabled = false; } }
+  };
+}
+function drawCreate(on) {
+  const v = $('#sov'), nets = on.map(([k]) => k).filter((k) => ['linkedin', 'facebook', 'instagram'].includes(k));
+  if (!nets.length) { v.innerHTML = '<div class="empty">Connect LinkedIn, Facebook or Instagram to post from Dioma.</div>'; return; }
+  v.innerHTML = `<div class="stack"><textarea class="field" id="stopic" rows="2" placeholder="What do you want to post about? e.g. RedexGo just started chilled delivery for Amazon in Dubai"></textarea>
+    <button class="btn pri" id="swrite">Write with AI</button>
+    ${nets.map((k) => `<div class="card stack"><b style="font-weight:500">${NETN[k]}</b><textarea class="field" rows="6" id="sp-${k}" placeholder="Your ${NETN[k]} post"></textarea>${k === 'instagram' ? '<label class="btn sm" style="cursor:pointer;justify-self:start">📷 Add photo<input type="file" accept="image/*" id="sphoto" hidden></label><span class="note" id="sphotos"></span>' : ''}<button class="btn sm pri" data-post="${k}" style="justify-self:start">Post to ${NETN[k]}</button></div>`).join('')}
+    <p class="note">Nothing is posted until you tap Post, and Dioma asks you once more to be sure.</p></div>`;
+  let img = '';
+  $('#swrite').onclick = async (e) => { const t = $('#stopic').value.trim(); if (!t) return toast('Tell Dioma what the post is about.'); e.target.disabled = true; e.target.textContent = 'Writing…'; try { const r = await aiw('post', { topic: t, networks: nets }); const d = r.data || {}; nets.forEach((k) => { if (d[k]) $('#sp-' + k).value = d[k]; }); if (!r.data) $('#sp-' + nets[0]).value = r.text; } catch (x) { toast(x.message); } e.target.disabled = false; e.target.textContent = 'Write with AI'; };
+  $('#sphoto')?.addEventListener('change', async (e) => { const f = e.target.files[0]; if (!f) return; $('#sphotos').textContent = 'Uploading…'; try { const r = await fetch('/api/social/image', { method: 'POST', headers: { 'content-type': f.type, 'x-dioma': '1' }, body: f }); const j = await r.json(); if (!r.ok) throw new Error(j.error); img = j.url; $('#sphotos').textContent = '✓ ' + f.name; } catch (x) { $('#sphotos').textContent = x.message || 'Upload failed'; } });
+  v.onclick = async (e) => { const b = e.target.closest('[data-post]'); if (!b) return; const k = b.dataset.post, t = $('#sp-' + k).value.trim(); if (!t) return toast('Write the post first.');
+    if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = `Tap again to post on ${NETN[k]}`; return; }
+    b.disabled = true; b.textContent = 'Posting…'; try { await api('POST', '/api/social/post', { net: k, text: t, image: img }); b.textContent = 'Posted ✓'; toast('Posted on ' + NETN[k]); SOD = null; } catch (x) { toast(x.message); b.disabled = false; b.dataset.sure = ''; b.textContent = 'Post to ' + NETN[k]; } };
 }
 // More: everything not on the bottom bar, plus the layout setting
 function viewMore() {
