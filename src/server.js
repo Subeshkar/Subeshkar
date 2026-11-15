@@ -148,7 +148,12 @@ on('POST', '/api/auth/verify', async (req, res) => {
   send(res, 200, { ok: true, onboarded: !!u.onboarded });
 }, { open: true });
 
-on('POST', '/api/auth/logout', (req, res) => {
+on('POST', '/api/auth/logout', async (req, res) => {
+  const b = await json(req).catch(() => ({})), u = userFrom(req);
+  // "Sign out and remove access": disconnect every app for this account first.
+  if (u && b.removeAccess) {
+    await G.disconnect(u.id).catch(() => {}); await W.forget(u.id).catch(() => {}); M.disconnect(u.id); await A.disconnectAll(u.id).catch(() => {});
+  }
   const t = cookies(req).dsid; if (t) run('DELETE FROM sessions WHERE hash = ?', sha(SECRET + t));
   setSession(res, '', 0); send(res, 200, { ok: true });
 }, { open: true });

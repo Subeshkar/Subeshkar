@@ -55,6 +55,11 @@ export async function disconnect(uid, slug) {
   for (const a of (await connected(uid)).filter((x) => x.slug === slug)) await call('DELETE', `/connected_accounts/${a.id}`);
 }
 
+export async function disconnectAll(uid) {
+  if (!enabled()) return;
+  for (const a of await connected(uid)) await call('DELETE', `/connected_accounts/${a.id}`).catch(() => {});
+}
+
 // Run one app action for this user, e.g. GMAIL_FETCH_EMAILS.
 export async function exec(uid, tool, args = {}) {
   const r = await call('POST', `/tools/execute/${encodeURIComponent(tool)}`, { user_id: who(uid), arguments: args });
