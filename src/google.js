@@ -16,19 +16,31 @@ export function authUrl(uid, extra = []) {
   return `https://accounts.google.com/o/oauth2/v2/auth?${p}`;
 }
 
+// Finishes Google sign-in/connect. state.uid is set when a signed-in user connects Google;
+// it is null for "Continue with Google" sign-in, where the Google email picks (or creates) the account.
 export async function finish(state, code, uid) {
   const s = states.get(state); states.delete(state);
-  if (!s || s.exp < Date.now() || s.uid !== uid) throw new Error('This link expired. Please try connecting again.');
+  if (!s || s.exp < Date.now() || (s.uid && s.uid !== uid)) throw new Error('This link expired. Please try again.');
   const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ code, client_id: process.env.GOOGLE_CLIENT_ID, client_secret: process.env.GOOGLE_CLIENT_SECRET, redirect_uri: redirect(), grant_type: 'authorization_code' }) });
   const j = await r.json();
   if (!r.ok || !j.refresh_token) throw new Error(j.error_description || 'Google did not return access. Please try again.');
   let account = '';
-  try { account = JSON.parse(Buffer.from(j.id_token.split('.')[1], 'base64url').toString()).email || ''; } catch {}
+  let verified = false;
+  try { const c = JSON.parse(Buffer.from(j.id_token.split('.')[1], 'base64url').toString()); account = (c.email || '').toLowerCase(); verified = !!c.email_verified; } catch {}
+  if (!s.uid) {
+    if (!account || !verified) throw new Error('Google did not share a verified email.');
+    let u = one('SELECT id FROM users WHERE email = ?', account);
+    if (!u) {
+      if (one('SELECT COUNT(*) n FROM users').n >= Number(process.env.MAX_USERS || 100)) { run('INSERT OR IGNORE INTO waitlist (email, created) VALUES (?, ?)', account, Date.now()); throw Object.assign(new Error('Early access is full. You are on the waitlist.'), { waitlist: true }); }
+      run('INSERT INTO users (email, created) VALUES (?, ?)', account, Date.now()); u = one('SELECT id FROM users WHERE email = ?', account);
+    }
+    uid = u.id;
+  }
   run(`INSERT INTO connections (user_id, kind, account, secret, created) VALUES (?, 'google', ?, ?, ?)
        ON CONFLICT(user_id, kind) DO UPDATE SET account = excluded.account, secret = excluded.secret, created = excluded.created`, uid, account, seal({ refresh: j.refresh_token, scope: j.scope }), Date.now());
   access.set(uid, { tok: j.access_token, exp: Date.now() + (j.expires_in - 60) * 1e3 });
-  return account;
+  return { uid, account };
 }
 
 export async function disconnect(uid) {

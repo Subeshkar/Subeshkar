@@ -284,14 +284,26 @@ on('DELETE', '/api/files/:id', (req, res, u, p) => {
 // Google connect
 on('GET', '/auth/google', (req, res, u) => {
   if (!G.enabled()) return send(res, 302, '', { location: '/#me' });
-  send(res, 302, '', { location: G.authUrl(u.id, O.isOwner(u) ? G.OWNER_SCOPES : []) });
+  send(res, 302, '', { location: G.authUrl(u.id, G.OWNER_SCOPES) });
 }, { page: true });
-on('GET', '/auth/google/callback', async (req, res, u) => {
+// "Continue with Google": signs in (or signs up) and connects Gmail + Calendar in one step.
+on('GET', '/auth/google/login', (req, res) => {
+  if (!G.enabled()) return send(res, 302, '', { location: '/' });
+  if (limited('glogin:' + ip(req), 30, 60 * 60e3)) return fail(res, 429, 'Too many tries. Please wait a few minutes.');
+  send(res, 302, '', { location: G.authUrl(null, G.OWNER_SCOPES) });
+}, { open: true });
+on('GET', '/auth/google/callback', async (req, res) => {
   const q = new URL(req.url, 'http://x').searchParams;
-  if (q.get('error')) return send(res, 302, '', { location: '/#me?google=cancelled' });
-  try { await G.finish(q.get('state'), q.get('code'), u.id); G.forget(u.id); send(res, 302, '', { location: O.isOwner(u) ? '/me' : '/#home?google=connected' }); }
-  catch (e) { send(res, 302, '', { location: '/#me?google=' + encodeURIComponent(e.message) }); }
-}, { page: true });
+  const u = userFrom(req);
+  if (q.get('error')) return send(res, 302, '', { location: u ? '/#me?google=cancelled' : '/' });
+  try {
+    const { uid } = await G.finish(q.get('state'), q.get('code'), u ? u.id : null);
+    G.forget(uid);
+    if (!u) { const t = token(); run('INSERT INTO sessions (hash, user_id, expires, created) VALUES (?, ?, ?, ?)', sha(SECRET + t), uid, now() + 30 * DAY, now()); setSession(res, t, 30 * 86400); }
+    const me = one('SELECT * FROM users WHERE id = ?', uid);
+    send(res, 302, '', { location: O.isOwner(me) ? '/me' : me.onboarded ? '/#home?google=connected' : '/' });
+  } catch (e) { send(res, 302, '', { location: (u ? '/#me?google=' : '/?err=') + encodeURIComponent(e.message) }); }
+}, { open: true });
 on('DELETE', '/api/google', async (req, res, u) => { await G.disconnect(u.id); send(res, 200, { ok: true }); });
 
 // ---------- the owner's own Dioma (runs fully on this backend) ----------
