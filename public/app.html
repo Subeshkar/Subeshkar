@@ -79,6 +79,16 @@ main{padding-block:22px calc(110px + env(safe-area-inset-bottom,0px))}
 nav.bot{position:fixed;left:0;right:0;bottom:0;z-index:10;background:rgba(0,0,0,.9);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
 nav.bot .wrap{display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
 #tabs{padding-top:14px}
+.wstats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;margin-top:14px}
+@media (max-width:620px){.wstats{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.wst{border:1px solid var(--line2);border-radius:12px;padding:8px 6px;text-align:center;display:flex;flex-direction:column;gap:2px}
+.wst b{font-size:20px;font-weight:600;line-height:1.1}.wst span{font-size:11px;color:var(--dim);line-height:1.2}
+.wst.hi{background:var(--acc);border-color:var(--acc)}.wst.hi b,.wst.hi span{color:var(--accink)}
+.wtabs{display:grid;grid-template-columns:repeat(3,1fr);border-radius:12px}.wtabs button{border-radius:9px}.seg.wtabs button.on{background:var(--acc);color:var(--accink)}.wtabs button{padding:10px 6px;font-size:14px}
+.wfil{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;background:#0b0b0b;border-radius:12px;padding:4px}.wfil::-webkit-scrollbar{display:none}
+.wfil button{flex:none;border:0;background:transparent;color:var(--fg);padding:8px 12px;border-radius:9px;font:500 13.5px var(--sans);cursor:pointer;white-space:nowrap}
+.wfil button.on{background:var(--acc);color:var(--accink)}
+.wun{display:inline-block;min-width:20px;height:20px;line-height:20px;border-radius:10px;background:var(--acc);color:var(--accink);font:600 11px var(--mono);text-align:center;margin-top:4px;padding:0 5px}
 .btn.mic{width:48px;height:48px;padding:0;flex:none}.btn.mic.rec{background:var(--bad);border-color:var(--bad);color:#000;animation:lpulse 1.2s infinite}
 .live{font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.14em;color:var(--accink);background:var(--acc);border-radius:999px;padding:3px 9px;display:inline-flex;align-items:center;gap:6px}
 .live i{width:6px;height:6px;border-radius:50%;background:var(--accink);animation:lpulse 1.6s infinite}
@@ -917,6 +927,32 @@ async function viewActivity() {
 
 // ---------- WhatsApp ----------
 let waPoll = null, waOpen = null;
+let WAF = { tab: 'personal', f: 'action', q: '' };
+const DAYMS = 864e5;
+function waGroups(d) {
+  const now = Date.now(), C = d.chats;
+  const isAction = (c) => !c.is_group && !c.last_from_me && c.last_at > now - 14 * DAYMS;
+  const tabOf = (c) => (!c.is_group && !c.named ? 'other' : 'personal');
+  const inTab = C.filter((c) => tabOf(c) === WAF.tab);
+  const F = {
+    action: (c) => isAction(c),
+    priority: (c) => isAction(c) && c.unread > 0 && c.last_at > now - 2 * DAYMS,
+    follow: (c) => !c.is_group && c.last_from_me && c.last_at < now - 2 * DAYMS && c.last_at > now - 30 * DAYMS,
+    unread: (c) => c.unread > 0,
+    all: () => true,
+    groups: (c) => !!c.is_group,
+    noise: (c) => !!c.is_group && !c.last_from_me && (!c.my_at || c.my_at < now - 30 * DAYMS),
+  };
+  const named = C.filter((c) => tabOf(c) === 'personal');
+  const stats = {
+    reply: named.filter(F.action).length, unread: C.filter((c) => !c.is_group && c.unread > 0).length,
+    groups: C.filter((c) => c.is_group && c.unread > 0).length, priority: named.filter(F.priority).length, sent: d.sentToday,
+  };
+  const counts = Object.fromEntries(Object.keys(F).map((k) => [k, inTab.filter(F[k]).length]));
+  const q = WAF.q.trim().toLowerCase();
+  const list = inTab.filter(F[WAF.f] || F.all).filter((c) => !q || (c.name + ' ' + c.jid).toLowerCase().includes(q));
+  return { stats, counts, list, other: C.filter((c) => tabOf(c) === 'other').length };
+}
 async function viewWa() {
   clearInterval(waPoll);
   const main = $('#main');
@@ -924,17 +960,35 @@ async function viewWa() {
   if (cur() !== 'wa') return;
   if (st.status !== 'open') return waConnect(st);
   if (waOpen) return waChat(waOpen);
-  main.innerHTML = `${stabs()}<div class="row" style="justify-content:space-between"><h1>WhatsApp</h1><button class="btn sm" id="wd">Disconnect</button></div>
-    <input class="field" id="wq" placeholder="Search chats" style="margin-top:14px"><div class="list" id="wl" style="margin-top:12px"><div class="empty">Loading your chats…</div></div>`;
-  const load = async () => {
-    const d = await api('GET', '/api/wa/chats?q=' + encodeURIComponent($('#wq')?.value || '')).catch(() => ({ chats: [] }));
+  const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+  const FL = [['action', 'Action'], ['priority', 'Priority'], ['follow', 'Follow-up'], ['unread', 'Unread'], ['all', 'All'], ['groups', 'Groups'], ['noise', 'Noise']];
+  main.innerHTML = `<a href="#home" class="back" style="color:var(--acc);text-decoration:none;font-weight:500">← Home</a>
+    <div class="row" style="justify-content:space-between;margin-top:8px;align-items:flex-end;flex-wrap:wrap;gap:10px"><h1 style="text-transform:uppercase;font-weight:600;letter-spacing:-.02em;font-size:28px">Your chats <span class="eyebrow" style="font-size:12px">WhatsApp</span></h1><div class="row" style="gap:6px"><button class="btn sm" id="wref">Refresh</button><button class="btn sm" id="wd">Disconnect</button></div></div>
+    <div class="wstats" id="wst"></div>
+    <div class="card stack" style="margin-top:14px">
+      <div class="seg wtabs" id="wtab">${[['personal', 'Personal'], ['business', 'Business'], ['other', 'Other']].map(([k, l]) => `<button data-t="${k}" class="${WAF.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+      <form class="row" id="wsf" style="gap:8px"><input class="field grow" id="wq" placeholder="Search name or number" value="${esc(WAF.q)}"><button class="btn sm" style="height:48px">Search</button></form>
+      <div class="wfil" id="wfl"></div>
+      <div class="list" id="wl"><div class="empty">Loading your chats…</div></div>
+    </div>`;
+  const draw = (d) => {
     if (cur() !== 'wa' || !$('#wl')) return;
-    $('#wl').innerHTML = d.chats.length ? d.chats.map((c) => `<div class="item" data-jid="${esc(c.jid)}" data-name="${esc(c.name)}" style="cursor:pointer"><span class="ficon mono">${esc((c.name || '?').slice(0, 2).toUpperCase())}</span><div class="grow"><div class="t">${esc(c.name)}</div><div class="s">${c.last_from_me ? 'You: ' : ''}${esc(c.last_text || '')}</div></div><div style="display:grid;justify-items:end;gap:4px"><span class="note">${c.last_at ? ago(c.last_at) : ''}</span>${c.unread ? `<span class="pill" style="background:var(--acc);color:var(--accink);border-color:var(--acc)">${c.unread}</span>` : ''}</div></div>`).join('') : '<div class="empty">Your chats appear here in a minute or two after linking. New messages show up straight away.</div>';
+    const g = waGroups(d);
+    $('#wst').innerHTML = [[g.stats.reply, 'Need your reply', 1], [g.stats.unread, 'Unread chats'], [g.stats.groups, 'Groups unread'], [g.stats.priority, 'Priority'], [0, 'Business unread'], [g.stats.sent, 'Sent today']].map(([n, l, hi]) => `<div class="wst ${hi ? 'hi' : ''}"><b>${n}</b><span>${l}</span></div>`).join('');
+    $('#wfl').innerHTML = WAF.tab === 'business' ? '' : FL.map(([k, l]) => `<button data-f="${k}" class="${WAF.f === k ? 'on' : ''}">${l}${g.counts[k] && ['action', 'priority', 'noise', 'follow'].includes(k) ? ' ' + g.counts[k] : ''}</button>`).join('');
+    if (WAF.tab === 'business') { $('#wl').innerHTML = '<div class="empty">Business WhatsApp (your company number) is coming soon. Your personal chats are in Personal.</div>'; return; }
+    $('#wl').innerHTML = g.list.length ? g.list.slice(0, 120).map((c) => `<div class="item" data-jid="${esc(c.jid)}" data-name="${esc(c.name)}" style="cursor:pointer"><span class="ficon mono">${esc((c.name || '?').replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase() || '#')}</span><div class="grow"><div class="t">${esc(c.name)}${c.is_group ? ' <span class="soon">Group</span>' : ''}</div><div class="s">${c.last_from_me ? 'You: ' : ''}${esc(c.last_text || '')}</div></div><div style="text-align:right;flex:none"><div class="when">${ago(c.last_at)}</div>${c.unread ? `<b class="wun">${c.unread}</b>` : ''}</div></div>`).join('') : `<div class="empty">${WAF.f === 'action' ? 'Nobody is waiting for your reply.' : 'Nothing here.'}</div>`;
   };
+  let D = null;
+  const load = async () => { D = await api('GET', '/api/wa/overview?since=' + midnight.getTime()).catch(() => ({ chats: [], sentToday: 0 })); draw(D); };
   await load();
-  $('#wq').addEventListener('input', () => { clearTimeout(viewWa.t); viewWa.t = setTimeout(load, 250); });
+  $('#wtab').addEventListener('click', (e) => { const b = e.target.closest('[data-t]'); if (!b) return; WAF.tab = b.dataset.t; WAF.f = WAF.tab === 'other' ? 'all' : 'action'; $('#wtab').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); D && draw(D); });
+  $('#wfl').addEventListener('click', (e) => { const b = e.target.closest('[data-f]'); if (!b) return; WAF.f = b.dataset.f; D && draw(D); });
+  $('#wsf').addEventListener('submit', (e) => { e.preventDefault(); WAF.q = $('#wq').value; D && draw(D); });
+  $('#wq').addEventListener('input', () => { WAF.q = $('#wq').value; D && draw(D); });
+  $('#wref').addEventListener('click', load);
   $('#wl').addEventListener('click', (e) => { const it = e.target.closest('[data-jid]'); if (!it) return; waOpen = { jid: it.dataset.jid, name: it.dataset.name }; waChat(waOpen); });
-  $('#wd').addEventListener('click', () => { $('#wd').outerHTML = '<span class="row"><span class="note">Unlink WhatsApp and delete its chats from Dioma?</span><button class="btn sm bad" id="wd2">Disconnect</button></span>'; $('#wd2').addEventListener('click', async () => { await api('DELETE', '/api/wa'); toast('WhatsApp disconnected'); viewWa(); }); });
+  $('#wd').addEventListener('click', () => { $('#wd').outerHTML = '<span class="row"><span class="note">Unlink WhatsApp and delete its chats from Dioma?</span><button class="btn sm bad" id="wd2">Disconnect</button></span>'; $('#wd2').addEventListener('click', async () => { await api('DELETE', '/api/wa').catch(() => {}); toast('WhatsApp disconnected'); viewWa(); }); });
   waPoll = setInterval(() => { if (cur() === 'wa' && !waOpen) load(); else clearInterval(waPoll); }, 15000);
 }
 function waConnect(st) {

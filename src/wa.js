@@ -129,3 +129,13 @@ export function snapshot(uid) {
   const waiting = all('SELECT COALESCE(c.name, ct.name, c.jid) name, c.last_text, c.unread, c.last_at FROM wa_chats c LEFT JOIN wa_contacts ct ON ct.user_id = c.user_id AND ct.jid = c.jid WHERE c.user_id = ? AND c.unread > 0 AND c.is_group = 0 ORDER BY c.last_at DESC LIMIT 10', uid);
   return { waiting };
 }
+
+// Everything the WhatsApp screen needs to sort chats (who is waiting, follow-ups, groups, unknown numbers).
+export function overview(uid, since) {
+  const chats = all(`SELECT c.jid, COALESCE(c.name, ct.name) nm, c.is_group, c.unread, c.last_text, c.last_from_me, c.last_at,
+      (SELECT MAX(at) FROM wa_messages m WHERE m.user_id = c.user_id AND m.jid = c.jid AND m.from_me = 1) my_at
+    FROM wa_chats c LEFT JOIN wa_contacts ct ON ct.user_id = c.user_id AND ct.jid = c.jid
+    WHERE c.user_id = ? AND c.last_at > 0 ORDER BY c.last_at DESC LIMIT 400`, uid);
+  const sent = one('SELECT COUNT(*) n FROM wa_messages WHERE user_id = ? AND from_me = 1 AND at >= ?', uid, Number(since) || 0)?.n || 0;
+  return { chats: chats.map((c) => ({ ...c, name: c.nm || c.jid.split('@')[0], named: !!c.nm })), sentToday: sent };
+}
