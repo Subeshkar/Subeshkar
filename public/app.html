@@ -545,6 +545,63 @@ function signOutAsk() {
   $('#lo-keep').onclick = () => out($('#lo-keep'), false);
   $('#lo-yes').onclick = () => out($('#lo-yes'), true);
 }
+// Wealth: personal, business and family accounts and cards; statements in, spending out
+const OWN = { personal: 'Personal', business: 'Business', family: 'Family' };
+const money = (n, c = 'AED') => `${c} ${Number(n || 0).toLocaleString('en', { maximumFractionDigits: 0 })}`;
+let WDAYS = 30;
+async function viewWealth() {
+  const main = $('#main');
+  const d = await api('GET', '/api/wealth?days=' + WDAYS).catch((x) => (toast(x.message), null)); if (!d || cur() !== 'wealth') return;
+  const spent = d.byCat.reduce((a, c) => a + c.total, 0), max = Math.max(1, ...d.byCat.map((c) => c.total));
+  const acc = (o) => d.accounts.filter((a) => a.owner === o);
+  main.innerHTML = `<h1>Wealth</h1>
+    <p class="dim" style="margin:8px 0 6px">Your bank accounts and cards in one place: where the money goes, account by account.</p>
+    ${d.accounts.length ? `<div class="seg" id="wdays" style="margin:12px 0">${[[30, '30 days'], [90, '3 months'], [365, '12 months']].map(([v, l]) => `<button data-d="${v}" class="${WDAYS === v ? 'on' : ''}">${l}</button>`).join('')}</div>
+    <section class="card stack"><div class="eyebrow">Spent, last ${WDAYS === 365 ? '12 months' : WDAYS === 90 ? '3 months' : '30 days'}</div><div style="font-size:30px">${money(spent)}</div>
+      <div class="row" style="gap:14px;flex-wrap:wrap">${d.byOwner.map((o) => `<span class="dim">${OWN[o.owner]}: ${money(o.total)}</span>`).join('')}</div></section>
+    ${d.byCat.length ? `<section class="sec"><h2>Where it goes</h2><div class="stack" style="gap:10px">${d.byCat.map((c) => `<div><div class="row" style="justify-content:space-between"><span>${esc(c.category)}</span><span class="dim">${money(c.total)}</span></div><div style="height:6px;border-radius:4px;background:var(--line2);margin-top:5px"><div style="height:6px;border-radius:4px;background:var(--acc);width:${Math.max(2, (c.total / max) * 100)}%"></div></div></div>`).join('')}</div></section>` : ''}
+    ${d.top.length ? `<section class="sec"><h2>Biggest spends</h2><div class="list">${d.top.map((t) => `<div class="item"><div class="grow"><div class="t">${esc(t.description)}</div><div class="s">${t.n} payment${t.n > 1 ? 's' : ''}</div></div><span>${money(t.total)}</span></div>`).join('')}</div></section>` : ''}` : ''}
+    ${['personal', 'business', 'family'].map((o) => `<section class="sec"><div class="row" style="justify-content:space-between"><h2 style="margin:0">${OWN[o]}</h2><button class="btn sm" data-add="${o}">+ Add account or card</button></div>
+      <div class="list" style="margin-top:10px">${acc(o).length ? acc(o).map((a) => `<div class="item" style="flex-wrap:wrap"><span class="ficon mono">${a.kind === 'card' ? '▭' : '🏦'}</span><div class="grow"><div class="t">${esc(a.name)}${a.last4 ? ` ·· ${a.last4}` : ''}</div><div class="s">${esc(a.bank || '')} ${a.kind === 'card' ? 'card' : 'account'} · ${a.tx ? `${a.tx} transactions, latest ${new Date(a.latest).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : 'no statement yet'}</div></div>
+        <div class="row" style="width:100%;gap:8px;justify-content:flex-end"><label class="btn sm pri" style="cursor:pointer">Add statement<input type="file" hidden accept=".pdf,.csv,.xls,.xlsx" data-imp="${a.id}"></label><button class="btn sm" data-del="${a.id}">Remove</button></div></div>`).join('') : `<div class="empty">No ${OWN[o].toLowerCase()} accounts yet.</div>`}</div></section>`).join('')}
+    ${d.recent.length ? `<section class="sec"><h2>Latest transactions</h2><div class="list">${d.recent.map((t) => `<div class="item"><span class="when">${new Date(t.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span><div class="grow"><div class="t">${esc(t.description)}</div><div class="s">${esc(t.category)} · ${esc(t.account)}</div></div><span style="${t.amount > 0 ? 'color:var(--acc)' : ''}">${t.amount > 0 ? '+' : ''}${Number(t.amount).toLocaleString('en', { maximumFractionDigits: 2 })}</span></div>`).join('')}</div></section>` : ''}
+    <p class="note" style="margin-top:18px">How to add a statement: open your bank app or online banking, download the statement (PDF, Excel or CSV) and tap "Add statement". Dioma keeps only a name, the bank and the last 4 digits. It never asks for your bank password or full card number.</p>`;
+  $('#wdays')?.addEventListener('click', (e) => { const b = e.target.closest('[data-d]'); if (b) { WDAYS = +b.dataset.d; viewWealth(); } });
+  main.onclick = async (e) => {
+    const a = e.target.closest('[data-add]'); if (a) return wealthForm(a.dataset.add);
+    const r = e.target.closest('[data-del]');
+    if (r) { if (r.dataset.sure !== '1') { r.dataset.sure = '1'; r.textContent = 'Tap again to remove'; r.classList.add('bad'); return; } await api('DELETE', '/api/wealth/accounts/' + r.dataset.del); toast('Removed'); viewWealth(); }
+  };
+  main.onchange = async (e) => {
+    const inp = e.target.closest('[data-imp]'); if (!inp || !inp.files[0]) return;
+    const f = inp.files[0]; toast('Reading statement…');
+    try {
+      const r = await fetch(`/api/wealth/import?account=${inp.dataset.imp}&name=${encodeURIComponent(f.name)}`, { method: 'POST', headers: { 'content-type': 'application/octet-stream', 'x-dioma': '1' }, body: f });
+      const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'Could not read that file.');
+      toast(j.added ? `${j.added} transactions added` : 'Already added, nothing new'); viewWealth();
+    } catch (x) { toast(x.message); }
+  };
+}
+function wealthForm(owner) {
+  $('#main').onclick = null; $('#main').onchange = null;
+  $('#main').innerHTML = `<button class="btn sm" id="wback">← Back</button><h1 style="margin-top:12px">Add a ${OWN[owner].toLowerCase()} account or card</h1>
+    <form class="card stack" id="wf" style="margin-top:14px">
+      <div class="seg" id="wkind"><button type="button" data-k="bank" class="on">Bank account</button><button type="button" data-k="card">Credit card</button></div>
+      <input class="field" id="wn" maxlength="60" placeholder="Name, for example: Salary account, Company current, Family savings" required>
+      <input class="field" id="wb" maxlength="60" placeholder="Bank, for example: Emirates NBD, ADCB, FAB, Mashreq">
+      <input class="field" id="wl" inputmode="numeric" maxlength="4" placeholder="Last 4 digits (optional)">
+      <select class="field" id="wc"><option>AED</option><option>USD</option><option>EUR</option><option>GBP</option><option>INR</option><option>LKR</option><option>SAR</option></select>
+      <button class="btn pri">Add</button><div class="err" id="werr"></div>
+      <p class="note">Only the last 4 digits. Never type your full account number, card number, PIN or bank password here.</p></form>`;
+  let kind = 'bank';
+  $('#wback').onclick = viewWealth;
+  $('#wkind').onclick = (e) => { const b = e.target.closest('[data-k]'); if (!b) return; kind = b.dataset.k; $('#wkind').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); };
+  $('#wf').onsubmit = async (e) => {
+    e.preventDefault();
+    try { await api('POST', '/api/wealth/accounts', { kind, owner, name: $('#wn').value, bank: $('#wb').value, last4: $('#wl').value, currency: $('#wc').value }); toast('Added. Now add a statement.'); viewWealth(); }
+    catch (x) { $('#werr').textContent = x.message; }
+  };
+}
 // More: everything not on the bottom bar, plus the layout setting
 function viewMore() {
   const bot = NAVP().bottom;
