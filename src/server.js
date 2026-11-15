@@ -431,6 +431,38 @@ on('POST', '/api/browser/to-wealth', async (req, res, u) => {
   send(res, 200, WL.importText(u.id, acc, await BR.pageText(u.id)));
 });
 
+// Mail screen: every connected mailbox, folders and the counts (need action, unread, drafts, follow-ups…)
+const AUTO_SENDER = /no-?reply|newsletter|notification|notify|mailer|bounce|marketing|promo|digest|alerts?@|news@|updates?@|info@|support@|hello@|team@/i;
+const label = (k, email) => { const d = String(email || '').split('@')[1] || ''; if (/gmail|googlemail|outlook|hotmail|live|yahoo|icloud|me\.com/.test(d) || (!d && /gmail|outlook/.test(k))) return 'Personal'; if (d) { const n = d.split('.')[0]; return n.charAt(0).toUpperCase() + n.slice(1); } return { zoho_mail: 'Zoho Mail', outlook: 'Outlook', gmail: 'Gmail' }[k] || 'Mail'; };
+async function mailAccounts(u) {
+  const out = [];
+  if (A.enabled()) { const on = (await A.connected(u.id).catch(() => [])).map((x) => x.slug); for (const k of ['gmail', 'outlook', 'zoho_mail']) if (on.includes(k)) out.push({ key: k, label: label(k) }); }
+  const im = M.account(u.id); if (im) out.push({ key: 'imap', label: label('imap', im) });
+  const g = one(`SELECT account FROM connections WHERE user_id = ? AND kind = 'google'`, u.id); if (g && !out.some((x) => x.key === 'gmail')) out.push({ key: 'google', label: label('google', g.account) });
+  const seen = {}; for (const a of out) { seen[a.label] = (seen[a.label] || 0) + 1; if (seen[a.label] > 1) a.label += ' ' + seen[a.label]; }
+  return out;
+}
+async function folder(u, key, f, q) {
+  if (key === 'imap') return M.box(u.id, f, q);
+  if (key === 'google') { if (f !== 'inbox' && f !== 'unread') return []; const g = await G.snapshot(u.id, u.tz).catch(() => null); return (g?.mail || []).filter((m) => !q || (m.from + m.subject).toLowerCase().includes(q.toLowerCase())).map((m) => ({ id: 'g:' + m.id, thread: m.thread, from: m.from, fromAddr: '', subject: m.subject, snippet: m.snippet, at: m.at, unread: true })); }
+  return A.mailbox(u.id, key, f, q);
+}
+on('GET', '/api/mail/accounts', async (req, res, u) => send(res, 200, { accounts: await mailAccounts(u) }));
+on('GET', '/api/mail/summary', async (req, res, u) => {
+  const qs = new URL(req.url, 'http://x').searchParams, key = qs.get('acct'), q = (qs.get('q') || '').slice(0, 100), since = Number(qs.get('since')) || 0;
+  const accts = await mailAccounts(u); const a = accts.find((x) => x.key === key) || accts[0];
+  if (!a) return send(res, 200, { accounts: [], none: true });
+  const get = (f) => folder(u, a.key, f, q).catch((e) => { console.error('mail', a.key, f, e.message); return []; });
+  const [inbox, unread, sent, drafts] = await Promise.all([get('inbox'), get('unread'), get('sent'), get('drafts')]);
+  const now = Date.now();
+  const lastSentTo = {}; for (const m of sent) if (m.toAddr) lastSentTo[m.toAddr] = Math.max(lastSentTo[m.toAddr] || 0, m.at);
+  const lastFrom = {}; for (const m of inbox) if (m.fromAddr) lastFrom[m.fromAddr] = Math.max(lastFrom[m.fromAddr] || 0, m.at);
+  const toReply = inbox.filter((m) => m.at > now - 7 * DAY && !AUTO_SENDER.test(m.fromAddr + ' ' + m.from) && !(m.fromAddr && lastSentTo[m.fromAddr] > m.at));
+  const follow = sent.filter((m) => m.at < now - 3 * DAY && m.at > now - 30 * DAY && m.toAddr && !(lastFrom[m.toAddr] > m.at));
+  const replies = inbox.filter((m) => m.unread && /^\s*re:/i.test(m.subject));
+  send(res, 200, { accounts: accts, acct: a.key, lists: { reply: toReply, unread, inbox, sent, drafts, follow, replies, sentToday: sent.filter((m) => m.at >= since) } });
+});
+
 // One-tap app connections (Composio)
 const pub = () => (process.env.PUBLIC_URL || 'http://localhost:8080').replace(/\/$/, '');
 const slugOk = (s) => /^[a-z0-9_]{2,40}$/.test(s || '');

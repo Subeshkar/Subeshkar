@@ -61,3 +61,34 @@ export async function inbox(uid, limit = 25) {
   } finally { await c.logout().catch(() => {}); }
   return out.sort((a, b) => b.at - a.at);
 }
+
+// One folder (inbox / unread / sent / drafts), optionally searched. Newest first.
+export async function box(uid, folder = 'inbox', q = '', limit = 30) {
+  const row = one(`SELECT secret FROM connections WHERE user_id = ? AND kind = 'imap'`, uid);
+  if (!row) return [];
+  const c = client(open(row.secret));
+  await c.connect();
+  const out = [];
+  try {
+    let path = 'INBOX';
+    if (folder === 'sent' || folder === 'drafts') {
+      const want = folder === 'sent' ? '\\Sent' : '\\Drafts';
+      const list = await c.list();
+      const f = list.find((x) => x.specialUse === want) || list.find((x) => new RegExp(folder === 'sent' ? 'sent' : 'draft', 'i').test(x.path));
+      if (!f) return [];
+      path = f.path;
+    }
+    const mb = await c.mailboxOpen(path, { readOnly: true });
+    if (!mb.exists) return [];
+    let uids;
+    const crit = {}; if (folder === 'unread') crit.seen = false; if (q) crit.or = [{ subject: q }, { from: q }, { body: q }];
+    if (Object.keys(crit).length) uids = (await c.search(crit, { uid: true })) || [];
+    const range = uids ? uids.slice(-limit) : `${Math.max(1, mb.exists - limit + 1)}:*`;
+    if (uids && !uids.length) return [];
+    for await (const m of c.fetch(range, { envelope: true, flags: true, uid: true }, uids ? { uid: true } : undefined)) {
+      const f = m.envelope.from?.[0] || {}, t = m.envelope.to?.[0] || {};
+      out.push({ id: 'im:' + path + ':' + m.uid, from: f.name || f.address || '', fromAddr: (f.address || '').toLowerCase(), to: t.name || t.address || '', toAddr: (t.address || '').toLowerCase(), subject: m.envelope.subject || '(no subject)', at: +new Date(m.envelope.date || Date.now()), unread: !m.flags?.has('\\Seen'), snippet: '' });
+    }
+  } finally { await c.logout().catch(() => {}); }
+  return out.sort((a, b) => b.at - a.at);
+}

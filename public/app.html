@@ -884,6 +884,7 @@ function wireChooser() {
     mailForm(b.dataset.mp);
   };
 }
+let MF = { acct: null, f: 'reply', q: '' }, MD = null;
 async function viewMail() {
   const main = $('#main');
   S.me = await api('GET', '/api/me').catch(() => S.me); await loadApps(true);
@@ -893,16 +894,54 @@ async function viewMail() {
     main.innerHTML = `<h1>Connect your mail</h1><p class="dim" style="margin:8px 0 18px">Which email do you use? Pick it and sign in. You can add more later.</p>${mailChooser()}`;
     return wireChooser();
   }
-  main.innerHTML = `<h1>Mail</h1>
-    ${gOK() ? `<section class="sec"><div class="row" style="justify-content:space-between"><h2 style="margin:0">${esc(S.me.google.account || 'Gmail')} · unread</h2></div><div class="list" id="ml"><div class="empty">Loading…</div></div></section>` : ''}
-    ${S.me.mailbox ? `<section class="sec"><div class="row" style="justify-content:space-between"><h2 style="margin:0">${esc(S.me.mailbox)}</h2><button class="btn sm" id="mdis">Disconnect</button></div><div class="list" id="mi"><div class="empty">Loading…</div></div></section>` : ''}
-    ${mailApps.map(([k, n]) => `<section class="sec"><div class="row" style="justify-content:space-between"><h2 style="margin:0">${n}</h2><button class="btn sm" data-off="${k}">Disconnect</button></div><div class="list" data-inbox="${k}"><div class="empty">Loading…</div></div></section>`).join('')}
-    <section class="sec"><h2>Add another mailbox</h2>${mailChooser()}</section>`;
-  document.querySelectorAll('[data-inbox]').forEach(async (el) => { try { const d = await api('GET', '/api/apps/inbox?slug=' + el.dataset.inbox); el.innerHTML = d.mail.length ? d.mail.map((m) => `<div class="item"><span class="when">${m.at ? ago(m.at) : ''}</span><div class="grow"><div class="t">${esc(m.from)}</div><div class="s">${esc(m.subject)}</div></div></div>`).join('') : '<div class="empty">Inbox clear.</div>'; } catch (x) { el.innerHTML = `<div class="empty">${esc(x.message)}</div>`; } });
-  wireChooser();
-  $('#mdis')?.addEventListener('click', async () => { await api('DELETE', '/api/mail'); S.me.mailbox = null; toast('Mailbox disconnected'); viewMail(); });
-  if (gOK()) api('GET', '/api/home').catch(() => ({ mail: [] })).then((d) => { if (!$('#ml')) return; $('#ml').innerHTML = d.mail.length ? d.mail.map((m) => `<a class="item" style="text-decoration:none" target="_blank" rel="noopener" href="https://mail.google.com/mail/u/0/#inbox/${esc(m.thread)}"><span class="when">${ago(m.at)}</span><div class="grow"><div class="t">${esc(m.from)}</div><div class="s">${esc(m.subject)}</div></div></a>`).join('') : '<div class="empty">Inbox clear.</div>'; });
-  if (S.me.mailbox) api('GET', '/api/mail/inbox').then((d) => { if (!$('#mi')) return; $('#mi').innerHTML = d.mail.length ? d.mail.map((m) => `<div class="item"><span class="when">${ago(m.at)}</span><div class="grow"><div class="t" style="${m.unread ? '' : 'color:var(--dim)'}">${esc(m.from)}</div><div class="s">${esc(m.subject)}</div></div>${m.unread ? '<span class="soon" style="color:var(--acc)">New</span>' : ''}</div>`).join('') : '<div class="empty">Inbox empty.</div>'; }).catch((x) => { if ($('#mi')) $('#mi').innerHTML = `<div class="empty">${esc(x.message)}</div>`; });
+  const FL = [['reply', 'To reply'], ['unread', 'Unread'], ['inbox', 'Inbox'], ['sent', 'Sent'], ['drafts', 'Drafts']];
+  main.innerHTML = `<a href="#home" class="back" style="color:var(--acc);text-decoration:none;font-weight:500">← Home</a>
+    <div class="row" style="justify-content:space-between;margin-top:8px;align-items:flex-end;flex-wrap:wrap;gap:10px"><h1 style="text-transform:uppercase;font-weight:600;letter-spacing:-.02em;font-size:28px">Your mail <span class="eyebrow" style="font-size:12px">Email</span></h1><button class="btn sm" id="madd">+ Add mailbox</button></div>
+    <div class="wstats" id="mst"></div>
+    <div class="card stack" style="margin-top:14px">
+      <div class="row" style="gap:8px"><div class="seg wtabs grow" id="macc" style="display:flex;overflow-x:auto"></div><button class="btn sm" id="mmore" title="Mailbox options" style="height:44px">▾</button></div>
+      <div class="wfil" id="mfl"></div>
+      <form class="row" id="msf" style="gap:6px"><input class="field grow" id="mq" placeholder="Search this mailbox" value="${esc(MF.q)}"><button class="btn sm" style="height:48px">Go</button><button type="button" class="btn sm" id="mref" style="height:48px" title="Refresh">↻</button><button type="button" class="btn sm" id="mai" style="height:48px">AI</button></form>
+      <div class="list" id="mlist"><div class="empty">Loading your mail…</div></div>
+    </div>
+    <div id="maddbox"></div>`;
+  const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+  const draw = () => {
+    if (cur() !== 'mail' || !$('#mlist') || !MD) return;
+    if (MD.none) { $('#mlist').innerHTML = '<div class="empty">No mailbox connected.</div>'; return; }
+    const L = MD.lists, cnt = (k) => (L[k] || []).length;
+    $('#macc').innerHTML = MD.accounts.map((a) => `<button data-acc="${a.key}" class="${MD.acct === a.key ? 'on' : ''}" style="flex:1 0 auto">${esc(a.label)}</button>`).join('');
+    $('#mst').innerHTML = [['reply', 'Need action'], ['unread', 'Unread'], ['drafts', 'Drafts'], ['follow', 'Follow-ups'], ['replies', 'Replies waiting'], ['sentToday', 'Sent today']].map(([k, l]) => `<button type="button" class="wst ${MF.f === k ? 'hi' : ''}" data-mst="${k}"><b>${cnt(k)}</b><span>${l}</span></button>`).join('');
+    $('#mfl').innerHTML = FL.map(([k, l]) => `<button data-f="${k}" class="${MF.f === k ? 'on' : ''}">${l}${['reply', 'unread'].includes(k) && cnt(k) ? ' ' + cnt(k) : ''}</button>`).join('');
+    const list = L[MF.f] || [];
+    const gm = MD.acct === 'gmail' || MD.acct === 'google';
+    $('#mlist').innerHTML = list.length ? list.slice(0, 60).map((m) => { const who = ['sent', 'drafts', 'follow', 'sentToday'].includes(MF.f) ? 'To: ' + (m.to || m.toAddr || '') : m.from; const inner = `<span class="when">${m.at ? ago(m.at) : ''}</span><div class="grow"><div class="t" style="${m.unread ? 'font-weight:600' : ''}">${esc(who || '(unknown)')}</div><div class="s">${esc(m.subject)}${m.snippet ? ' · ' + esc(m.snippet) : ''}</div></div>${m.unread ? '<b class="wun">New</b>' : ''}`;
+      return gm && m.thread ? `<a class="item" style="text-decoration:none;color:inherit" target="_blank" rel="noopener" href="https://mail.google.com/mail/u/0/#all/${esc(m.thread)}">${inner}</a>` : `<div class="item">${inner}</div>`; }).join('')
+      : `<div class="empty">${MF.f === 'reply' ? 'Nothing waiting for your reply.' : MD.acct !== 'gmail' && MD.acct !== 'imap' && ['sent', 'drafts', 'follow', 'sentToday'].includes(MF.f) ? 'This folder is not available for this mailbox yet.' : 'Nothing here.'}</div>`;
+  };
+  const load = async () => {
+    $('#mlist').innerHTML = '<div class="empty">Loading your mail…</div>';
+    MD = await api('GET', `/api/mail/summary?acct=${encodeURIComponent(MF.acct || '')}&q=${encodeURIComponent(MF.q)}&since=${midnight.getTime()}`).catch((x) => ({ accounts: [], lists: {}, err: x.message }));
+    if (MD.acct) MF.acct = MD.acct; draw();
+  };
+  await load();
+  $('#macc').addEventListener('click', (e) => { const b = e.target.closest('[data-acc]'); if (!b || b.dataset.acc === MF.acct) return; MF.acct = b.dataset.acc; load(); });
+  $('#mst').addEventListener('click', (e) => { const b = e.target.closest('[data-mst]'); if (!b) return; MF.f = b.dataset.mst; draw(); $('#mlist').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  $('#mfl').addEventListener('click', (e) => { const b = e.target.closest('[data-f]'); if (!b) return; MF.f = b.dataset.f; draw(); });
+  $('#msf').addEventListener('submit', (e) => { e.preventDefault(); MF.q = $('#mq').value.trim(); load(); });
+  $('#mref').addEventListener('click', load);
+  $('#mai').addEventListener('click', () => { location.hash = '#ask'; setTimeout(() => { const q = $('#q'); if (q) { q.value = 'Go through my email: which ones need my reply today, and draft short replies for the top 3.'; q.focus(); } }, 400); });
+  const addBox = () => { $('#maddbox').innerHTML = `<section class="sec"><h2>Add another mailbox</h2>${mailChooser()}</section>`; wireChooser(); $('#maddbox').scrollIntoView({ behavior: 'smooth' }); };
+  $('#madd').addEventListener('click', addBox);
+  $('#mmore').addEventListener('click', () => {
+    const a = (MD?.accounts || []).find((x) => x.key === MF.acct); if (!a) return addBox();
+    $('#maddbox').innerHTML = `<section class="sec"><h2>${esc(a.label)}</h2><div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm" id="madd2">+ Add mailbox</button><button class="btn sm bad" id="mdisc">Disconnect ${esc(a.label)}</button></div></section>`;
+    $('#madd2').onclick = addBox;
+    $('#mdisc').onclick = async () => { if ($('#mdisc').dataset.sure !== '1') { $('#mdisc').dataset.sure = '1'; $('#mdisc').textContent = 'Tap again to disconnect'; return; }
+      if (a.key === 'imap') await api('DELETE', '/api/mail').catch(() => {}); else if (a.key === 'google') await api('DELETE', '/api/google').catch(() => {}); else await api('DELETE', '/api/apps', { slug: a.key }).catch(() => {});
+      MF.acct = null; toast('Disconnected'); viewMail(); };
+    $('#maddbox').scrollIntoView({ behavior: 'smooth' });
+  });
 }
 async function viewCal() {
   const main = $('#main');

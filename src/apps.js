@@ -112,3 +112,21 @@ export async function events(uid) {
   } catch (x) { console.error('events', x.message); }
   EVC.set(uid, { ev, at: Date.now() }); return ev;
 }
+
+// A folder from a connected Gmail / Outlook / Zoho Mail, simple shape.
+export async function mailbox(uid, slug, folder = 'inbox', q = '') {
+  if (slug === 'gmail') {
+    const tool = (await findTool(slug, /^GMAIL_FETCH_EMAILS$/)) || (await findTool(slug, /(FETCH|LIST).*(EMAILS|MESSAGES)$/));
+    const query = { inbox: 'in:inbox', unread: 'in:inbox is:unread', sent: 'in:sent', drafts: 'in:drafts' }[folder] || 'in:inbox';
+    const data = await exec(uid, tool, { query: (query + ' ' + (q || '')).trim(), max_results: 30, include_payload: false });
+    return (firstArray(data) || []).map((m) => {
+      const lab = m.labelIds || m.label_ids || [];
+      const at = Number(m.messageTimestamp) || Number(m.internalDate) || +new Date(m.messageTimestamp || m.date || 0) || 0;
+      const from = String(pick(m, 'sender', 'from')); const to = String(pick(m, 'to', 'recipient') || '');
+      return { id: 'gm:' + (m.messageId || m.id), thread: m.threadId || m.thread_id || '', from: from.replace(/<.*>/, '').replace(/"/g, '').trim(), fromAddr: (from.match(/<([^>]+)>/)?.[1] || from).toLowerCase(), to: to.replace(/<.*>/, '').trim(), toAddr: (to.match(/<([^>]+)>/)?.[1] || to).toLowerCase(), subject: pick(m, 'subject') || '(no subject)', snippet: String(m.preview?.body || m.snippet || m.messageText || '').slice(0, 200), at: at < 1e12 ? at * 1000 : at, unread: lab.includes('UNREAD') };
+    });
+  }
+  if (folder !== 'inbox' && folder !== 'unread') return [];
+  const list = await inbox(uid, slug);
+  return list.filter((m) => !q || (m.from + ' ' + m.subject).toLowerCase().includes(q.toLowerCase())).map((m, i) => ({ id: `${slug}:${m.at}:${i}`, ...m, fromAddr: '', unread: folder === 'unread' ? true : !!m.unread, snippet: '' }));
+}
