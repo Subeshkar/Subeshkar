@@ -7,6 +7,10 @@
 <meta name="theme-color" content="#000000">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Dioma">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
@@ -347,9 +351,9 @@ async function viewHome(refresh) {
   try { d = await api('GET', '/api/home' + (refresh ? '?refresh=1' : '')); } catch (x) { if (x.message !== 'signed out') main.innerHTML += `<p class="err">${esc(x.message)}</p>`; return; }
   if (cur() !== 'home') return;
   // What is connected? A new customer sees how to start, not an empty or made-up brief.
-  const has = { wa: S.me.whatsapp === 'open', mail: gOK() || !!S.me.mailbox || (APPS && (APPS.catalog.mail || []).some(([k]) => appOn(k))), cal: gOK() || (APPS && (APPS.catalog.cal || []).some(([k]) => appOn(k))), social: APPS && (APPS.catalog.social || []).some(([k]) => appOn(k)), biz: APPS && (APPS.catalog.biz || []).some(([k]) => appOn(k)), wealth: !!BADGE.__w };
+  const has = { wa: S.me.whatsapp === 'open', mail: gOK() || !!S.me.mailbox || (APPS && (APPS.catalog.mail || []).some(([k]) => appOn(k))), cal: gOK() || (APPS && (APPS.catalog.cal || []).some(([k]) => appOn(k))), social: APPS && (APPS.catalog.social || []).some(([k]) => appOn(k)), biz: APPS && (APPS.catalog.biz || []).some(([k]) => appOn(k)), wealth: !!BADGE.__w, me: pushOK() && Notification.permission === 'granted' };
   try { const b = await api('GET', '/api/badges'); has.wealth = b.wealth > 0; } catch {}
-  const steps = [['wa', 'Connect WhatsApp', 'Scan a QR code'], ['mail', 'Connect your mail', 'Gmail, Outlook, Zoho or any email'], ['cal', 'Connect your calendar', 'Google, Outlook or Zoho'], ['social', 'Connect social', 'Instagram, Facebook, LinkedIn…'], ['biz', 'Connect business apps', 'Zoho Books, CRM, QuickBooks…'], ['wealth', 'Add your bank accounts', 'Personal, business, family, cards']];
+  const steps = [['wa', 'Connect WhatsApp', 'Scan a QR code'], ['mail', 'Connect your mail', 'Gmail, Outlook, Zoho or any email'], ['cal', 'Connect your calendar', 'Google, Outlook or Zoho'], ['social', 'Connect social', 'Instagram, Facebook, LinkedIn…'], ['biz', 'Connect business apps', 'Zoho Books, CRM, QuickBooks…'], ['wealth', 'Add your bank accounts', 'Personal, business, family, cards'], ['me', 'Connect your phone', 'Pop-ups and vibration, even when locked']];
   const nConn = steps.filter(([k]) => has[k]).length;
   const brief = nConn
     ? `<div class="row" style="justify-content:space-between;align-items:flex-start"><p class="eyebrow">Your brief</p><button class="btn sm" id="rf">${d.stale ? 'Update' : 'Refresh'}</button></div><p class="bt">${esc(d.brief)}</p>`
@@ -500,6 +504,7 @@ async function viewMe() {
       <input class="field" id="pn" value="${esc(m.name || '')}" placeholder="Name" maxlength="60">
       <textarea class="field" id="pa" rows="2" placeholder="What you do, helps Dioma prioritise" maxlength="300">${esc(m.about || '')}</textarea>
       <button class="btn sm" style="justify-self:start">Save</button></form></section>
+    <section class="sec"><h2>Your phone</h2>${phoneCard()}</section>
     <section class="sec"><h2>Top and bottom bars</h2>${navPicker()}</section>
     <section class="sec"><h2>Look</h2><div class="seg" id="tone"><button data-t="mono" class="${tone === 'mono' ? 'on' : ''}">Mono</button><button data-t="sun" class="${tone === 'sun' ? 'on' : ''}">Sunrise</button></div></section>
     <section class="sec"><h2>Plan</h2><p>Early access · free</p><p class="note">${m.ai.used} of ${m.ai.cap} asks used today · ${kb(m.storage.used)} of ${kb(m.storage.quota)} storage</p></section>
@@ -508,7 +513,7 @@ async function viewMe() {
   $('#gd')?.addEventListener('click', async () => { await api('DELETE', '/api/google'); toast('Google disconnected'); viewMe(); });
   $('#pf').addEventListener('submit', async (e) => { e.preventDefault(); await api('POST', '/api/me', { name: $('#pn').value, about: $('#pa').value }); toast('Saved'); viewMe(); });
   $('#tone').addEventListener('click', (e) => { const t = e.target.dataset.t; if (t) setTone(t); });
-  wirePicker(viewMe);
+  wirePicker(viewMe); wirePhone(viewMe);
   $('#lo').addEventListener('click', signOutAsk);
   $('#del').addEventListener('click', () => {
     $('#delrow').innerHTML = `<form class="stack card" id="df" style="margin-top:12px"><p>This deletes your account, to-dos, chats and files, and disconnects Google. It can't be undone.</p><input class="field" id="dc" placeholder="Type ${esc(m.email)} to confirm" autocomplete="off"><button class="btn sm bad" style="justify-self:start">Delete everything</button><div class="err" id="derr"></div></form>`;
@@ -646,6 +651,33 @@ function drawBr(w) {
   function drawDl() { const el = $('#brdl'); if (!el) return; const d = BRS.downloads || []; el.innerHTML = d.length ? `<p class="note" style="margin-top:10px">Downloaded statements:</p>${d.map((x) => `<div class="item" style="margin-top:6px"><div class="grow"><div class="t">${esc(x.name)}</div></div><button class="btn sm pri" data-dl="${x.i}">Add to Wealth</button></div>`).join('')}` : ''; el.querySelectorAll('[data-dl]').forEach((b) => (b.onclick = () => toW({ download: +b.dataset.dl }, b))); }
   if ($('#brw')) $('#brw').onclick = () => toW({}, $('#brw'));
   drawDl();
+}
+// Phone: put Dioma on the Home Screen and turn on notifications (pop-up + vibration, also when locked)
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isApp = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const pushOK = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+try { if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {}); } catch {}
+const b64u = (s) => { const p = '='.repeat((4 - (s.length % 4)) % 4), b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, (c) => c.charCodeAt(0)); };
+function phoneCard() {
+  if (isIOS() && !isApp()) return `<div class="stack"><p>To get Dioma's pop-ups and vibration on your iPhone, put Dioma on your Home Screen first (Apple only allows notifications that way):</p>
+    <ol style="margin:0;padding-left:20px;line-height:1.7"><li>Open <b style="font-weight:500">app.dioma.life</b> in <b style="font-weight:500">Safari</b>.</li><li>Tap the <b style="font-weight:500">Share</b> button (the square with an arrow up).</li><li>Tap <b style="font-weight:500">Add to Home Screen</b>, then <b style="font-weight:500">Add</b>.</li><li>Open <b style="font-weight:500">Dioma</b> from its new icon and come back here to turn on notifications.</li></ol></div>`;
+  if (!pushOK()) return '<p class="note">This browser cannot show notifications. On iPhone use Safari and add Dioma to the Home Screen. On Android use Chrome.</p>';
+  const st = Notification.permission;
+  return `<div class="stack"><p class="dim">${st === 'granted' ? 'Notifications are on for this phone.' : st === 'denied' ? 'Notifications are blocked. On iPhone: Settings → Notifications → Dioma → Allow. On Android: tap the lock next to the address → Notifications → Allow.' : 'Dioma will pop up with sound and vibration for meetings, deadlines and anything waiting, even when your phone is locked.'}</p>
+    <div class="row" style="gap:8px;flex-wrap:wrap">${st !== 'denied' ? `<button class="btn pri" id="pushon">${st === 'granted' ? 'Connect this phone again' : 'Turn on notifications'}</button>` : ''}${st === 'granted' ? '<button class="btn" id="pushtest">Send me a test</button>' : ''}</div></div>`;
+}
+function wirePhone(again) {
+  $('#pushon')?.addEventListener('click', async (e) => {
+    const b = e.target; b.disabled = true; b.textContent = 'Connecting…';
+    try {
+      const perm = await Notification.requestPermission(); if (perm !== 'granted') throw new Error('Notifications were not allowed.');
+      const reg = await navigator.serviceWorker.register('/sw.js'); await navigator.serviceWorker.ready;
+      const { key } = await api('GET', '/api/push/key');
+      const sub = (await reg.pushManager.getSubscription()) || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(key) }));
+      await api('POST', '/api/push/sub', sub.toJSON()); toast('This phone is connected'); again();
+    } catch (x) { toast(x.message || 'Could not turn on notifications'); b.disabled = false; b.textContent = 'Turn on notifications'; }
+  });
+  $('#pushtest')?.addEventListener('click', async () => { const r = await api('POST', '/api/push/test').catch((x) => (toast(x.message), null)); if (r) toast(r.sent ? 'Sent. Lock your phone to see it.' : 'No phone connected yet. Tap Turn on notifications.'); });
 }
 // More: everything not on the bottom bar, plus the layout setting
 function viewMore() {

@@ -15,6 +15,7 @@ import * as M from './imap.js';
 import * as A from './apps.js';
 import * as WL from './wealth.js';
 import * as BR from './browser.js';
+import * as P from './push.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT || 8080);
@@ -160,6 +161,27 @@ on('POST', '/api/auth/logout', async (req, res) => {
   setSession(res, '', 0); send(res, 200, { ok: true });
 }, { open: true });
 
+// Every minute: meetings in 30 minutes, and to-dos due today (9 am), sent once each as a notification.
+async function reminders() {
+  for (const { user_id } of all('SELECT DISTINCT user_id FROM push_subs')) {
+    const u = one('SELECT * FROM users WHERE id = ?', user_id); if (!u) continue;
+    const tz = u.tz || 'Asia/Dubai', ymd = today(u);
+    const hm = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: tz }).format(new Date());
+    if (hm >= '09:00' && hm < '21:00') {
+      const due = all('SELECT text FROM todos WHERE user_id = ? AND done = 0 AND due IS NOT NULL AND due <= ?', u.id, ymd);
+      if (due.length) await P.once(u.id, 'todo:' + ymd, { title: `${due.length} to-do${due.length > 1 ? 's' : ''} due today`, body: due.slice(0, 3).map((t) => '• ' + t.text).join('\n'), url: '/#todo' });
+    }
+    const g = await G.snapshot(u.id).catch(() => null);
+    for (const e of (g?.events || [])) {
+      if (e.allDay || !e.start) continue;
+      const mins = (Date.parse(e.start) - Date.now()) / 60e3;
+      if (mins > 0 && mins <= 30) {
+        const t = new Intl.DateTimeFormat('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: tz }).format(new Date(e.start));
+        await P.once(u.id, 'ev:' + e.id + ':' + e.start, { title: `${u.name ? u.name.split(' ')[0] + ', ' : ''}${e.title} at ${t}`, body: `Starts in ${Math.round(mins)} minutes.${e.where ? ' Place: ' + e.where + '.' : ''} Please be ready.`, urgent: true, url: '/#cal' });
+      }
+    }
+  }
+}
 const NAVKEYS = ['home','todo','wa','social','mail','cal','act','wealth','biz','ask','files','browser','me'];
 const navOf = (u) => { try { return u.nav ? JSON.parse(u.nav) : null; } catch { return null; } };
 on('GET', '/api/me', (req, res, u) => {
@@ -327,6 +349,11 @@ on('POST', '/api/wealth/import', async (req, res, u) => {
   send(res, 200, await WL.importStatement(u.id, Number(q.get('account')), q.get('name'), buf));
 }, { raw: true });
 
+// Notifications (pop-up + vibration, also on a locked phone)
+on('GET', '/api/push/key', (req, res, u) => send(res, 200, { key: P.publicKey(), devices: P.count(u.id) }));
+on('POST', '/api/push/sub', async (req, res, u) => { P.subscribe(u.id, await json(req)); send(res, 200, { ok: true, devices: P.count(u.id) }); });
+on('POST', '/api/push/test', async (req, res, u) => { const n = await P.send(u.id, { title: 'Dioma', body: `Hi ${u.name || 'there'}, notifications are on. This is how Dioma will reach you.`, urgent: true, url: '/#home' }); send(res, 200, { sent: n }); });
+
 // Dioma Browser (the customer logs in themselves; nothing is saved; closes after 10 idle minutes)
 on('POST', '/api/browser/open', async (req, res, u) => { if (!BR.available()) return fail(res, 503, 'The Dioma browser is being switched on. Try again soon.'); const b = await json(req); send(res, 200, await BR.open(u.id, b.url, !!b.mobile)); });
 on('GET', '/api/browser/state', async (req, res, u) => send(res, 200, await BR.state(u.id)));
@@ -452,7 +479,7 @@ http.createServer(async (req, res) => {
   const canon = (process.env.PUBLIC_URL || '').replace(/\/$/, ''), host = String(req.headers.host || '');
   if (canon.startsWith('https://') && host.endsWith('.up.railway.app') && !canon.includes(host) && url.pathname !== '/api/health') { res.writeHead(301, { location: canon + req.url }); return res.end(); }
   try {
-    const file = STATIC[url.pathname] || (/^\/(icon\.svg|manifest\.webmanifest|shim\.js)$/.test(url.pathname) ? url.pathname.slice(1) : null);
+    const file = STATIC[url.pathname] || (/^\/(icon\.svg|icon-180\.png|icon-512\.png|sw\.js|manifest\.webmanifest|shim\.js)$/.test(url.pathname) ? url.pathname.slice(1) : null);
     if (req.method === 'GET' && file) {
       const fp = path.join(ROOT, 'public', file);
       if (!fs.existsSync(fp)) return fail(res, 404, 'Not found');
@@ -474,4 +501,4 @@ http.createServer(async (req, res) => {
     if (!res.headersSent) fail(res, e.status || 500, e.status ? e.message : 'Something went wrong.');
     if (!e.status) console.error(e);
   }
-}).listen(PORT, () => { W.resumeAll(); }).on('listening', () => console.log(`Dioma Cloud on :${PORT}${DEV ? ' (dev)' : ''}, AI ${process.env.ANTHROPIC_API_KEY ? 'live' : 'test mode'}, Google ${G.enabled() ? 'on' : 'off'}, email ${process.env.RESEND_API_KEY ? 'on' : 'log only'}`));
+}).listen(PORT, () => { W.resumeAll(); setInterval(() => reminders().catch((e) => console.error('reminders', e.message)), 60e3); }).on('listening', () => console.log(`Dioma Cloud on :${PORT}${DEV ? ' (dev)' : ''}, AI ${process.env.ANTHROPIC_API_KEY ? 'live' : 'test mode'}, Google ${G.enabled() ? 'on' : 'off'}, email ${process.env.RESEND_API_KEY ? 'on' : 'log only'}`));
