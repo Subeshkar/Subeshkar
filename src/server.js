@@ -298,9 +298,9 @@ on('DELETE', '/api/google', async (req, res, u) => { await G.disconnect(u.id); s
 const ownerOnly = (fn) => async (req, res, u, p) => (O.isOwner(u) ? fn(req, res, u, p) : fail(res, 403, 'Not available.'));
 const UPLOAD_PAGE = (msg = '') => `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dioma</title>
 <style>body{margin:0;background:#000;color:#fff;font:16px/1.5 system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;padding:24px}main{max-width:420px;display:grid;gap:14px}label{display:block;background:#ffb547;color:#1a0f00;border-radius:999px;padding:14px;text-align:center;font-weight:600;cursor:pointer}p{color:#9a9a9a}</style>
-<main><h1 style="font-weight:400">Load your Dioma</h1><p>Pick your Dioma app file once. It is kept privately on the Dioma server.</p><p style="color:#ff8a7a">${msg}</p><label>Choose file<input type="file" id="f" accept=".html" hidden></label>
+<main><h1 style="font-weight:400">Load your Dioma</h1><p>One time only: tap Choose file and pick <b style="color:#fff">dioma.html</b> (the file sent to you, usually in Downloads). It is kept privately on the Dioma server and opens straight away.</p><p id="st" style="color:#ffb547"></p><p style="color:#ff8a7a">${msg}</p><label>Choose file<input type="file" id="f" accept=".html" hidden></label>
 <p><a href="/auth/google" style="color:#fff">Connect Google (Gmail and Calendar)</a></p></main>
-<script>f.onchange=async()=>{const r=await fetch('/api/owner/app',{method:'POST',headers:{'x-dioma':'1','content-type':'text/html'},body:f.files[0]});if(r.ok)location.reload();else alert((await r.json()).error)}</script>`;
+<script>f.onchange=async()=>{st.textContent='Loading your Dioma…';const r=await fetch('/api/owner/app',{method:'POST',headers:{'x-dioma':'1','content-type':'text/html'},body:f.files[0]});if(r.ok)location.reload();else alert((await r.json()).error)}</script>`;
 on('GET', '/me', ownerOnly((req, res) => {
   if (!O.hasApp() || req.url.includes('update=1')) return send(res, 200, UPLOAD_PAGE(), { 'content-type': 'text/html; charset=utf-8' });
   send(res, 200, O.appPage(), { 'content-type': 'text/html; charset=utf-8' });
