@@ -13,6 +13,7 @@ import * as O from './owner.js';
 import * as W from './wa.js';
 import * as M from './imap.js';
 import * as A from './apps.js';
+import * as WL from './wealth.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT || 8080);
@@ -158,7 +159,7 @@ on('POST', '/api/auth/logout', async (req, res) => {
   setSession(res, '', 0); send(res, 200, { ok: true });
 }, { open: true });
 
-const NAVKEYS = ['home','todo','wa','social','mail','cal','act','biz','ask','files','me'];
+const NAVKEYS = ['home','todo','wa','social','mail','cal','act','wealth','biz','ask','files','me'];
 const navOf = (u) => { try { return u.nav ? JSON.parse(u.nav) : null; } catch { return null; } };
 on('GET', '/api/me', (req, res, u) => {
   const g = one(`SELECT account FROM connections WHERE user_id = ? AND kind = 'google'`, u.id);
@@ -307,6 +308,16 @@ on('DELETE', '/api/files/:id', (req, res, u, p) => {
   if (f) { fs.rmSync(path.join(fileDir(u.id), f.id), { force: true }); run('DELETE FROM files WHERE id = ?', f.id); }
   send(res, 200, { ok: true });
 });
+
+// Wealth: accounts, cards, statements
+on('GET', '/api/wealth', (req, res, u) => { const d = Number(new URL(req.url, 'http://x').searchParams.get('days')) || 30; send(res, 200, WL.summary(u.id, Math.min(365, Math.max(7, d)))); });
+on('POST', '/api/wealth/accounts', async (req, res, u) => send(res, 200, WL.addAccount(u.id, await json(req))));
+on('DELETE', '/api/wealth/accounts/:id', (req, res, u, p) => { WL.removeAccount(u.id, Number(p.id)); send(res, 200, { ok: true }); });
+on('POST', '/api/wealth/import', async (req, res, u) => {
+  const q = new URL(req.url, 'http://x').searchParams;
+  const buf = await readBody(req, 15 * 1024 * 1024); if (!buf.length) return fail(res, 400, 'Empty file.');
+  send(res, 200, await WL.importStatement(u.id, Number(q.get('account')), q.get('name'), buf));
+}, { raw: true });
 
 // One-tap app connections (Composio)
 const pub = () => (process.env.PUBLIC_URL || 'http://localhost:8080').replace(/\/$/, '');
