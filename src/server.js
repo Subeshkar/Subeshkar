@@ -10,6 +10,7 @@ import { sendCode } from './mailer.js';
 import { converse, claude } from './ai.js';
 import * as G from './google.js';
 import * as O from './owner.js';
+import * as W from './wa.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT || 8080);
@@ -154,7 +155,7 @@ on('GET', '/api/me', (req, res, u) => {
   const g = one(`SELECT account FROM connections WHERE user_id = ? AND kind = 'google'`, u.id);
   const used = one('SELECT COALESCE(SUM(size),0) s FROM files WHERE user_id = ?', u.id).s;
   send(res, 200, { email: u.email, name: u.name, about: u.about, role: u.role, tz: u.tz, onboarded: !!u.onboarded, plan: u.plan,
-    owner: O.isOwner(u), google: g ? { account: g.account } : null, googleAvailable: G.enabled(), ai: { used: usedToday(u), cap: CAP, live: !!process.env.ANTHROPIC_API_KEY }, storage: { used, quota: QUOTA } });
+    owner: O.isOwner(u), ownerPath: O.isOwner(u) ? '/' + O.ownerSlug() : null, whatsapp: W.status(u.id).status, google: g ? { account: g.account } : null, googleAvailable: G.enabled(), ai: { used: usedToday(u), cap: CAP, live: !!process.env.ANTHROPIC_API_KEY }, storage: { used, quota: QUOTA } });
 });
 on('POST', '/api/me', async (req, res, u) => {
   const b = await json(req);
@@ -177,6 +178,7 @@ on('DELETE', '/api/me', async (req, res, u) => {
   const b = await json(req);
   if (String(b.confirm || '').toLowerCase() !== u.email) return fail(res, 400, 'Type your email to confirm.');
   await G.disconnect(u.id).catch(() => {});
+  await W.forget(u.id).catch(() => {});
   fs.rmSync(path.join(DIR, 'files', String(u.id)), { recursive: true, force: true });
   db.prepare('DELETE FROM users WHERE id = ?').run(u.id); // everything else cascades
   setSession(res, '', 0); send(res, 200, { ok: true });
@@ -332,7 +334,8 @@ const CONNECT_PAGE = (linked) => `<!doctype html><meta charset="utf-8"><meta nam
 <a class="b" href="/auth/google" style="background:transparent;color:#fff;border:1px solid #2a2a2a">Connect Google (Gmail and Calendar)</a>
 <p><a href="/me">Back to my Dioma</a></p></main>
 <script>go.onclick=async()=>{st.textContent='Connecting…';const r=await fetch('/api/owner/link',{method:'POST',headers:{'x-dioma':'1','content-type':'application/json'},body:JSON.stringify({url:u.value.trim()})});const j=await r.json();st.textContent=r.ok?(j.warn||'Connected. Opening your Dioma…'):j.error;st.className=r.ok&&!j.warn?'ok':'';if(r.ok&&!j.warn)setTimeout(()=>location.href='/me',1200)}</script>`;
-on('GET', '/me', ownerOnly((req, res) => {
+on('GET', '/me', ownerOnly((req, res) => send(res, 302, '', { location: '/' + O.ownerSlug() + (req.url.includes('update=1') ? '?update=1' : '') })), { page: true });
+if (O.ownerSlug()) on('GET', '/' + O.ownerSlug(), ownerOnly((req, res) => {
   if (!O.hasApp() || req.url.includes('update=1')) return send(res, 200, UPLOAD_PAGE(), { 'content-type': 'text/html; charset=utf-8' });
   send(res, 200, O.appPage(), { 'content-type': 'text/html; charset=utf-8' });
 }), { page: true });
@@ -352,6 +355,14 @@ on('POST', '/api/owner/sample', ownerOnly(async (req, res) => {
 }));
 on('GET', '/api/owner/db', ownerOnly((req, res) => send(res, 200, { data: O.dbGet(new URL(req.url, 'http://x').searchParams.get('path') || '') })));
 on('POST', '/api/owner/db', ownerOnly(async (req, res) => { const b = await json(req, 8 * 1024 * 1024); O.dbSet(String(b.path || ''), b.data, !!b.merge); send(res, 200, { ok: true }); }));
+
+// ---------- WhatsApp (each customer links their own) ----------
+on('POST', '/api/wa/start', async (req, res, u) => send(res, 200, await W.start(u.id)));
+on('GET', '/api/wa/status', (req, res, u) => send(res, 200, W.status(u.id)));
+on('GET', '/api/wa/chats', (req, res, u) => send(res, 200, { chats: W.chats(u.id, new URL(req.url, 'http://x').searchParams.get('q') || '') }));
+on('GET', '/api/wa/messages', (req, res, u) => { const jid = new URL(req.url, 'http://x').searchParams.get('jid') || ''; W.markRead(u.id, jid); send(res, 200, { messages: W.messages(u.id, jid) }); });
+on('POST', '/api/wa/send', async (req, res, u) => { const b = await json(req); if (!String(b.text || '').trim()) return fail(res, 400, 'Write a message first.'); send(res, 200, await W.send(u.id, String(b.jid || ''), String(b.text))); });
+on('DELETE', '/api/wa', async (req, res, u) => { await W.forget(u.id); send(res, 200, { ok: true }); });
 
 // ---------- static ----------
 const STATIC = { '/': 'app.html', '/privacy': 'privacy.html', '/terms': 'terms.html' };
@@ -380,7 +391,7 @@ http.createServer(async (req, res) => {
       if (req.method !== 'GET' && req.headers['x-dioma'] !== '1') return fail(res, 403, 'Forbidden');
       if (r.open) return await r.fn(req, res);
       const u = userFrom(req);
-      if (!u) return r.page ? send(res, 302, '', { location: '/' }) : fail(res, 401, 'Please sign in.');
+      if (!u) return r.page ? send(res, 302, '', { location: url.pathname.length > 1 && !url.pathname.startsWith('/auth/') ? '/?next=' + encodeURIComponent(url.pathname) : '/' }) : fail(res, 401, 'Please sign in.');
       return await r.fn(req, res, u, m.groups || {});
     }
     fail(res, 404, 'Not found');
@@ -388,4 +399,4 @@ http.createServer(async (req, res) => {
     if (!res.headersSent) fail(res, e.status || 500, e.status ? e.message : 'Something went wrong.');
     if (!e.status) console.error(e);
   }
-}).listen(PORT, () => console.log(`Dioma Cloud on :${PORT}${DEV ? ' (dev)' : ''}, AI ${process.env.ANTHROPIC_API_KEY ? 'live' : 'test mode'}, Google ${G.enabled() ? 'on' : 'off'}, email ${process.env.RESEND_API_KEY ? 'on' : 'log only'}`));
+}).listen(PORT, () => { W.resumeAll(); }).on('listening', () => console.log(`Dioma Cloud on :${PORT}${DEV ? ' (dev)' : ''}, AI ${process.env.ANTHROPIC_API_KEY ? 'live' : 'test mode'}, Google ${G.enabled() ? 'on' : 'off'}, email ${process.env.RESEND_API_KEY ? 'on' : 'log only'}`));

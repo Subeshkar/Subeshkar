@@ -281,7 +281,7 @@ function shell() {
   document.querySelectorAll('nav.bot a').forEach((a) => a.classList.toggle('on', a.dataset.k === view));
   $('.composer')?.remove(); $('#main').style.paddingBottom = '';
   const c = cur();
-  ({ home: viewHome, todo: viewTodo, ask: viewAsk, wa: () => viewConnect('wa'), social: () => viewConnect('social'), mail: viewMail, cal: viewCal, act: viewActivity, biz: () => viewConnect('biz'), files: viewFiles, me: viewMe })[c]();
+  ({ home: viewHome, todo: viewTodo, ask: viewAsk, wa: viewWa, social: () => viewConnect('social'), mail: viewMail, cal: viewCal, act: viewActivity, biz: () => viewConnect('biz'), files: viewFiles, me: viewMe })[c]();
   window.scrollTo(0, 0);
 }
 window.addEventListener('hashchange', () => S.me && S.me.onboarded && shell());
@@ -301,7 +301,7 @@ async function viewHome(refresh) {
       <button class="btn sm" id="rf">${d.stale ? 'Update brief' : 'Refresh'}</button></div>
     <div class="sun"></div>
     <p class="brief" style="margin-top:18px">${esc(d.brief)}</p>
-    ${S.me.owner ? `<a class="card" href="/me" style="display:flex;align-items:center;gap:12px;margin-top:20px;text-decoration:none"><span class="grow"><b style="font-weight:500">Open my full Dioma</b><br><span class="note">Your existing Dioma with all your data</span></span><span class="pill">Open</span></a>` : ''}
+    ${S.me.owner ? `<a class="card" href="${esc(S.me.ownerPath || '/me')}" style="display:flex;align-items:center;gap:12px;margin-top:20px;text-decoration:none"><span class="grow"><b style="font-weight:500">Open my full Dioma</b><br><span class="note">Your existing Dioma with all your data</span></span><span class="pill">Open</span></a>` : ''}
     <section class="sec"><h2>Your Dioma</h2><div class="stabs" style="border:0;margin:0">${SUBS.map(([k, l]) => `<a href="#assistant/${k}"><svg viewBox="0 0 24 24">${I[k === 'me' ? 'assistant' : k]}</svg>${l}</a>`).join('')}</div></section>
     ${d.google ? `<section class="sec"><h2>Today</h2><div class="list">${d.events.length ? d.events.map((e) => `<div class="item"><span class="when">${hm(e.start, e.allDay)}</span><div class="grow"><div class="t">${esc(e.title)}</div>${e.where ? `<div class="s">${esc(e.where)}</div>` : ''}</div>${e.link ? `<a class="pill" href="${esc(e.link)}" target="_blank" rel="noopener">Join</a>` : e.where ? `<a class="pill" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.where)}">Map</a>` : ''}</div>`).join('') : '<div class="empty">Nothing on your calendar today.</div>'}</div></section>` : ''}
     ${d.google ? `<section class="sec"><h2>Unread mail</h2><div class="list">${d.mail.length ? d.mail.slice(0, 8).map((m) => `<a class="item" style="text-decoration:none" target="_blank" rel="noopener" href="https://mail.google.com/mail/u/0/#inbox/${esc(m.thread)}"><span class="when">${ago(m.at)}</span><div class="grow"><div class="t">${esc(m.from)}</div><div class="s">${esc(m.subject)}</div></div></a>`).join('') : '<div class="empty">Inbox clear.</div>'}</div></section>` : ''}
@@ -504,6 +504,63 @@ async function viewActivity() {
   $('#al').innerHTML = rows.length ? rows.map(([at, k, x]) => `<div class="item"><span class="when">${ago(at)}</span><div class="grow"><div class="t">${esc(x)}</div></div><span class="soon">${k}</span></div>`).join('') : '<div class="empty">Nothing yet. Ask Dioma something or add a to-do.</div>';
 }
 
+// ---------- WhatsApp ----------
+let waPoll = null, waOpen = null;
+async function viewWa() {
+  clearInterval(waPoll);
+  const main = $('#main');
+  const st = await api('GET', '/api/wa/status').catch(() => ({ status: 'none' }));
+  if (cur() !== 'wa') return;
+  if (st.status !== 'open') return waConnect(st);
+  if (waOpen) return waChat(waOpen);
+  main.innerHTML = `${stabs()}<div class="row" style="justify-content:space-between"><h1>WhatsApp</h1><button class="btn sm" id="wd">Disconnect</button></div>
+    <input class="field" id="wq" placeholder="Search chats" style="margin-top:14px"><div class="list" id="wl" style="margin-top:12px"><div class="empty">Loading your chats…</div></div>`;
+  const load = async () => {
+    const d = await api('GET', '/api/wa/chats?q=' + encodeURIComponent($('#wq')?.value || '')).catch(() => ({ chats: [] }));
+    if (cur() !== 'wa' || !$('#wl')) return;
+    $('#wl').innerHTML = d.chats.length ? d.chats.map((c) => `<div class="item" data-jid="${esc(c.jid)}" data-name="${esc(c.name)}" style="cursor:pointer"><span class="ficon mono">${esc((c.name || '?').slice(0, 2).toUpperCase())}</span><div class="grow"><div class="t">${esc(c.name)}</div><div class="s">${c.last_from_me ? 'You: ' : ''}${esc(c.last_text || '')}</div></div><div style="display:grid;justify-items:end;gap:4px"><span class="note">${c.last_at ? ago(c.last_at) : ''}</span>${c.unread ? `<span class="pill" style="background:var(--acc);color:var(--accink);border-color:var(--acc)">${c.unread}</span>` : ''}</div></div>`).join('') : '<div class="empty">Your chats appear here in a minute or two after linking. New messages show up straight away.</div>';
+  };
+  await load();
+  $('#wq').addEventListener('input', () => { clearTimeout(viewWa.t); viewWa.t = setTimeout(load, 250); });
+  $('#wl').addEventListener('click', (e) => { const it = e.target.closest('[data-jid]'); if (!it) return; waOpen = { jid: it.dataset.jid, name: it.dataset.name }; waChat(waOpen); });
+  $('#wd').addEventListener('click', () => { $('#wd').outerHTML = '<span class="row"><span class="note">Unlink WhatsApp and delete its chats from Dioma?</span><button class="btn sm bad" id="wd2">Disconnect</button></span>'; $('#wd2').addEventListener('click', async () => { await api('DELETE', '/api/wa'); toast('WhatsApp disconnected'); viewWa(); }); });
+  waPoll = setInterval(() => { if (cur() === 'wa' && !waOpen) load(); else clearInterval(waPoll); }, 15000);
+}
+function waConnect(st) {
+  const main = $('#main');
+  main.innerHTML = `${stabs()}<h1>Connect WhatsApp</h1><p class="dim" style="margin:8px 0 16px">Dioma reads your chats, tells you who is waiting, and helps you reply. Nothing is sent until you tap Send.</p>
+    <div class="card stack" id="wbox">${st.status === 'qr' && st.qr ? '' : `<ol class="dim" style="margin:0;padding-left:18px;line-height:1.7"><li>Tap <b style="color:var(--fg);font-weight:500">Show QR code</b></li><li>On your phone open WhatsApp → <b style="color:var(--fg);font-weight:500">Settings → Linked devices → Link a device</b></li><li>Point the phone at the code</li></ol>
+      <button class="btn pri" id="wgo">${st.status === 'off' ? 'Reconnect WhatsApp' : 'Show QR code'}</button>
+      <p class="note">This links Dioma like WhatsApp Web. WhatsApp does not officially support apps linked this way, so there is a small risk WhatsApp limits the account. You can disconnect any time and Dioma deletes your chats.</p>`}</div>`;
+  const show = (s2) => {
+    if (s2.status === 'open') { toast('WhatsApp connected'); return viewWa(); }
+    if (s2.status === 'qr' && s2.qr) $('#wbox').innerHTML = `<p class="t" style="text-align:center">Scan with WhatsApp → Linked devices</p><img src="${s2.qr}" alt="WhatsApp QR code" style="width:260px;max-width:100%;justify-self:center;border-radius:12px;background:#fff;padding:8px"><p class="note" style="text-align:center">The code refreshes by itself. Keep this page open.</p>`;
+    else if (s2.error && /Tap Try again/.test(s2.error)) $('#wbox').innerHTML = `<p class="err">${esc(s2.error)}</p><button class="btn" onclick="viewWa()">Try again</button>`;
+    else if (s2.error) { const b = $('#wgo'); if (b) b.textContent = s2.error; }
+  };
+  const poll = () => { clearInterval(waPoll); waPoll = setInterval(async () => { if (cur() !== 'wa') return clearInterval(waPoll); show(await api('GET', '/api/wa/status').catch(() => ({}))); }, 2500); };
+  if (st.status === 'qr') { show(st); poll(); }
+  $('#wgo')?.addEventListener('click', async (e) => { e.target.disabled = true; e.target.textContent = 'Getting a code…'; show(await api('POST', '/api/wa/start').catch((x) => ({ error: x.message }))); poll(); });
+}
+async function waChat(c) {
+  clearInterval(waPoll);
+  const main = $('#main');
+  main.innerHTML = `${stabs()}<button class="btn sm" id="wb">← Chats</button><h1 style="margin-top:12px">${esc(c.name)}</h1><div class="chat" id="wm" style="margin-top:16px"><div class="empty">Loading…</div></div>`;
+  const load = async () => {
+    const d = await api('GET', '/api/wa/messages?jid=' + encodeURIComponent(c.jid)).catch(() => ({ messages: [] }));
+    if (!$('#wm')) return;
+    $('#wm').innerHTML = d.messages.map((m) => `<div class="msg ${m.from_me ? 'user' : 'assistant'}" style="${m.from_me ? '' : 'background:var(--card);border:1px solid var(--line2);padding:11px 15px'}">${esc(m.text)}<div class="note" style="font-size:11px;margin-top:4px">${new Date(m.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div></div>`).join('') || '<div class="empty">No messages yet.</div>';
+    window.scrollTo(0, document.body.scrollHeight);
+  };
+  await load();
+  $('#wb').addEventListener('click', () => { waOpen = null; viewWa(); });
+  const comp = document.createElement('div'); comp.className = 'composer';
+  comp.innerHTML = `<form class="wrap row" id="wf"><textarea class="field grow" id="wt" rows="1" placeholder="Write a reply…" maxlength="4000"></textarea><button class="btn pri">Send</button></form>`;
+  document.body.appendChild(comp); main.style.paddingBottom = '190px';
+  $('#wf').addEventListener('submit', async (e) => { e.preventDefault(); const t = $('#wt').value.trim(); if (!t) return; try { await api('POST', '/api/wa/send', { jid: c.jid, text: t }); $('#wt').value = ''; toast('Sent'); load(); } catch (x) { toast(x.message); } });
+  waPoll = setInterval(() => { if (cur() === 'wa' && waOpen) load(); else clearInterval(waPoll); }, 10000);
+}
+
 // ---------- boot ----------
 let GOOGLE_ON = false;
 async function boot(force, step) {
@@ -516,6 +573,7 @@ async function boot(force, step) {
     return;
   }
   if (force === 'onboard' || !S.me.onboarded) return renderOnboard();
+  const nx = new URLSearchParams(location.search).get('next'); if (nx && /^\/[a-z0-9-]+$/i.test(nx)) { location.replace(nx); return; }
   if (route().q.get('google') === 'connected') { toast('Google connected'); history.replaceState(null, '', '#home'); }
   shell();
 }

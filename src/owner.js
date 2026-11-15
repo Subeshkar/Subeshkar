@@ -17,6 +17,7 @@ const APP_FILE = path.join(DIR, 'owner', 'dioma.html');
 fs.mkdirSync(path.dirname(APP_FILE), { recursive: true });
 run('CREATE TABLE IF NOT EXISTS owner_docs (path TEXT PRIMARY KEY, body TEXT NOT NULL, at INTEGER NOT NULL)');
 
+export const ownerSlug = () => (process.env.OWNER_SLUG || (process.env.OWNER_EMAIL || '').split('@')[0].split('.')[0]).toLowerCase().replace(/[^a-z0-9-]/g, '');
 export const isOwner = (u) => !!u && !!process.env.OWNER_EMAIL && u.email === process.env.OWNER_EMAIL.trim().toLowerCase();
 // The owner's app can also ship inside the repo, encrypted to this server's own key (owner/dioma.enc).
 // The private key is created here, on the private volume, and never leaves it, so the public repo only holds ciphertext.
@@ -54,6 +55,7 @@ export const saveApp = (buf) => {
 // Customers and the owner only ever see "Dioma": reword any text that names the platform underneath.
 function brand(html) {
   return html
+    .replace(/Open subeshkar-production\.up\.railway\.app\/personal, scan the QR code with WhatsApp → Linked devices, then add the connector link shown there in claude\.ai → Settings → Connectors \(name it exactly: Dioma WhatsApp\)\. Reload Dioma\./g, 'Tap the Connect apps button at the bottom, paste your Dioma server link once, then reload.')
     .replace(/Dioma needs permission to use Claude on this page\. Reload and choose Allow\./g, 'Dioma\u2019s AI is starting up. Try again in a moment.')
     .replace(/claude\.ai\s*→\s*Settings\s*→\s*Connectors/g, 'Dioma settings')
     .replace(/(?:the |your )?Claude (?:desktop )?app(?:'s|\\'s)? (?:built-in )?browser/g, 'the Dioma browser')
@@ -68,7 +70,7 @@ export function appPage() {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#000000"><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="manifest" href="/manifest.webmanifest">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
-<script src="/shim.js"></script></head><body>${body}</body></html>`;
+<script src="/shim.js"></script></head><body>${body}${serverLink() ? '' : `<a href="/connect" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:9999;background:#ffb547;color:#1a0f00;font:600 14px system-ui,sans-serif;padding:11px 18px;border-radius:999px;text-decoration:none;box-shadow:0 8px 24px rgba(0,0,0,.5)">Connect apps: WhatsApp, Zoho, Books</a>`}</body></html>`;
 }
 
 // ---------- tools ----------
