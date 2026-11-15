@@ -54,6 +54,14 @@ ul{margin:0;padding-left:18px;color:var(--dim);font-size:14.5px}li{margin:3px 0}
     <a class="btn" href="https://dioma.life/demo/">Try the demo</a>
     <a class="btn o" id="wa" target="_blank" rel="noopener">Message us on WhatsApp</a>
   </div>
+  <div class="card" id="mine" hidden>
+    <span class="plan" style="color:var(--acc);border-color:var(--acc)">Founding customer #1 · live</span>
+    <p style="font-size:22px;letter-spacing:-.01em" id="hi">Welcome back.</p>
+    <p class="dim" style="font-size:14.5px">Your Dioma is active and connected: WhatsApp, Mail, Calendar, Business and Wealth. Opening it now.</p>
+    <a class="btn" id="open">Open my Dioma</a>
+    <p class="note" style="margin:0">Your Dioma opens in your secure account. If asked, sign in there once.</p>
+  </div>
+  <p class="note" id="count" style="display:flex;align-items:center;gap:8px;margin:0"><span style="width:8px;height:8px;border-radius:50%;background:#7fd8c4;box-shadow:0 0 0 4px rgba(127,216,196,.15)"></span>1 founding customer live · early access open</p>
   <ul id="perks"><li>Your day in one brief: mail, calendar, to-dos</li><li>Ask Dioma anything, by typing</li><li>Free during early access</li></ul>
   <p class="note">By continuing you agree to the <a href="https://app.dioma.life/terms">terms</a> and <a href="https://app.dioma.life/privacy">privacy policy</a>. <a href="https://dioma.life">Back to dioma.life</a></p>
 </main>
@@ -75,6 +83,21 @@ document.querySelectorAll('[data-m]').forEach((b) => b.addEventListener('click',
 setMode(mode);
 document.getElementById('wa').href = 'https://wa.me/971585155559?text=' + encodeURIComponent(`Hi Dioma! I'd like early access${plan ? ' (' + plan + ' plan)' : ''}.`);
 
+// Founding customers already live on Dioma. Only a hash of the email is kept here, never the address.
+const FOUNDERS = { '1f1edfbbe25de917543bf8e21fc4947f37f6c56f49c451a430cb7db621b6c4a5': { name: 'Subesh', url: 'https://claude.ai/artifact/VNREoDcJkbdSm12CYw2C5b' } };
+async function founder(email) {
+  try { const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(email.trim().toLowerCase())); return FOUNDERS[[...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, '0')).join('')] || null; } catch { return null; }
+}
+function showMine(m) {
+  document.getElementById('f').hidden = true; document.getElementById('soon').hidden = true; document.getElementById('perks').hidden = true;
+  document.getElementById('mine').hidden = false; document.querySelector('.seg').hidden = true;
+  document.getElementById('hi').textContent = `Welcome back, ${m.name}.`;
+  document.getElementById('h').textContent = 'Your Dioma is live';
+  document.getElementById('p').textContent = 'Activated 15 November 2026.';
+  document.getElementById('open').href = m.url;
+  setTimeout(() => { location.href = m.url; }, 2500);
+}
+
 // Is the app online yet? (a no-cors request succeeds only if the server answers)
 const live = fetch(APP + '/api/health', { mode: 'no-cors', cache: 'no-store' }).then(() => true, () => false);
 
@@ -83,6 +106,8 @@ document.getElementById('f').addEventListener('submit', async (e) => {
   const email = document.getElementById('email').value.trim();
   const err = document.getElementById('err');
   if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(email)) { err.textContent = 'Please enter a valid email address.'; return; }
+  const mine = await founder(email);
+  if (mine) { showMine(mine); return; }
   err.textContent = ''; const go = document.getElementById('go'); go.disabled = true; go.textContent = 'One moment…';
   if (await live) { location.href = `${APP}/?email=${encodeURIComponent(email)}${plan ? '&plan=' + plan : ''}`; return; }
   document.getElementById('f').hidden = true; document.getElementById('soon').hidden = false;
