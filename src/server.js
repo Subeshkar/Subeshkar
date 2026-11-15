@@ -427,6 +427,20 @@ on('GET', '/auth/google/callback', async (req, res) => {
 on('DELETE', '/api/google', async (req, res, u) => { await G.disconnect(u.id); send(res, 200, { ok: true }); });
 
 // ---------- the owner's own Dioma (runs fully on this backend) ----------
+// Plans and payment links (the owner pastes a payment link per plan, e.g. from Ziina; customers tap Pay).
+const PLANS = [['student', 'Student', 5], ['basic', 'Basic', 13], ['pro', 'Pro', 40], ['premium', 'Premium', 109]];
+const payLinks = () => { try { return JSON.parse(one("SELECT value FROM app_settings WHERE key = 'paylinks'")?.value || '{}'); } catch { return {}; } };
+on('GET', '/api/billing', (req, res, u) => {
+  const L = payLinks();
+  send(res, 200, { plans: PLANS.map(([k, n, usd]) => ({ k, n, usd, link: L[k] || null })), plan: u.plan || null, status: u.plan_status || null, owner: O.isOwner(u), links: O.isOwner(u) ? L : undefined });
+});
+on('POST', '/api/billing/choose', async (req, res, u) => {
+  const b = await json(req), pl = PLANS.find(([k]) => k === b.plan); if (!pl) return fail(res, 400, 'Pick a plan.');
+  const link = payLinks()[pl[0]]; if (!link) return fail(res, 409, 'Payments for this plan open soon.');
+  run('UPDATE users SET plan = ?, plan_status = ? WHERE id = ?', pl[0], 'pending', u.id);
+  send(res, 200, { link });
+});
+on('POST', '/api/billing/paid', async (req, res, u) => { run("UPDATE users SET plan_status = 'checking' WHERE id = ? AND plan IS NOT NULL", u.id); send(res, 200, { ok: true }); });
 const ownerOnly = (fn) => async (req, res, u, p) => (O.isOwner(u) ? fn(req, res, u, p) : fail(res, 403, 'Not available.'));
 const UPLOAD_PAGE = (msg = '') => `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dioma</title>
 <style>body{margin:0;background:#000;color:#fff;font:16px/1.5 system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;padding:24px}main{max-width:420px;display:grid;gap:14px}label{display:block;background:#ffb547;color:#1a0f00;border-radius:999px;padding:14px;text-align:center;font-weight:600;cursor:pointer}p{color:#9a9a9a}</style>
@@ -449,6 +463,13 @@ if (O.ownerSlug()) on('GET', '/' + O.ownerSlug(), ownerOnly((req, res) => {
 }), { page: true });
 on('GET', '/connect', ownerOnly((req, res) => send(res, 200, CONNECT_PAGE(!!O.serverLink()), { 'content-type': 'text/html; charset=utf-8' })), { page: true });
 on('POST', '/api/owner/link', ownerOnly(async (req, res) => { const b = await json(req); O.setServerLink(String(b.url || '').trim()); try { await O.callTool(null, 'Dioma WhatsApp', 'personal_status', {}); send(res, 200, { ok: true }); } catch (e) { send(res, 200, { ok: true, warn: 'Saved, but the server did not answer yet: ' + e.message }); } }));
+on('POST', '/api/billing/links', ownerOnly(async (req, res) => {
+  const b = await json(req), L = {};
+  for (const [k] of PLANS) { const v = String(b[k] || '').trim(); if (v) { if (!/^https:\/\/[^\s]+$/.test(v)) return fail(res, 400, 'Each link must start with https://'); L[k] = v.slice(0, 500); } }
+  run("INSERT INTO app_settings (key, value) VALUES ('paylinks', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", JSON.stringify(L)); send(res, 200, { ok: true });
+}));
+on('GET', '/api/billing/customers', ownerOnly((req, res) => send(res, 200, { customers: all("SELECT email, name, plan, plan_status FROM users WHERE plan IS NOT NULL ORDER BY id DESC LIMIT 200") })));
+on('POST', '/api/billing/mark', ownerOnly(async (req, res) => { const b = await json(req); run('UPDATE users SET plan_status = ? WHERE email = ?', b.status === 'active' ? 'active' : 'pending', String(b.email || '').toLowerCase()); send(res, 200, { ok: true }); }));
 on('POST', '/api/owner/app', ownerOnly(async (req, res) => { O.saveApp(await readBody(req, 8 * 1024 * 1024)); send(res, 200, { ok: true }); }));
 on('POST', '/api/owner/mcp', ownerOnly(async (req, res, u) => {
   const b = await json(req, 4 * 1024 * 1024);

@@ -542,6 +542,7 @@ async function viewMe() {
       <input class="field" id="pn" value="${esc(m.name || '')}" placeholder="Name" maxlength="60">
       <textarea class="field" id="pa" rows="2" placeholder="What you do, helps Dioma prioritise" maxlength="300">${esc(m.about || '')}</textarea>
       <button class="btn sm" style="justify-self:start">Save</button></form></section>
+    <section class="sec"><h2>Your plan</h2><div id="plansec"><div class="empty">Loading…</div></div></section>
     <section class="sec"><h2>Your phone</h2>${phoneCard()}</section>
     <section class="sec"><h2>Top and bottom bars</h2>${navPicker()}</section>
     <section class="sec"><h2>Look</h2><div class="seg" id="tone"><button data-t="mono" class="${tone === 'mono' ? 'on' : ''}">Mono</button><button data-t="sun" class="${tone === 'sun' ? 'on' : ''}">Sunrise</button></div></section>
@@ -551,7 +552,7 @@ async function viewMe() {
   $('#gd')?.addEventListener('click', async () => { await api('DELETE', '/api/google'); toast('Google disconnected'); viewMe(); });
   $('#pf').addEventListener('submit', async (e) => { e.preventDefault(); await api('POST', '/api/me', { name: $('#pn').value, about: $('#pa').value }); toast('Saved'); viewMe(); });
   $('#tone').addEventListener('click', (e) => { const t = e.target.dataset.t; if (t) setTone(t); });
-  wirePicker(viewMe); wirePhone(viewMe);
+  wirePicker(viewMe); wirePhone(viewMe); planSection();
   $('#lo').addEventListener('click', signOutAsk);
   $('#del').addEventListener('click', () => {
     $('#delrow').innerHTML = `<form class="stack card" id="df" style="margin-top:12px"><p>This deletes your account, to-dos, chats and files, and disconnects Google. It can't be undone.</p><input class="field" id="dc" placeholder="Type ${esc(m.email)} to confirm" autocomplete="off"><button class="btn sm bad" style="justify-self:start">Delete everything</button><div class="err" id="derr"></div></form>`;
@@ -716,6 +717,26 @@ function wirePhone(again) {
     } catch (x) { toast(x.message || 'Could not turn on notifications'); b.disabled = false; b.textContent = 'Turn on notifications'; }
   });
   $('#pushtest')?.addEventListener('click', async () => { const r = await api('POST', '/api/push/test').catch((x) => (toast(x.message), null)); if (r) toast(r.sent ? 'Sent. Lock your phone to see it.' : 'No phone connected yet. Tap Turn on notifications.'); });
+}
+// Plan and payment: customers pick a plan and pay with the owner's payment link (Ziina etc.)
+async function planSection() {
+  const el = $('#plansec'); if (!el) return;
+  const b = await api('GET', '/api/billing').catch(() => null); if (!b || !$('#plansec')) return;
+  const st = { pending: 'Waiting for payment', checking: 'Payment being checked', active: 'Active' };
+  el.innerHTML = `${b.plan ? `<p class="dim" style="margin-bottom:10px">Your plan: <b style="font-weight:500;color:var(--fg)">${esc(b.plans.find((p) => p.k === b.plan)?.n || b.plan)}</b> · ${st[b.status] || ''}</p>` : ''}
+    <div class="list">${b.plans.map((p) => `<div class="item"><div class="grow"><div class="t">${p.n}</div><div class="s">$${p.usd} a month</div></div>${p.link ? `<button class="btn sm ${b.plan === p.k ? '' : 'pri'}" data-pay="${p.k}">${b.plan === p.k && b.status === 'active' ? 'Pay again' : 'Pay'}</button>` : '<span class="soon">Soon</span>'}</div>`).join('')}</div>
+    ${b.plan && b.status === 'pending' ? '<button class="btn sm" id="ipaid" style="margin-top:10px">I have paid</button>' : ''}
+    ${b.owner ? `<div class="card stack" style="margin-top:16px"><b style="font-weight:500">Payment links (only you see this)</b><p class="note">Make a payment link for each plan (for example in Ziina) and paste it here. Customers tap Pay and go straight to it.</p>
+      ${b.plans.map((p) => `<label class="stack" style="gap:4px"><span class="eyebrow">${p.n} · $${p.usd}</span><input class="field" data-link="${p.k}" placeholder="https://pay.ziina.com/…" value="${esc((b.links || {})[p.k] || '')}"></label>`).join('')}
+      <button class="btn pri" id="savelinks">Save links</button><div id="custs"></div></div>` : ''}`;
+  el.onclick = async (e) => {
+    const pb = e.target.closest('[data-pay]');
+    if (pb) { try { const r = await api('POST', '/api/billing/choose', { plan: pb.dataset.pay }); location.href = r.link; } catch (x) { toast(x.message); } return; }
+    if (e.target.id === 'ipaid') { await api('POST', '/api/billing/paid').catch(() => {}); toast('Thanks. We will confirm your payment shortly.'); planSection(); return; }
+    if (e.target.id === 'savelinks') { const L = {}; el.querySelectorAll('[data-link]').forEach((i) => (L[i.dataset.link] = i.value)); try { await api('POST', '/api/billing/links', L); toast('Payment links saved'); planSection(); } catch (x) { toast(x.message); } return; }
+    const mk = e.target.closest('[data-mark]'); if (mk) { await api('POST', '/api/billing/mark', { email: mk.dataset.mark, status: 'active' }).catch(() => {}); toast('Marked as paid'); planSection(); }
+  };
+  if (b.owner) { const c = await api('GET', '/api/billing/customers').catch(() => ({ customers: [] })); const box = $('#custs'); if (box && c.customers.length) box.innerHTML = `<p class="eyebrow" style="margin-top:8px">Customers who chose a plan</p><div class="list">${c.customers.map((x) => `<div class="item"><div class="grow"><div class="t">${esc(x.name || x.email)}</div><div class="s">${esc(x.email)} · ${esc(x.plan)} · ${esc(st[x.plan_status] || x.plan_status || '')}</div></div>${x.plan_status !== 'active' ? `<button class="btn sm" data-mark="${esc(x.email)}">Mark paid</button>` : ''}</div>`).join('')}</div>`; }
 }
 // More: everything not on the bottom bar, plus the layout setting
 function viewMore() {

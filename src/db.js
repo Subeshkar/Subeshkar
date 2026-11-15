@@ -19,6 +19,9 @@ CREATE TABLE IF NOT EXISTS waitlist (email TEXT PRIMARY KEY, created INTEGER NOT
 `);
 try { db.exec('ALTER TABLE users ADD COLUMN role TEXT'); } catch { /* already there */ }
 try { db.exec('ALTER TABLE users ADD COLUMN nav TEXT'); } catch { /* already there */ }
+try { db.exec('ALTER TABLE users ADD COLUMN plan TEXT'); } catch { /* already there */ }
+try { db.exec('ALTER TABLE users ADD COLUMN plan_status TEXT'); } catch { /* already there */ }
+db.exec('CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)');
 export const one = (sql, ...a) => db.prepare(sql).get(...a);
 export const all = (sql, ...a) => db.prepare(sql).all(...a);
 export const run = (sql, ...a) => db.prepare(sql).run(...a);
