@@ -926,7 +926,7 @@ async function viewMail() {
     const gm = MD.acct === 'gmail' || MD.acct === 'google';
     $('#mlist').innerHTML = list.length ? list.slice(0, 60).map((m) => { const who = ['sent', 'drafts', 'follow', 'sentToday'].includes(MF.f) ? 'To: ' + (m.to || m.toAddr || '') : m.from; const inner = `<span class="when">${m.at ? ago(m.at) : ''}</span><div class="grow"><div class="t" style="${m.unread ? 'font-weight:600' : ''}">${esc(who || '(unknown)')}</div><div class="s">${esc(m.subject)}${m.snippet ? ' · ' + esc(m.snippet) : ''}</div></div>${m.unread ? '<b class="wun">New</b>' : ''}`;
       return gm && m.thread ? `<a class="item" style="text-decoration:none;color:inherit" target="_blank" rel="noopener" href="https://mail.google.com/mail/u/0/#all/${esc(m.thread)}">${inner}</a>` : `<div class="item">${inner}</div>`; }).join('')
-      : `<div class="empty">${MF.f === 'reply' ? 'Nothing waiting for your reply.' : MD.acct !== 'gmail' && MD.acct !== 'imap' && ['sent', 'drafts', 'follow', 'sentToday'].includes(MF.f) ? 'This folder is not available for this mailbox yet.' : 'Nothing here.'}</div>`;
+      : MD.errors && MD.errors.length ? `<div class="err" style="padding:10px 0">Could not read this mailbox: ${esc(MD.errors[0])}. Tap ↻ to try again; if it keeps failing, disconnect it under ▾ and connect again.</div>` : `<div class="empty">${MF.f === 'reply' ? 'Nothing waiting for your reply.' : MD.acct !== 'gmail' && MD.acct !== 'imap' && ['sent', 'drafts', 'follow', 'sentToday'].includes(MF.f) ? 'This folder is not available for this mailbox yet.' : 'Nothing here.'}</div>`;
   };
   const load = async () => {
     $('#mlist').innerHTML = '<div class="empty">Loading your mail…</div>';
@@ -944,8 +944,9 @@ async function viewMail() {
   $('#madd').addEventListener('click', addBox);
   $('#mmore').addEventListener('click', () => {
     const a = (MD?.accounts || []).find((x) => x.key === MF.acct); if (!a) return addBox();
-    $('#maddbox').innerHTML = `<section class="sec"><h2>${esc(a.label)}</h2>${a.email ? `<p class="dim" style="margin-bottom:10px">${esc(a.email)}</p>` : ''}<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm" id="madd2">+ Add mailbox</button><button class="btn sm bad" id="mdisc">Disconnect ${esc(a.label)}</button></div></section>`;
+    $('#maddbox').innerHTML = `<section class="sec"><h2>${esc(a.label)}</h2>${a.email ? `<p class="dim" style="margin-bottom:10px">${esc(a.email)}</p>` : ''}<form class="row" id="mren" style="gap:6px;margin-bottom:10px"><input class="field grow" id="mrn" maxlength="30" placeholder="Name this mailbox, e.g. RedExGo" value="${esc(a.label)}"><button class="btn sm" style="height:48px">Save name</button></form><div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn sm" id="madd2">+ Add mailbox</button><button class="btn sm bad" id="mdisc">Disconnect ${esc(a.label)}</button></div></section>`;
     $('#madd2').onclick = addBox;
+    $('#mren').onsubmit = async (e) => { e.preventDefault(); const v = $('#mrn').value.trim(); if (!v) return; await api('POST', '/api/mail/label', { key: a.key, label: v }).catch((x) => toast(x.message)); toast('Name saved'); $('#maddbox').innerHTML = ''; load(); };
     $('#mdisc').onclick = async () => { if ($('#mdisc').dataset.sure !== '1') { $('#mdisc').dataset.sure = '1'; $('#mdisc').textContent = 'Tap again to disconnect'; return; }
       if (a.key === 'imap') await api('DELETE', '/api/mail').catch(() => {}); else if (a.key === 'google') await api('DELETE', '/api/google').catch(() => {}); else await api('DELETE', '/api/apps', { slug: a.key }).catch(() => {});
       MF.acct = null; toast('Disconnected'); viewMail(); };
@@ -987,7 +988,8 @@ let WAF = { tab: 'personal', f: 'action', q: '' };
 const DAYMS = 864e5;
 function waGroups(d) {
   const now = Date.now(), C = d.chats;
-  const isAction = (c) => !c.is_group && !c.last_from_me && c.last_at > now - 14 * DAYMS;
+  const quiet = (c) => c.noise || (c.ignored_at && c.ignored_at >= c.last_at);
+  const isAction = (c) => !c.is_group && !c.last_from_me && c.last_at > now - 14 * DAYMS && !quiet(c);
   const tabOf = (c) => (!c.is_group && !c.named ? 'other' : 'personal');
   const inTab = C.filter((c) => tabOf(c) === WAF.tab);
   const F = {
@@ -997,7 +999,7 @@ function waGroups(d) {
     unread: (c) => c.unread > 0,
     all: () => true,
     groups: (c) => !!c.is_group,
-    noise: (c) => !!c.is_group && !c.last_from_me && (!c.my_at || c.my_at < now - 30 * DAYMS),
+    noise: (c) => !!c.noise || (!!c.is_group && !c.last_from_me && (!c.my_at || c.my_at < now - 30 * DAYMS)),
     dunread: (c) => !c.is_group && c.unread > 0,
     gunread: (c) => !!c.is_group && c.unread > 0,
     sent: (c) => !!c.my_at && c.my_at >= WAF.midnight,
@@ -1086,11 +1088,29 @@ async function waChat(c) {
     window.scrollTo(0, document.body.scrollHeight);
   };
   await load();
-  $('#wb').addEventListener('click', () => { waOpen = null; viewWa(); });
+  $('#wb').addEventListener('click', () => { waOpen = null; $('.composer')?.remove(); main.style.paddingBottom = ''; viewWa(); });
   const comp = document.createElement('div'); comp.className = 'composer';
-  comp.innerHTML = `<form class="wrap row" id="wf"><textarea class="field grow" id="wt" rows="1" placeholder="Write a reply…" maxlength="4000"></textarea><button class="btn pri">Send</button></form>`;
-  document.body.appendChild(comp); main.style.paddingBottom = '190px';
-  $('#wf').addEventListener('submit', async (e) => { e.preventDefault(); const t = $('#wt').value.trim(); if (!t) return; try { await api('POST', '/api/wa/send', { jid: c.jid, text: t }); $('#wt').value = ''; toast('Sent'); load(); } catch (x) { toast(x.message); } });
+  comp.innerHTML = `<div class="wrap stack" style="gap:8px">
+    <textarea class="field" id="wt" rows="2" placeholder="Write a reply…" maxlength="4000"></textarea>
+    <form class="row" id="wai" style="gap:6px"><input class="field grow" id="wi" placeholder="✍️ Tell AI what to say, e.g. &quot;yes, tomorrow 5pm&quot;" maxlength="500"><button class="btn sm" style="height:48px">Write</button></form>
+    <div class="row wbar" style="gap:6px;flex-wrap:wrap"><button class="btn sm" data-wa="reply">AI reply</button><button class="btn sm" data-wa="fix">✨ Fix</button><button class="btn sm pri" data-wa="send">Send</button><label class="btn sm" style="cursor:pointer">📎 Attach<input type="file" id="wfile" hidden></label><button class="btn sm" data-wa="ignore">Ignore</button><button class="btn sm" data-wa="noise">Move to Noise</button></div></div>`;
+  document.body.appendChild(comp); main.style.paddingBottom = '260px';
+  const box = $('#wt');
+  const draft = async (mode, text, btn) => { const t0 = btn.textContent; btn.disabled = true; btn.textContent = 'Writing…'; try { const r = await api('POST', '/api/wa/draft', { jid: c.jid, mode, text }); box.value = r.text || ''; box.focus(); } catch (x) { toast(x.message); } btn.disabled = false; btn.textContent = t0; };
+  $('#wai').addEventListener('submit', (e) => { e.preventDefault(); const t = $('#wi').value.trim(); if (!t) return toast('Tell Dioma what to say first.'); draft('write', t, e.submitter || $('#wai .btn')); });
+  comp.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-wa]'); if (!b) return; const k = b.dataset.wa;
+    if (k === 'reply') return draft('reply', '', b);
+    if (k === 'fix') { if (!box.value.trim()) return toast('Write something first, then tap Fix.'); return draft('fix', box.value, b); }
+    if (k === 'send') { const t = box.value.trim(); if (!t) return toast('Write a message first.'); b.disabled = true; try { await api('POST', '/api/wa/send', { jid: c.jid, text: t }); box.value = ''; $('#wi').value = ''; toast('Sent'); load(); } catch (x) { toast(x.message); } b.disabled = false; return; }
+    if (k === 'ignore') { await api('POST', '/api/wa/ignore', { jid: c.jid }).catch(() => {}); toast('Ignored until they write again'); waOpen = null; comp.remove(); return viewWa(); }
+    if (k === 'noise') { await api('POST', '/api/wa/noise', { jid: c.jid, on: true }).catch(() => {}); toast('Moved to Noise'); waOpen = null; comp.remove(); return viewWa(); }
+  });
+  $('#wfile').addEventListener('change', async (e) => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return; if (f.size > 15 * 1048576) return toast('Files up to 15 MB.');
+    toast('Sending ' + f.name + '…');
+    try { const r = await fetch(`/api/wa/sendfile?jid=${encodeURIComponent(c.jid)}&name=${encodeURIComponent(f.name)}&caption=${encodeURIComponent(box.value.trim())}`, { method: 'POST', headers: { 'content-type': f.type || 'application/octet-stream', 'x-dioma': '1' }, body: f }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'Could not send the file.'); box.value = ''; toast('File sent'); load(); } catch (x) { toast(x.message); }
+  });
   waPoll = setInterval(() => { if (cur() === 'wa' && waOpen) load(); else clearInterval(waPoll); }, 10000);
 }
 

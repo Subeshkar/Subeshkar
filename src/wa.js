@@ -16,6 +16,9 @@ CREATE INDEX IF NOT EXISTS wa_messages_at ON wa_messages (user_id, jid, at);
 CREATE TABLE IF NOT EXISTS wa_contacts (user_id INTEGER NOT NULL, jid TEXT NOT NULL, name TEXT, PRIMARY KEY (user_id, jid));
 `);
 
+db.exec(`CREATE TABLE IF NOT EXISTS wa_flags (user_id INTEGER NOT NULL, jid TEXT NOT NULL, ignored_at INTEGER, noise INTEGER DEFAULT 0, PRIMARY KEY (user_id, jid));`);
+export const ignore = (uid, jid) => run('INSERT INTO wa_flags (user_id, jid, ignored_at) VALUES (?, ?, ?) ON CONFLICT(user_id, jid) DO UPDATE SET ignored_at = excluded.ignored_at', uid, jid, Date.now());
+export const setNoise = (uid, jid, on) => run('INSERT INTO wa_flags (user_id, jid, noise) VALUES (?, ?, ?) ON CONFLICT(user_id, jid) DO UPDATE SET noise = excluded.noise', uid, jid, on ? 1 : 0);
 const log = pino({ level: 'silent' });
 const authDir = (uid) => path.join(DIR, 'wa', String(uid));
 const S = new Map(); // uid -> { sock, status, qr, error, me }
@@ -110,12 +113,23 @@ export async function send(uid, jid, text) {
   return { ok: true };
 }
 
+// Send a file (photo or document) to a chat.
+export async function sendFile(uid, jid, name, mime, buf, caption) {
+  const st = S.get(uid);
+  if (!st || st.status !== 'open') throw Object.assign(new Error('WhatsApp is not connected right now.'), { status: 409 });
+  if (!one('SELECT 1 FROM wa_chats WHERE user_id = ? AND jid = ?', uid, jid)) throw Object.assign(new Error('Unknown chat.'), { status: 404 });
+  const content = /^image\//.test(mime) ? { image: buf, caption: caption || undefined, mimetype: mime } : { document: buf, fileName: name, mimetype: mime || 'application/octet-stream', caption: caption || undefined };
+  const r = await st.sock.sendMessage(jid, content);
+  saveMessage(uid, { key: { remoteJid: jid, id: r?.key?.id || String(Date.now()), fromMe: true }, message: { conversation: (/^image\//.test(mime) ? '📷 ' : '📄 ') + name }, messageTimestamp: Math.floor(Date.now() / 1000) }, true);
+  return { ok: true };
+}
+
 export async function forget(uid) {
   const st = S.get(uid); S.delete(uid);
   try { await st?.sock?.logout(); } catch {}
   try { st?.sock?.end?.(); } catch {}
   fs.rmSync(authDir(uid), { recursive: true, force: true });
-  for (const t of ['wa_chats', 'wa_messages', 'wa_contacts']) run(`DELETE FROM ${t} WHERE user_id = ?`, uid);
+  for (const t of ['wa_chats', 'wa_messages', 'wa_contacts', 'wa_flags']) run(`DELETE FROM ${t} WHERE user_id = ?`, uid);
 }
 
 // Reconnect everyone who linked WhatsApp before a restart.
@@ -133,8 +147,8 @@ export function snapshot(uid) {
 // Everything the WhatsApp screen needs to sort chats (who is waiting, follow-ups, groups, unknown numbers).
 export function overview(uid, since) {
   const chats = all(`SELECT c.jid, COALESCE(c.name, ct.name) nm, c.is_group, c.unread, c.last_text, c.last_from_me, c.last_at,
-      (SELECT MAX(at) FROM wa_messages m WHERE m.user_id = c.user_id AND m.jid = c.jid AND m.from_me = 1) my_at
-    FROM wa_chats c LEFT JOIN wa_contacts ct ON ct.user_id = c.user_id AND ct.jid = c.jid
+      (SELECT MAX(at) FROM wa_messages m WHERE m.user_id = c.user_id AND m.jid = c.jid AND m.from_me = 1) my_at, f.ignored_at, f.noise
+    FROM wa_chats c LEFT JOIN wa_contacts ct ON ct.user_id = c.user_id AND ct.jid = c.jid LEFT JOIN wa_flags f ON f.user_id = c.user_id AND f.jid = c.jid
     WHERE c.user_id = ? AND c.last_at > 0 ORDER BY c.last_at DESC LIMIT 400`, uid);
   const sent = one('SELECT COUNT(*) n FROM wa_messages WHERE user_id = ? AND from_me = 1 AND at >= ?', uid, Number(since) || 0)?.n || 0;
   return { chats: chats.map((c) => ({ ...c, name: c.nm || c.jid.split('@')[0], named: !!c.nm })), sentToday: sent };
