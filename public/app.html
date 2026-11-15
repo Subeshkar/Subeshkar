@@ -1563,6 +1563,8 @@ async function viewActivity() {
 let waPoll = null, waOpen = null;
 let WAF = { tab: 'personal', f: 'action', q: '' };
 const DAYMS = 864e5;
+let WALIM = 150;
+document.addEventListener('click', (e) => { if (e.target.id === 'wmore') { e.stopPropagation(); WALIM += 300; WAREF && WAREF(); } }, true);
 function waGroups(d) {
   const now = Date.now(), C = d.chats;
   const quiet = (c) => c.noise || (c.ignored_at && c.ignored_at >= c.last_at);
@@ -1588,7 +1590,7 @@ function waGroups(d) {
   };
   const counts = Object.fromEntries(Object.keys(F).map((k) => [k, inTab.filter(F[k]).length]));
   const q = WAF.q.trim().toLowerCase();
-  const pool = ['dunread', 'gunread', 'sent'].includes(WAF.f) ? C : inTab;
+  const pool = ['dunread', 'gunread', 'sent', 'all', 'groups'].includes(WAF.f) ? C : inTab;
   const list = pool.filter(F[WAF.f] || F.all).filter((c) => !q || (c.name + ' ' + c.jid).toLowerCase().includes(q));
   return { stats, counts, list, other: C.filter((c) => tabOf(c) === 'other').length };
 }
@@ -1693,12 +1695,13 @@ async function viewWa() {
     if (cur() !== 'wa' || !$('#wl')) return;
     const g = waGroups(d);
     const sel = WAF.tab === 'business' ? 'business' : WAF.f;
-    $('#wst').innerHTML = [[g.stats.reply, 'Need reply', 'action'], [g.stats.priority, 'Priority', 'priority'], [g.counts.follow || 0, 'Follow-up', 'follow'], [g.stats.unread, 'Unread', 'dunread'], [g.stats.groups, 'Groups', 'gunread'], [g.counts.noise || 0, 'Noise', 'noise'], [g.counts.all || 0, 'All', 'all'], [g.stats.sent, 'Sent today', 'sent']].map(([n, l, k]) => `<button type="button" class="wst ${sel === k ? 'hi' : ''}" data-st="${k}"><b>${n}</b><span>${l}</span></button>`).join('');
+    $('#wst').innerHTML = [[g.stats.reply, 'Need reply', 'action'], [g.stats.priority, 'Priority', 'priority'], [g.counts.follow || 0, 'Follow-up', 'follow'], [g.stats.unread, 'Unread', 'dunread'], [g.stats.groups, 'Groups', 'gunread'], [g.counts.noise || 0, 'Noise', 'noise'], [d.chats.length, 'All chats', 'all'], [g.stats.sent, 'Sent today', 'sent']].map(([n, l, k]) => `<button type="button" class="wst ${sel === k ? 'hi' : ''}" data-st="${k}"><b>${n}</b><span>${l}</span></button>`).join('');
     if (false) $('#wfl').innerHTML = FL.map(([k, l]) => `<button data-f="${k}" class="${WAF.f === k ? 'on' : ''}">${l}${g.counts[k] && ['action', 'priority', 'noise', 'follow'].includes(k) ? ' ' + g.counts[k] : ''}</button>`).join('');
     if ((document.activeElement && document.activeElement.closest && document.activeElement.closest('#wl .wsug')) || (WEXP && document.querySelector('.wexp'))) return; // you are typing a reply: do not redraw
     if (WAF.tab === 'business') { $('#wl').innerHTML = '<div class="empty">Business WhatsApp (your company number) is coming soon. Your personal chats are in Personal.</div>'; return; }
-    $('#wl').innerHTML = g.list.length ? g.list.slice(0, 120).map((c) => `<div class="item" data-jid="${esc(c.jid)}" data-name="${esc(c.name)}" style="cursor:pointer"><span class="ficon mono">${esc((c.name || '?').replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase() || '#')}</span><div class="grow" style="min-width:0"><div class="t">${esc(c.name)}${c.is_group ? ' <span class="soon">Group</span>' : ''}</div><div class="s">${c.last_from_me ? 'You: ' : ''}${esc(c.last_text || '')}</div>${!c.last_from_me && !c.is_group ? sugBar(c) : ''}</div><div style="text-align:right;flex:none"><div class="when">${ago(c.last_at)}</div>${c.unread ? `<b class="wun">${c.unread}</b>` : ''}</div></div>`).join('') : `<div class="empty">${WAF.f === 'action' ? 'Nobody is waiting for your reply.' : 'Nothing here.'}</div>`;
-    sugLoad(g.list.slice(0, 120).filter((c) => !c.last_from_me && !c.is_group));
+    $('#wl').innerHTML = g.list.length ? g.list.slice(0, WALIM).map((c) => `<div class="item" data-jid="${esc(c.jid)}" data-name="${esc(c.name)}" style="cursor:pointer"><span class="ficon mono">${esc((c.name || '?').replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase() || '#')}</span><div class="grow" style="min-width:0"><div class="t">${esc(c.name)}${c.is_group ? ' <span class="soon">Group</span>' : ''}</div><div class="s">${c.last_from_me ? 'You: ' : ''}${esc(c.last_text || '')}</div>${!c.last_from_me && !c.is_group ? sugBar(c) : ''}</div><div style="text-align:right;flex:none"><div class="when">${c.last_at ? ago(c.last_at) : ""}</div>${c.unread ? `<b class="wun">${c.unread}</b>` : ''}</div></div>`).join('') : `<div class="empty">${WAF.f === 'action' ? 'Nobody is waiting for your reply.' : 'Nothing here.'}</div>`;
+    if (g.list.length > WALIM) $('#wl').insertAdjacentHTML('beforeend', `<button class="btn" id="wmore" style="width:100%;margin-top:8px">Show more chats (${g.list.length - WALIM} more)</button>`);
+    sugLoad(g.list.slice(0, 40).filter((c) => !c.last_from_me && !c.is_group));
   };
   let D = null;
   const load = async () => { D = await api('GET', '/api/wa/overview?since=' + midnight.getTime()).catch(() => ({ chats: [], sentToday: 0 })); draw(D); };
