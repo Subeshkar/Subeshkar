@@ -120,6 +120,9 @@ export async function importStatement(uid, accountId, name, buf) {
     for (const s of wb.SheetNames) { tx = fromRows(XLSX.utils.sheet_to_json(wb.Sheets[s], { header: 1, raw: true, defval: '' })); if (tx.length) break; }
   }
   if (!tx.length) throw bad('No transactions found in this file. Try the Excel or CSV export from your bank app.');
+  return saveTx(uid, acc, tx);
+}
+function saveTx(uid, acc, tx) {
   let added = 0;
   for (const t of tx) {
     const hash = crypto.createHash('sha1').update(`${t.at}|${t.description}|${t.amount}`).digest('hex').slice(0, 20);
@@ -127,6 +130,17 @@ export async function importStatement(uid, accountId, name, buf) {
     added += Number(r.changes || 0);
   }
   return { found: tx.length, added };
+}
+
+// From the Dioma Browser: the text of the bank page the customer has open (tables arrive as "a | b | c" rows).
+export function importText(uid, accountId, text) {
+  const acc = one('SELECT * FROM w_accounts WHERE id = ? AND user_id = ?', accountId, uid);
+  if (!acc) throw Object.assign(new Error('Account not found.'), { status: 404 });
+  const rows = String(text).split('\n').filter((l) => l.includes(' | ')).map((l) => l.split(' | '));
+  let tx = rows.length ? fromRows(rows) : [];
+  if (!tx.length) tx = fromPdfText(String(text), acc.kind === 'card');
+  if (!tx.length) throw bad('No transactions on this page. Open the page that lists your transactions (or the statement), then tap Add to Wealth again.');
+  return saveTx(uid, acc, tx);
 }
 
 export function summary(uid, days = 30) {

@@ -14,6 +14,7 @@ import * as W from './wa.js';
 import * as M from './imap.js';
 import * as A from './apps.js';
 import * as WL from './wealth.js';
+import * as BR from './browser.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT || 8080);
@@ -159,7 +160,7 @@ on('POST', '/api/auth/logout', async (req, res) => {
   setSession(res, '', 0); send(res, 200, { ok: true });
 }, { open: true });
 
-const NAVKEYS = ['home','todo','wa','social','mail','cal','act','wealth','biz','ask','files','me'];
+const NAVKEYS = ['home','todo','wa','social','mail','cal','act','wealth','biz','ask','files','browser','me'];
 const navOf = (u) => { try { return u.nav ? JSON.parse(u.nav) : null; } catch { return null; } };
 on('GET', '/api/me', (req, res, u) => {
   const g = one(`SELECT account FROM connections WHERE user_id = ? AND kind = 'google'`, u.id);
@@ -325,6 +326,18 @@ on('POST', '/api/wealth/import', async (req, res, u) => {
   const buf = await readBody(req, 15 * 1024 * 1024); if (!buf.length) return fail(res, 400, 'Empty file.');
   send(res, 200, await WL.importStatement(u.id, Number(q.get('account')), q.get('name'), buf));
 }, { raw: true });
+
+// Dioma Browser (the customer logs in themselves; nothing is saved; closes after 10 idle minutes)
+on('POST', '/api/browser/open', async (req, res, u) => { if (!BR.available()) return fail(res, 503, 'The Dioma browser is being switched on. Try again soon.'); const b = await json(req); send(res, 200, await BR.open(u.id, b.url, !!b.mobile)); });
+on('GET', '/api/browser/state', async (req, res, u) => send(res, 200, await BR.state(u.id)));
+on('GET', '/api/browser/shot', async (req, res, u) => { const img = await BR.shot(u.id); res.writeHead(200, { 'content-type': 'image/jpeg', 'cache-control': 'no-store' }); res.end(img); });
+on('POST', '/api/browser/act', async (req, res, u) => send(res, 200, await BR.act(u.id, await json(req))));
+on('POST', '/api/browser/close', async (req, res, u) => { await BR.close(u.id); send(res, 200, { ok: true }); });
+on('POST', '/api/browser/to-wealth', async (req, res, u) => {
+  const b = await json(req), acc = Number(b.account);
+  if (b.download !== undefined && b.download !== null) { const d = BR.takeDownload(u.id, Number(b.download)); if (!d) return fail(res, 404, 'That download is gone.'); return send(res, 200, await WL.importStatement(u.id, acc, d.name, d.buf)); }
+  send(res, 200, WL.importText(u.id, acc, await BR.pageText(u.id)));
+});
 
 // One-tap app connections (Composio)
 const pub = () => (process.env.PUBLIC_URL || 'http://localhost:8080').replace(/\/$/, '');
