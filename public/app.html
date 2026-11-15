@@ -61,6 +61,8 @@ textarea.field{height:auto;min-height:48px;padding:12px 14px;resize:none;line-he
 .stabs::-webkit-scrollbar{display:none}
 .stabs a{display:flex;flex-direction:column;align-items:center;gap:5px;padding:7px 2px;color:var(--dim);font-size:12.5px;text-decoration:none;border-radius:12px}
 .stabs a svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.stabs.fold{grid-auto-flow:row;grid-template-columns:repeat(var(--cols),minmax(0,1fr));overflow:visible}
+.ntg{position:relative;display:flex;flex-direction:column;align-items:center;gap:5px;padding:7px 2px;color:var(--acc);font:inherit;font-size:12.5px;background:transparent;border:0;border-radius:12px;cursor:pointer}.ntg svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.stabs.fold a{min-width:0}.stabs.fold a,.ntg{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stabs a.on{color:var(--fg);background:rgba(var(--accrgb),.12)}
 .stabs a.on svg{stroke:var(--acc)}
 .prov{display:grid;gap:10px}
@@ -602,8 +604,16 @@ function drawNav() {
   const a = (k, short) => `<a href="#${k}" data-k="${k}" class="${v === k ? 'on' : ''}"><svg viewBox="0 0 24 24">${I[k === 'more' ? 'more' : ICON[k]]}</svg>${bd(k)}${k === 'more' ? 'More' : (short && SHORT[k]) || LABEL[k]}</a>`;
   $('#botw').innerHTML = [...bot, 'more'].map((k) => a(k)).join('');
   const top = n.top.filter((k) => KEYS.includes(k));
-  $('#tabs').innerHTML = top.length ? `<div class="stabs" role="tablist">${top.map((k) => a(k, true)).join('')}</div>` : '';
+  // Show what fits in one row, the rest behind ▾ (tap again ▴ to close). The open screen always stays visible.
+  const cols = innerWidth < 520 ? 5 : innerWidth < 820 ? 7 : 10;
+  let show = top;
+  if (!NAVOPEN && top.length > cols) { show = top.slice(0, cols - 1); if (top.includes(v) && !show.includes(v)) show[show.length - 1] = v; }
+  const tg = top.length > cols ? `<button type="button" class="ntg" id="ntg" aria-expanded="${NAVOPEN}"><svg viewBox="0 0 24 24"><path d="${NAVOPEN ? 'm6 15 6-6 6 6' : 'm6 9 6 6 6-6'}"/></svg>${NAVOPEN ? 'Less' : 'All'}${!NAVOPEN && top.slice(cols - 1).some((k) => BADGE[k] && !show.includes(k)) ? '<b class="bdg">•</b>' : ''}</button>` : '';
+  $('#tabs').innerHTML = top.length ? `<div class="stabs fold" role="tablist" style="--cols:${cols}">${show.map((k) => a(k, true)).join('')}${tg}</div>` : '';
 }
+let NAVOPEN = false;
+document.addEventListener('click', (e) => { if (e.target.closest('#ntg')) { NAVOPEN = !NAVOPEN; drawNav(); return; } if (NAVOPEN && e.target.closest('#tabs a')) { NAVOPEN = false; } });
+let navRT; addEventListener('resize', () => { clearTimeout(navRT); navRT = setTimeout(drawNav, 150); }, { passive: true });
 async function loadBadges() {
   try { const b = await api('GET', '/api/badges'); BADGE = { todo: b.todo, wa: b.wa }; drawNav(); } catch {}
 }
