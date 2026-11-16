@@ -217,3 +217,11 @@ export async function liLike(uid, link) {
   const me = await liMe(uid); if (!me.author) throw err('Reconnect LinkedIn first.', 400);
   return A.proxy(uid, 'linkedin', { endpoint: 'https://api.linkedin.com/rest/reactions?actor=' + encodeURIComponent(me.author), method: 'POST', body: { root: urn, reactionType: 'LIKE' }, headers: { 'LinkedIn-Version': '202501', 'X-Restli-Protocol-Version': '2.0.0' } });
 }
+
+// Comment on one of your own posts (top-level comment).
+export async function comment(uid, net, postId, text) {
+  C.delete(uid + ':feed');
+  if (net === 'instagram') { const t = await A.findTool('instagram', /POST_IG_MEDIA_COMMENTS$|CREATE.*MEDIA.*COMMENT|IG_MEDIA_COMMENT/); if (!t) throw err('Instagram does not allow this from Dioma yet. Reply to a comment instead.', 400); return A.runFill(uid, t, { 'ig_media_id|media_id': postId, 'message|text': text }); }
+  if (net === 'facebook') return A.runFill(uid, 'FACEBOOK_CREATE_COMMENT', { 'object_id|post_id|id': postId, 'message|text': text });
+  throw err('Commenting here is not available for this network.', 400);
+}

@@ -619,6 +619,7 @@ on('POST', '/api/social/li', async (req, res, u) => { const b = await json(req);
   if (b.do === 'like') { await SO.liLike(u.id, b.link); return send(res, 200, { ok: true }); }
   if (b.do === 'comment') { if (!String(b.text || '').trim()) return fail(res, 400, 'Write a comment first.'); await SO.liComment(u.id, b.link, String(b.text).slice(0, 1250)); return send(res, 200, { ok: true }); }
   const urn = SO.liUrn(b.link); if (!urn) return fail(res, 400, 'Paste a LinkedIn post link (Share › Copy link to post).'); send(res, 200, { urn, embed: 'https://www.linkedin.com/embed/feed/update/' + urn }); });
+on('POST', '/api/social/comment', async (req, res, u) => { const b = await json(req); if (!String(b.text || '').trim()) return fail(res, 400, 'Write a comment first.'); await SO.comment(u.id, String(b.net), String(b.id), String(b.text).slice(0, 2000)); send(res, 200, { ok: true }); });
 on('GET', '/api/social/dms', async (req, res, u) => send(res, 200, await SO.dms(u.id)));
 on('POST', '/api/social/dm', async (req, res, u) => { const b = await json(req); if (!String(b.text || '').trim()) return fail(res, 400, 'Write a message first.'); await SO.dmSend(u.id, b.net, String(b.to || ''), String(b.text).slice(0, 1000)); send(res, 200, { ok: true }); });
 on('GET', '/api/social/trending', async (req, res, u) => { const net = new URL(req.url, 'http://x').searchParams.get('net'); send(res, 200, net && net !== 'all' ? await SO.trendingFor(u.id, net) : await SO.trending()); });
