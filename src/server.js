@@ -549,6 +549,10 @@ on('GET', '/api/social/feed', async (req, res, u) => send(res, 200, await SO.fee
 on('POST', '/api/social/reply', async (req, res, u) => { const b = await json(req); if (!String(b.text || '').trim()) return fail(res, 400, 'Write a reply first.'); await SO.reply(u.id, b.net, String(b.id), String(b.text).slice(0, 2000)); send(res, 200, { ok: true }); });
 on('POST', '/api/social/post', async (req, res, u) => { const b = await json(req); if (!String(b.text || '').trim()) return fail(res, 400, 'Write the post first.'); await SO.post(u.id, b.net, String(b.text).slice(0, 3000), b.image || ''); send(res, 200, { ok: true }); });
 on('GET', '/api/social/check', async (req, res, u) => send(res, 200, await SO.check(u.id, new URL(req.url, 'http://x').searchParams.get('net') || '')));
+on('POST', '/api/social/li', async (req, res, u) => { const b = await json(req);
+  if (b.do === 'like') { await SO.liLike(u.id, b.link); return send(res, 200, { ok: true }); }
+  if (b.do === 'comment') { if (!String(b.text || '').trim()) return fail(res, 400, 'Write a comment first.'); await SO.liComment(u.id, b.link, String(b.text).slice(0, 1250)); return send(res, 200, { ok: true }); }
+  const urn = SO.liUrn(b.link); if (!urn) return fail(res, 400, 'Paste a LinkedIn post link (Share › Copy link to post).'); send(res, 200, { urn, embed: 'https://www.linkedin.com/embed/feed/update/' + urn }); });
 on('GET', '/api/social/dms', async (req, res, u) => send(res, 200, await SO.dms(u.id)));
 on('POST', '/api/social/dm', async (req, res, u) => { const b = await json(req); if (!String(b.text || '').trim()) return fail(res, 400, 'Write a message first.'); await SO.dmSend(u.id, b.net, String(b.to || ''), String(b.text).slice(0, 1000)); send(res, 200, { ok: true }); });
 on('GET', '/api/social/trending', async (req, res, u) => { const net = new URL(req.url, 'http://x').searchParams.get('net'); send(res, 200, net && net !== 'all' ? await SO.trendingFor(u.id, net) : await SO.trending()); });
@@ -723,7 +727,7 @@ const STATIC = { '/': 'app.html', '/privacy': 'privacy.html', '/terms': 'terms.h
 const MIME = { '.js': 'text/javascript; charset=utf-8', '.html': 'text/html; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json' };
 const SEC = {
   'x-content-type-options': 'nosniff', 'referrer-policy': 'strict-origin-when-cross-origin', 'x-frame-options': 'DENY',
-  'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+  'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self'; frame-src https://www.linkedin.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
 };
 if (secure()) SEC['strict-transport-security'] = 'max-age=31536000';
 

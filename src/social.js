@@ -194,3 +194,21 @@ export async function trendingFor(uid, net) {
   }
   C.set(k, { at: Date.now(), data: out }); return out;
 }
+
+// LinkedIn: open any post from its link, like it and comment on it as you.
+export function liUrn(link) {
+  const t = decodeURIComponent(String(link || ''));
+  const m = t.match(/urn:li:(activity|share|ugcPost):(\d{10,25})/) || t.match(/(activity|share|ugcPost)[-:](\d{15,25})/);
+  return m ? `urn:li:${m[1]}:${m[2]}` : '';
+}
+export async function liComment(uid, link, text) {
+  const urn = liUrn(link); if (!urn) throw err('That does not look like a LinkedIn post link.', 400);
+  const me = await liMe(uid); if (!me.author) throw err('Reconnect LinkedIn first.', 400);
+  const tool = 'LINKEDIN_CREATE_COMMENT_ON_POST', props = await A.toolParams(tool), msg = props.message?.type === 'string' ? text : { text };
+  return A.runFill(uid, tool, { 'actor': me.author, 'object|target_urn|post_urn': urn, 'message': msg });
+}
+export async function liLike(uid, link) {
+  const urn = liUrn(link); if (!urn) throw err('That does not look like a LinkedIn post link.', 400);
+  const me = await liMe(uid); if (!me.author) throw err('Reconnect LinkedIn first.', 400);
+  return A.proxy(uid, 'linkedin', { endpoint: 'https://api.linkedin.com/rest/reactions?actor=' + encodeURIComponent(me.author), method: 'POST', body: { root: urn, reactionType: 'LIKE' }, headers: { 'LinkedIn-Version': '202501', 'X-Restli-Protocol-Version': '2.0.0' } });
+}

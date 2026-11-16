@@ -195,4 +195,11 @@ export async function runFill(uid, tool, want = {}) {
   }
   return exec(uid, tool, args);
 }
-export { firstArray as arrayIn, pick as pickField };
+export { firstArray as arrayIn, pick as pickField, params as toolParams };
+// Call the app's own API with the customer's connection (for actions Composio has no ready tool for).
+export async function proxy(uid, slug, { endpoint, method = 'GET', body, headers = {} }) {
+  const acc = (await connected(uid)).find((x) => x.slug === slug); if (!acc) throw Object.assign(new Error('Not connected.'), { status: 400 });
+  const r = await call('POST', '/tools/execute/proxy', { endpoint, method, body, connected_account_id: acc.id, parameters: Object.entries(headers).map(([name, value]) => ({ name, value, type: 'header' })) });
+  const st = r.status ?? r.status_code; if (st && st >= 400) throw Object.assign(new Error(typeof r.data === 'object' ? r.data?.message || JSON.stringify(r.data).slice(0, 200) : String(r.data || 'The app refused.')), { status: 502 });
+  return r.data ?? r;
+}

@@ -858,6 +858,7 @@ async function drawSo(on) {
   if (SOT === 'trending') return drawTrend();
   if (SOT === 'search') return drawSearch();
   if (SONET !== 'all' && SOT !== 'weekly' && SOT !== 'create' && !appOn(SONET)) { v.innerHTML = SONET === 'snapchat' ? '<div class="empty">Snapchat has no connection for apps. Dioma writes your posts (Write this week\'s posts) and you post them from the Snapchat app.</div>' : `<p class="note">${esc(NETN[SONET] || SONET)} is not connected yet.</p>${appList('social', 'social', ((APPS && APPS.catalog.social) || []).map(([k]) => k).filter((k) => k !== SONET))}`; return; }
+  if (SONET === 'linkedin' && (SOT === 'comments' || SOT === 'posts')) return drawLiPost(v);
   if (SOT === 'messages') return drawDms();
   if (SOT === 'create' || SOT === 'weekly') { v.innerHTML = '<div id="soc1"></div><div id="sov2" style="margin-top:18px"></div>'; drawCreate(SONET === 'all' ? on : on.filter(([k]) => k === SONET), $('#soc1')); return drawWeekly($('#sov2')); }
   if (!SOD) SOD = await api('GET', '/api/social/feed').catch((x) => ({ posts: [], errors: [x.message] }));
@@ -895,6 +896,25 @@ async function drawWeekly(tgt) {
 }
 const STAG = { instagram: 'https://www.instagram.com/explore/tags/', tiktok: 'https://www.tiktok.com/tag/', twitter: 'https://x.com/hashtag/', linkedin: 'https://www.linkedin.com/feed/hashtag/', facebook: 'https://www.facebook.com/hashtag/', youtube: 'https://www.youtube.com/hashtag/' };
 // One line under the network tabs: is this network really working? (connected, who you are, what to fix)
+// LinkedIn: open any post here from its link, like it and comment as you (LinkedIn does not give apps your feed).
+let LILINK = '';
+async function drawLiPost(v) {
+  v.onclick = null;
+  v.innerHTML = `<div class="card stack"><b style="font-weight:600">Open a LinkedIn post</b><p class="note">In LinkedIn tap ⋯ or Share on a post › Copy link, then paste it here. Dioma shows it, writes a comment with you, and can like it.</p>
+    <form class="row" id="lif" style="gap:6px"><input class="field grow" id="lil" placeholder="https://www.linkedin.com/posts/…" value="${esc(LILINK)}"><button class="btn pri">Open</button></form><div id="lio"></div></div>
+    <p class="note" style="margin-top:10px">LinkedIn does not let any app read your feed, your past posts or their comments, so posts are opened from their link.</p>`;
+  const open = async () => {
+    const link = $('#lil').value.trim(); if (!link) return; LILINK = link;
+    let r; try { r = await api('POST', '/api/social/li', { link }); } catch (x) { $('#lio').innerHTML = `<p class="err">${esc(x.message)}</p>`; return; }
+    $('#lio').innerHTML = `<iframe src="${esc(r.embed)}" title="LinkedIn post" style="width:100%;height:540px;border:1px solid var(--line2);border-radius:12px;background:#fff;margin-top:10px" loading="lazy"></iframe>
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px"><button class="btn sm" id="lilike">👍 Like</button><button class="btn sm" id="liai">AI comment</button><a class="btn sm" href="${esc(/^https?:/.test(link) ? link : 'https://www.linkedin.com/feed/update/' + r.urn)}" target="_blank" rel="noopener">Open in LinkedIn ↗</a></div>
+      <textarea class="field" id="lic" rows="3" placeholder="Your comment…" style="margin-top:8px"></textarea><button class="btn pri" id="lisend" style="margin-top:6px">Post comment</button>`;
+    $('#lilike').onclick = (e) => busyB(e.target, 'Liking…', async () => { await api('POST', '/api/social/li', { do: 'like', link }); e.target.textContent = '👍 Liked'; e.target.disabled = true; toast('Liked'); });
+    $('#liai').onclick = (e) => busyB(e.target, 'Writing…', async () => { const a = await aiAsk(`Write a thoughtful LinkedIn comment (1-3 sentences) from me on a post. I could not read the post itself, so ask me nothing and write it so it fits a professional post; if I typed notes in the comment box use them: "${$('#lic').value.slice(0, 500)}". No hashtags, no emoji spam, sound human. Reply with only the comment.`); $('#lic').value = a.text; });
+    twoTap($('#lisend'), 'Post comment', async () => { const t = $('#lic').value.trim(); if (!t) throw new Error('Write a comment first.'); await api('POST', '/api/social/li', { do: 'comment', link, text: t }); $('#lisend').textContent = 'Posted ✓'; toast('Comment posted on LinkedIn'); });
+  };
+  $('#lif').onsubmit = (e) => { e.preventDefault(); open(); }; if (LILINK) open();
+}
 async function soCheck() {
   let el = $('#sochk'); if (!el) { $('#sonet')?.closest('.row')?.insertAdjacentHTML('afterend', '<div id="sochk" class="note" style="margin-top:8px"></div>'); el = $('#sochk'); } if (!el) return;
   const net = SONET; if (net === 'all' || net === 'snapchat') { el.textContent = ''; return; }
@@ -908,11 +928,11 @@ async function drawTrendNet(v) {
   const d = await api('GET', '/api/social/trending?net=' + net).catch((x) => ({ posts: [], topics: [], tags: [], news: [], errors: [x.message] })); if (SOT !== 'trending' || SONET !== net || !$('#sov')) return;
   const L = [];
   const item = (t, extra) => { const i = L.push(t) - 1; return `<div class="item" style="flex-direction:column;align-items:stretch;gap:6px">${extra || ''}<div class="t">${esc(t.title)}</div>${t.source ? `<div class="s">${esc(t.source)}</div>` : ''}<div class="row" style="gap:6px;flex-wrap:wrap"><a class="btn sm pri" href="${(SSEARCH[net] || SSEARCH.instagram) + encodeURIComponent(t.topic || t.title)}" target="_blank" rel="noopener">See posts on ${esc(nm)} ↗</a><button class="btn sm" data-tc="${i}">AI post</button>${t.url ? `<a class="btn sm" href="${esc(t.url)}" target="_blank" rel="noopener">Read ↗</a>` : ''}</div><div id="tco${i}"></div></div>`; };
-  v.innerHTML = `<div class="row" style="gap:8px;margin-bottom:10px"><span class="srcb" style="background:var(--acc);color:var(--accink);border-color:var(--acc)">TRENDING ON ${esc(nm.toUpperCase())}</span><span class="note">UAE · now</span></div>` + (d.errors || []).map((e) => `<p class="err">${esc(e)}</p>`).join('') +
+  v.innerHTML = `<div class="row" style="gap:8px;margin-bottom:10px"><span class="srcb" style="background:var(--acc);color:var(--accink);border-color:var(--acc)">${d.posts.length ? 'TRENDING ON ' + esc(nm.toUpperCase()) : 'HOT IN THE UAE NOW'}</span><span class="note">${d.posts.length ? 'top posts for UAE hashtags' : 'tap a topic to see the live posts on ' + esc(nm)}</span></div>` + (d.errors || []).map((e) => `<p class="err">${esc(e)}</p>`).join('') +
     (d.posts.length ? `<b style="font-weight:600">Top posts right now</b><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin:8px 0 16px">${d.posts.slice(0, 12).map((p) => `<a href="${esc(p.link)}" target="_blank" rel="noopener" class="card" style="padding:0;overflow:hidden;color:inherit;text-decoration:none;display:flex;flex-direction:column">${p.image ? `<img src="${esc(p.image)}" alt="" loading="lazy" style="width:100%;aspect-ratio:1;object-fit:cover">` : '<div style="aspect-ratio:1;display:grid;place-items:center" class="note">▶ Video</div>'}<div style="padding:8px"><div class="note">#${esc(p.tag)} · ♥ ${p.likes.toLocaleString('en')} · 💬 ${p.comments}</div><div class="s" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(p.text)}</div></div></a>`).join('')}</div>` : net === 'instagram' && !appOn('instagram') ? '<p class="note">Connect Instagram (+ Add) to see the top posts here.</p>' : '') +
     (d.tags.length ? `<b style="font-weight:600">Hot hashtags</b><div class="row" style="gap:6px;flex-wrap:wrap;margin:8px 0 16px">${d.tags.map((t) => `<a class="btn sm" href="${(STAG[net] || STAG.instagram) + encodeURIComponent(t)}${net === 'linkedin' ? '/' : ''}" target="_blank" rel="noopener">#${esc(t)} ↗</a>`).join('')}</div>` : '') +
     (d.news.length ? `<b style="font-weight:600">Business stories people are sharing</b><div class="list" style="margin:8px 0 16px">${d.news.map((n) => item({ title: n.title, source: n.source, url: n.url, topic: n.title })).join('')}</div>` : '') +
-    (d.topics.length ? `<b style="font-weight:600">What the UAE is talking about</b><div class="list" style="margin-top:8px">${d.topics.map((t) => item(t, `<div class="note">${esc(t.topic)}${t.traffic ? ' · ' + esc(t.traffic) + ' searches' : ''}</div>`)).join('')}</div>` : '');
+    (d.topics.length ? `<b style="font-weight:600">What people in the UAE are searching right now (Google)</b><div class="list" style="margin-top:8px">${d.topics.map((t) => item(t, `<div class="note">${esc(t.topic)}${t.traffic ? ' · ' + esc(t.traffic) + ' searches' : ''}</div>`)).join('')}</div>` : '');
   trendAI(v, L, nm);
 }
 function trendAI(v, L, nm) {
