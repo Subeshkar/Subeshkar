@@ -486,24 +486,60 @@ async function micToggle(btn, onText) {
 }
 const MIC = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
 
+// Send card: an email or WhatsApp that Dioma prepared. You check it, change anything, tap Send twice.
+let MACCTS = null;
+async function sendCard(box, c) {
+  if (c.card === 'whatsapp') {
+    box.innerHTML = `<div class="card stack" style="margin-top:8px"><div class="row" style="justify-content:space-between"><b style="font-weight:600">WhatsApp to ${esc(c.name || 'contact')}</b>${c.sent ? '<span class="note">Sent ✓</span>' : ''}</div>${c.jid || !c.name ? '' : '<p class="err">Dioma could not find this contact. Type their name or number.</p>'}<input class="field" data-k="num" placeholder="To: name or number, e.g. Ibrahim or 971501234567" ${c.jid ? 'hidden' : ''}><textarea class="field" data-k="text" rows="4">${esc(c.text)}</textarea><div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm pri" data-go ${c.sent ? 'disabled' : ''}>${c.sent ? 'Sent ✓' : 'Send on WhatsApp'}</button><button class="btn sm" data-emo>😊</button></div></div>`;
+    box.querySelector('[data-k=text]').oninput = (e) => { c.text = e.target.value; };
+    const nf = box.querySelector('[data-k=num]'); nf.insertAdjacentHTML('afterend', '<div class="note wto"></div>');
+    nf.onchange = async () => { const raw = nf.value.trim(), w = box.querySelector('.wto'), n = raw.replace(/\D/g, ''); c.jid = ''; if (!raw) { w.textContent = ''; return; }
+      if (n.length >= 7 && !/[a-z]/i.test(raw)) { c.jid = n + '@s.whatsapp.net'; c.name = '+' + n; w.textContent = 'To: +' + n; return; }
+      w.textContent = 'Looking…'; const r = await api('GET', '/api/wa/search?q=' + encodeURIComponent(raw)).catch(() => ({ people: [] })); const ps = (r.people || []).filter((x) => !/@g\.us$/.test(x.jid)).slice(0, 5);
+      w.innerHTML = ps.length ? 'To: ' + ps.map((p, i) => `<button type="button" class="btn sm ${i ? '' : 'pri'}" data-pick="${esc(p.jid)}" data-pn="${esc(p.name)}">${esc(p.name)}</button>`).join(' ') : 'Nobody found. Try the number.';
+      if (ps[0]) { c.jid = ps[0].jid; c.name = ps[0].name; } };
+    box.onclick = (e) => { const b = e.target.closest('[data-pick]'); if (!b) return; c.jid = b.dataset.pick; c.name = b.dataset.pn; box.querySelectorAll('[data-pick]').forEach((x) => x.classList.toggle('pri', x === b)); };
+    if (!c.sent) twoTap(box.querySelector('[data-go]'), 'Send on WhatsApp', async () => { const jid = c.jid; if (!jid) throw new Error('Who should get it? Type a name or number and pick them.'); await api('POST', '/api/wa/send', { jid, text: c.text }); c.sent = 1; box.querySelector('[data-go]').textContent = 'Sent ✓'; toast('Sent on WhatsApp'); });
+    return;
+  }
+  if (!MACCTS) MACCTS = (await api('GET', '/api/mail/accounts').catch(() => ({ accounts: [] }))).accounts;
+  const A2 = MACCTS;
+  box.innerHTML = `<div class="card stack" style="margin-top:8px"><div class="row" style="justify-content:space-between;gap:8px"><b style="font-weight:600">${c.reply_id || c.thread ? 'Reply' : 'Email'}</b>${A2.length ? `<select class="field" data-k="acct" style="max-width:60%;min-height:36px">${A2.map((a) => `<option value="${a.key}" ${a.key === c.acct ? 'selected' : ''}>From: ${esc(a.label)}${a.email ? ' (' + esc(a.email) + ')' : ''}</option>`).join('')}</select>` : ''}</div>
+    ${A2.length ? '' : '<p class="err">Connect Gmail or Zoho Mail under Mail to send from Dioma.</p>'}
+    <input class="field" data-k="to" placeholder="To (email)" value="${esc(c.to)}"><input class="field" data-k="cc" placeholder="Cc (optional)" value="${esc(c.cc || '')}"><input class="field" data-k="subject" placeholder="Subject" value="${esc(c.subject)}"><textarea class="field" data-k="body" rows="9">${esc(c.body)}</textarea>
+    <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm pri" data-go ${c.sent || !A2.length ? 'disabled' : ''}>${c.sent ? 'Sent ✓' : 'Send email'}</button><button class="btn sm" data-fix>Fix</button><button class="btn sm" data-emo>😊</button></div></div>`;
+  box.querySelectorAll('[data-k]').forEach((el) => { el.oninput = el.onchange = () => { c[el.dataset.k] = el.value; }; });
+  box.querySelector('[data-fix]').onclick = (e) => busyB(e.target, 'Fixing…', async () => { const r = await api('POST', '/api/mail/aireply', { mode: 'fix', text: c.body, subject: c.subject }); if (r.text) { c.body = r.text; box.querySelector('[data-k=body]').value = r.text; } });
+  if (!c.sent && A2.length) twoTap(box.querySelector('[data-go]'), 'Send email', async () => { if (!c.acct) c.acct = box.querySelector('[data-k=acct]').value; await api('POST', '/api/mail/compose', { acct: c.acct, to: c.to, cc: c.cc, subject: c.subject, body: c.body, id: c.reply_id, thread: c.thread }); c.sent = 1; box.querySelector('[data-go]').textContent = 'Sent ✓'; toast('Email sent'); });
+}
+// Turn any AI text into a send card (Dioma AI answers): pulls "Subject:" out and keeps the rest as the body.
+function cardFromText(t, kind) {
+  t = String(t || '').replace(/\*\*/g, '').trim();
+  if (kind === 'whatsapp') return { card: 'whatsapp', jid: '', name: '', text: t.replace(/^(here is|here's)[^\n]*\n+/i, '').replace(/^\s*Subject:.*\n+/im, '').trim() };
+  const m = t.match(/^\s*Subject:\s*(.+)$/im); let body = t;
+  if (m) body = t.slice(t.indexOf(m[0]) + m[0].length).trim();
+  body = body.replace(/^(here is|here's)[^\n]*\n+/i, '');
+  return { card: 'email', acct: '', to: '', cc: '', subject: m ? m[1].trim() : '', body };
+}
 async function viewAsk() {
   const main = $('#main');
   if (!S.chat) S.chat = await api('GET', '/api/chat').catch(() => ({ messages: [], used: 0, cap: 30 }));
   if (cur() !== 'ask') return;
   const draw = () => {
     main.innerHTML = `${stabs()}<div class="row" style="justify-content:flex-end"><div class="row" style="gap:6px"><button class="btn sm" id="spk" aria-pressed="${SPEAK}">${SPEAK ? 'Voice on' : 'Voice off'}</button>${S.chat.messages.length ? '<button class="btn sm" id="clr">Clear</button>' : ''}</div></div>
-      <div class="chat" id="chat" style="margin-top:20px">${S.chat.messages.length ? S.chat.messages.map((m) => m.role === 'assistant' ? `<div class="msg assistant" data-spkbox><div class="md spkt">${md(m.text)}</div><div style="margin-top:6px">${SPK}</div></div>` : `<div class="msg ${m.role}">${esc(m.text)}</div>`).join('') : `<p class="dim">Ask about your day, your mail, or tell Dioma what to remember.</p><div class="chips">${['What should I do first today?', 'Summarise my unread email', 'Remind me to call the bank tomorrow', 'What meetings do I have today?'].map((c) => `<button class="chip">${esc(c)}</button>`).join('')}</div>`}
+      <div class="chat" id="chat" style="margin-top:20px">${S.chat.messages.length ? S.chat.messages.map((m, mi) => m.role === 'assistant' ? `<div class="msg assistant" data-spkbox><div class="md spkt">${md(m.text)}</div><div style="margin-top:6px">${SPK}</div></div>${(m.cards || []).map((c, ci) => `<div class="scard" data-mi="${mi}" data-ci="${ci}"></div>`).join('')}` : `<div class="msg ${m.role}">${esc(m.text)}</div>`).join('') : `<p class="dim">Ask about your day, your mail, or tell Dioma what to remember.</p><div class="chips">${['What should I do first today?', 'Summarise my unread email', 'Remind me to call the bank tomorrow', 'What meetings do I have today?'].map((c) => `<button class="chip">${esc(c)}</button>`).join('')}</div>`}
       ${S.busy ? '<div class="msg assistant"><span class="typing"><i></i><i></i><i></i></span></div>' : ''}</div>
       <p class="note mono" style="margin-top:14px;font-size:11.5px">${S.chat.used} of ${S.chat.cap} asks today${S.me.ai.live ? '' : ' · test mode'}</p>`;
     $('#clr')?.addEventListener('click', async () => { await api('DELETE', '/api/chat'); S.chat.messages = []; draw(); });
     $('#spk').addEventListener('click', () => { SPEAK = !SPEAK; try { localStorage.setItem('dioma-speak', SPEAK ? '1' : '0'); } catch {} if (!SPEAK && AUD) AUD.pause(); draw(); });
     main.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', () => ask(c.textContent)));
+    main.querySelectorAll('.scard').forEach((el) => sendCard(el, S.chat.messages[+el.dataset.mi].cards[+el.dataset.ci]));
     window.scrollTo(0, document.body.scrollHeight);
   };
   const ask = async (q) => {
     q = q.trim(); if (!q || S.busy) return;
     S.chat.messages.push({ role: 'user', text: q }); S.busy = true; draw();
-    try { const r = await api('POST', '/api/chat', { text: q }); S.chat.messages.push({ role: 'assistant', text: r.reply }); S.chat.used = r.used; if (r.changed) toast('To-do list updated'); if (SPEAK && S.me.voice) say(r.reply); }
+    try { const r = await api('POST', '/api/chat', { text: q }); S.chat.messages.push({ role: 'assistant', text: r.reply, cards: r.cards || [] }); S.chat.used = r.used; if (r.changed) toast('To-do list updated'); if (SPEAK && S.me.voice) say(r.reply); }
     catch (x) { S.chat.messages.push({ role: 'assistant', text: x.message }); }
     S.busy = false; if (cur() === 'ask') draw();
   };
@@ -1785,10 +1821,10 @@ async function viewAi() {
 function drawAi(list) {
   const box = $('#aimsgs'); if (!box) return;
   box.innerHTML = list.length ? list.map((m) => aiBubble(m.role, m.text, m.files)).join('') : `<div class="aihello"><div style="font-size:24px;font-weight:600">Let's start${S.me && S.me.name ? ', ' + esc(S.me.name.split(' ')[0]) : ''}.</div></div>`;
-  box.onclick = (e) => { const s2 = e.target.closest('[data-aisug]'); if (s2) aiSend(s2.dataset.aisug); const c = e.target.closest('[data-aicp]'); if (c) copyT(c.closest('.aimsg').querySelector('.aitxt').innerText);  };
+  box.onclick = (e) => { const s2 = e.target.closest('[data-aisug]'); if (s2) aiSend(s2.dataset.aisug); const c = e.target.closest('[data-aicp]'); if (c) copyT(c.closest('.aimsg').querySelector('.aitxt').innerText); const em = e.target.closest('[data-aimail],[data-aiwa]'); if (em) { const msg = em.closest('.aimsg'), slot = msg.querySelector('.aicard'); if (slot.innerHTML) { slot.innerHTML = ''; return; } sendCard(slot, cardFromText(msg.querySelector('.aitxt').innerText, em.hasAttribute('data-aiwa') ? 'whatsapp' : 'email')); }  };
   if (list.length) setTimeout(() => window.scrollTo({ top: document.body.scrollHeight }), 30); else window.scrollTo({ top: 0 });
 }
-const aiBubble = (role, text, files) => role === 'user' ? `<div class="aimsg me">${(files || []).map((f) => `<div class="note">📎 ${esc(f.name)}</div>`).join('')}<div class="aitxt">${esc(text).replace(/\n/g, '<br>')}</div></div>` : `<div class="aimsg ai" data-spkbox><div class="aitxt md spkt">${md(text)}</div><div class="row" style="gap:4px;margin-top:6px"><button type="button" class="btn sm" data-aicp>Copy</button><button type="button" class="btn sm" data-spk title="Read aloud">🔊</button></div></div>`;
+const aiBubble = (role, text, files) => role === 'user' ? `<div class="aimsg me">${(files || []).map((f) => `<div class="note">📎 ${esc(f.name)}</div>`).join('')}<div class="aitxt">${esc(text).replace(/\n/g, '<br>')}</div></div>` : `<div class="aimsg ai" data-spkbox><div class="aitxt md spkt">${md(text)}</div><div class="row" style="gap:4px;margin-top:6px"><button type="button" class="btn sm" data-aicp>Copy</button><button type="button" class="btn sm" data-spk title="Read aloud">🔊</button><button type="button" class="btn sm" data-aimail>✉ Email it</button><button type="button" class="btn sm" data-aiwa>💬 WhatsApp it</button></div><div class="aicard"></div></div>`;
 async function aiSend(text) {
   const box = $('#aimsgs'); if (!box) return; if (box.querySelector('.aihello')) box.innerHTML = '';
   const files = AIFILES; AIFILES = []; $('#aifl').innerHTML = '';
@@ -1806,7 +1842,7 @@ async function aiSend(text) {
         if (d.t) { full += d.t; if (Date.now() - lastDraw > 60) { out.innerHTML = md(full); lastDraw = Date.now(); const nearBottom = innerHeight + scrollY > document.body.scrollHeight - 220; if (nearBottom) window.scrollTo({ top: document.body.scrollHeight }); } } } }
     out.innerHTML = md(full || '(no answer)');
   } catch (x) { out.innerHTML = full ? md(full) + '<p class="note">Stopped.</p>' : `<p class="err">${esc(x.name === 'AbortError' ? 'Stopped.' : x.message)}</p>`; }
-  live.classList.remove('live'); live.insertAdjacentHTML('beforeend', '<div class="row" style="gap:4px;margin-top:6px"><button type="button" class="btn sm" data-aicp>Copy</button><button type="button" class="btn sm" data-spk title="Read aloud">🔊</button></div>');
+  live.classList.remove('live'); live.insertAdjacentHTML('beforeend', '<div class="row" style="gap:4px;margin-top:6px"><button type="button" class="btn sm" data-aicp>Copy</button><button type="button" class="btn sm" data-spk title="Read aloud">🔊</button><button type="button" class="btn sm" data-aimail>✉ Email it</button><button type="button" class="btn sm" data-aiwa>💬 WhatsApp it</button></div><div class="aicard"></div>');
   AIBUSY = null; if ($('#aisend')) $('#aisend').textContent = '↑';
 }
 let CALF = 'all';
