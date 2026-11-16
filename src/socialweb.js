@@ -51,8 +51,9 @@ const actId = (urn) => { const m = String(urn || '').match(/urn:li:(activity|ugc
 
 // Posts on any LinkedIn page (feed, search results, your activity): author, text, picture, counts.
 async function readPosts(page, max = 15) {
-  for (let i = 0; i < 3; i++) { await page.mouse.wheel(0, 2200); await pause(page, 900, 1600); }
+  for (let i = 0; i < (max > 15 ? 5 : 3); i++) { await page.mouse.wheel(0, 2200); await pause(page, 900, 1600); }
   return page.evaluate((max) => {
+    const N = (t) => ((String(t || '').match(/\d[\d.,]*\s*[KkMm]?(?![a-z])/i) || [''])[0]).replace(/\s/g, '');
     const T = (el, sel) => { const x = el.querySelector(sel); return x ? x.innerText.replace(/\s+\n/g, '\n').trim() : ''; };
     const out = [], seen = new Set();
     for (const el of document.querySelectorAll('[data-urn*="activity"],[data-urn*="ugcPost"],[data-id*="activity"],[data-id*="ugcPost"]')) {
@@ -61,9 +62,9 @@ async function readPosts(page, max = 15) {
       const text = T(el, '.update-components-text') || T(el, '.feed-shared-inline-show-more-text') || T(el, '.feed-shared-update-v2__description');
       if (!author && !text) continue;
       const img = el.querySelector('.update-components-image img, .update-components-article__image img, img.ivm-view-attr__img--centered');
-      const btn = [...el.querySelectorAll('button')], cm = btn.find((b) => /comment/i.test(b.getAttribute('aria-label') || '') && /\d/.test(b.innerText));
+      const btn = [...el.querySelectorAll('button, a')], cm = btn.find((b) => /comment/i.test((b.getAttribute('aria-label') || '') + b.innerText) && /\d/.test(b.innerText)), rp = btn.find((b) => /repost/i.test((b.getAttribute('aria-label') || '') + b.innerText) && /\d/.test(b.innerText));
       out.push({ urn, author, headline: T(el, '.update-components-actor__description').split('\n')[0], when: T(el, '.update-components-actor__sub-description').split('•')[0].split('\n')[0].trim(),
-        text: text.slice(0, 3000), image: img && /^https:/.test(img.src) ? img.src : '', likes: T(el, '.social-details-social-counts__reactions-count') || '', comments: cm ? cm.innerText.replace(/[^\d,]/g, '') : '',
+        text: text.slice(0, 3000), image: img && /^https:/.test(img.src) ? img.src : '', likes: N(T(el, '.social-details-social-counts__reactions-count')) || N(el.querySelector('[aria-label*="reaction" i]')?.getAttribute('aria-label')), comments: cm ? N(cm.innerText) : '', reposts: rp ? N(rp.innerText) : '',
         liked: !!el.querySelector('button[aria-pressed="true"].react-button__trigger, button.react-button--active') });
       if (out.length >= max) break;
     }
@@ -71,11 +72,15 @@ async function readPosts(page, max = 15) {
   }, max);
 }
 
+// "1,234" / "1.2K" / "3M" -> number
+const n = (v) => { const m = String(v || '').replace(/,/g, '').match(/([\d.]+)\s*([KkMm]?)/); if (!m) return 0; return Math.round(parseFloat(m[1]) * (/k/i.test(m[2]) ? 1e3 : /m/i.test(m[2]) ? 1e6 : 1)); };
+// Trending = what people engage with most: reactions, plus comments and reposts count more.
+const rank = (posts) => posts.map((p) => ({ ...p, score: n(p.likes) + 3 * n(p.comments) + 5 * n(p.reposts) })).sort((a, b) => b.score - a.score);
 export function liFeed(uid, q) {
-  const url = q ? `${LI}/search/results/content/?keywords=${encodeURIComponent(q)}&origin=GLOBAL_SEARCH_HEADER&sortBy=%22relevance%22` : `${LI}/feed/`;
+  const url = q ? `${LI}/search/results/content/?keywords=${encodeURIComponent(q.startsWith('#') ? q : '#' + q)}&datePosted=%22past-week%22&origin=FACETED_SEARCH&sortBy=%22relevance%22` : `${LI}/feed/`;
   return cached(`${uid}:feed:${q || ''}`, 3 * 60e3, () => use(uid, 'linkedin', async (page, go) => {
     await go(url); await page.waitForSelector('[data-urn*="activity"],[data-id*="activity"],[data-urn*="ugcPost"]', { timeout: 20e3 }).catch(() => {});
-    const posts = await readPosts(page); if (!posts.length) throw err('Could not read LinkedIn just now. Tap ↻ to try again.', 502);
+    const posts = rank(await readPosts(page, 25)); if (!posts.length) throw err('Could not read LinkedIn just now. Tap ↻ to try again.', 502);
     return { posts };
   }));
 }

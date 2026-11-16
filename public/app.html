@@ -945,7 +945,7 @@ const liUrl = (urn) => 'https://www.linkedin.com/feed/update/' + encodeURICompon
 async function liFeedView(v, q, fresh) {
   const mine = q === null;
   const head = mine ? `<div class="row" style="justify-content:space-between;margin-bottom:8px"><b style="font-weight:600">Your posts</b><button class="btn sm" data-lrf>↻</button></div>`
-    : `<div class="row" style="gap:6px;flex-wrap:nowrap;overflow-x:auto;margin-bottom:10px;padding-bottom:4px"><button class="btn sm ${!q ? 'pri' : ''}" style="flex:none" data-lq="">My feed</button>${LITAGS.map((t) => `<button class="btn sm ${q === t ? 'pri' : ''}" style="flex:none" data-lq="${t}">#${t}</button>`).join('')}<button class="btn sm" style="flex:none" data-lrf>↻</button></div>`;
+    : `<div class="row" style="gap:6px;flex-wrap:nowrap;overflow-x:auto;margin-bottom:10px;padding-bottom:4px"><button class="btn sm ${!q ? 'pri' : ''}" style="flex:none" data-lq="">Top in my feed</button>${LITAGS.map((t) => `<button class="btn sm ${q === t ? 'pri' : ''}" style="flex:none" data-lq="${t}">#${t}</button>`).join('')}<button class="btn sm" style="flex:none" data-lrf>↻</button></div>`;
   v.innerHTML = head + '<div class="empty">Reading your LinkedIn… (about 15 seconds)</div>';
   bindLi(v, []);
   let d; try { d = await api('GET', `/api/social/web/li/${mine ? 'mine' : 'feed'}?q=${encodeURIComponent(q || '')}${fresh ? '&fresh=1' : ''}`); } catch (x) { if ($('#sov') === v) liErr(v, x); return; }
@@ -955,7 +955,7 @@ async function liFeedView(v, q, fresh) {
     <div style="min-width:0"><b style="font-weight:600">${esc(p.author || 'LinkedIn')}</b><div class="s" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc([p.headline, p.when].filter(Boolean).join(' · '))}</div></div>
     ${p.text ? `<div class="litx" data-lx style="white-space:pre-wrap;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer">${esc(p.text)}</div>` : ''}
     ${p.image ? `<img src="${esc(p.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" style="width:100%;max-height:360px;object-fit:cover;border-radius:12px">` : ''}
-    ${p.likes || p.comments ? `<div class="note">${p.likes ? '👍 ' + esc(p.likes) : ''}${p.likes && p.comments ? ' · ' : ''}${p.comments ? '💬 ' + esc(p.comments) : ''}</div>` : ''}
+    ${p.likes || p.comments || p.reposts ? `<div class="row" style="gap:6px;flex-wrap:wrap">${mine ? '' : `<span class="srcb" style="background:var(--acc);color:var(--accink);border-color:var(--acc)">#${i + 1}</span>`}${p.likes ? `<span class="soon">👍 ${esc(p.likes)}</span>` : ''}${p.comments ? `<span class="soon">💬 ${esc(p.comments)}</span>` : ''}${p.reposts ? `<span class="soon">🔁 ${esc(p.reposts)}</span>` : ''}</div>` : ''}
     <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm ${p.liked ? 'pri' : ''}" data-lk>${p.liked ? '👍 Liked' : '👍 Like'}</button><button class="btn sm" data-lc>Comment</button><button class="btn sm" data-lv>Comments</button><a class="btn sm" href="${liUrl(p.urn)}" target="_blank" rel="noopener">Open ↗</a></div><div class="lic"></div></div>`).join('')}</div>` : '<div class="empty">No posts found.</div>');
   bindLi(v, P);
 }
