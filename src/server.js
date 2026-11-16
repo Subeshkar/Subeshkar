@@ -21,6 +21,7 @@ import * as AT from './autotodo.js';
 import * as SO from './social.js';
 import * as BZ from './biz.js';
 import * as PF from './payfollow.js';
+import * as AIC from './aichat.js';
 import * as MP from './maps.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -207,7 +208,7 @@ async function reminders() {
     }
   }
 }
-const NAVKEYS = ['home','todo','wa','social','mail','cal','act','wealth','biz','career','grow','network','pulse','learn','plan','money','lab','ask','files','browser','me'];
+const NAVKEYS = ['home','todo','wa','social','mail','cal','act','wealth','biz','career','grow','network','pulse','learn','plan','money','lab','ai','ask','files','browser','me'];
 const navOf = (u) => { try { return u.nav ? JSON.parse(u.nav) : null; } catch { return null; } };
 on('GET', '/api/me', (req, res, u) => {
   const g = one(`SELECT account FROM connections WHERE user_id = ? AND kind = 'google'`, u.id);
@@ -295,6 +296,22 @@ on('POST', '/api/chat', async (req, res, u) => {
     console.error('chat', e.message);
     send(res, 502, { error: 'Dioma could not answer just now. Please try again in a moment.' });
   }
+});
+
+// Dioma AI (ask anything, like ChatGPT): conversations, streaming answers, web search, photos and PDFs.
+on('GET', '/api/ai/threads', async (req, res, u) => send(res, 200, { threads: AIC.threads(u.id) }));
+on('GET', '/api/ai/thread', async (req, res, u) => { const m = AIC.messages(u.id, Number(new URL(req.url, 'http://x').searchParams.get('id'))); if (!m) return fail(res, 404, 'Not found'); send(res, 200, { messages: m }); });
+on('POST', '/api/ai/thread/delete', async (req, res, u) => { const b = await json(req); AIC.remove(u.id, Number(b.id)); send(res, 200, { ok: true }); });
+on('POST', '/api/ai/ask', async (req, res, u) => {
+  const b = JSON.parse((await readBody(req, 25 * 1024 * 1024)).toString('utf8') || '{}');
+  const text = String(b.text || '').trim().slice(0, 20000), files = (Array.isArray(b.files) ? b.files : []).slice(0, 5).filter((f) => f && typeof f.data === 'string' && f.data.length < 14e6);
+  if (!text && !files.length) return fail(res, 400, 'Ask something first.');
+  if (limited('aiask:' + u.id, Number(process.env.AI_CHAT_CAP || 150), 864e5)) return fail(res, 429, 'You have used today\'s Dioma AI questions. They refresh tomorrow.');
+  res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store', 'x-accel-buffering': 'no' });
+  const write = (o) => res.write(JSON.stringify(o) + '\n');
+  try { await AIC.answer(u, Number(b.thread) || 0, text || 'Please look at this.', files, write); write({ done: 1 }); }
+  catch (e) { console.error('aiask', e.message); write({ error: e.message || 'Dioma could not answer just now.' }); }
+  res.end();
 });
 
 // Home: brief + today
