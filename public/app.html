@@ -747,6 +747,17 @@ const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.
 const isApp = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const pushOK = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 try { if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {}); } catch {}
+// Stay up to date: when a new Dioma version is live, reload by itself (when you come back to the app) or show a bar to tap.
+let APPV = null;
+async function verCheck(auto) {
+  try { const r = await fetch('/api/version', { cache: 'no-store' }); const { v } = await r.json(); if (!APPV) { APPV = v; return; } if (v === APPV) return;
+    const typing = document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName) && document.activeElement.value;
+    if (auto && !typing) return location.reload();
+    if (!document.getElementById('newv')) document.body.insertAdjacentHTML('beforeend', '<button id="newv" onclick="location.reload()" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom,0px));z-index:50;background:var(--acc);color:var(--accink);border:0;border-radius:99px;padding:10px 18px;font:600 14px var(--sans);box-shadow:0 6px 24px rgba(0,0,0,.5)">New version ready · tap to update</button>');
+  } catch {}
+}
+verCheck(); setInterval(() => verCheck(false), 3 * 60e3);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') verCheck(true); });
 const b64u = (s) => { const p = '='.repeat((4 - (s.length % 4)) % 4), b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, (c) => c.charCodeAt(0)); };
 function phoneCard() {
   if (isIOS() && !isApp()) return `<div class="stack"><p>To get Dioma's pop-ups and vibration on your iPhone, put Dioma on your Home Screen first (Apple only allows notifications that way):</p>

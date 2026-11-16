@@ -121,7 +121,7 @@ const routes = [];
 const on = (method, pattern, fn, opts = {}) => routes.push({ method, re: new RegExp('^' + pattern.replace(/:(\w+)/g, '(?<$1>[^/]+)') + '$'), fn, ...opts });
 
 on('GET', '/api/owner/pubkey', (req, res) => send(res, 200, O.publicKey(), { 'content-type': 'text/plain' }), { open: true });
-on('GET', '/api/health', (req, res) => send(res, 200, { ok: true, ai: !!process.env.ANTHROPIC_API_KEY, google: G.enabled(), mail: !!process.env.RESEND_API_KEY, apps: A.enabled(), browser: BR.available(), voice: V.enabled(), maps: MP.enabled() }), { open: true });
+on('GET', '/api/health', (req, res) => send(res, 200, { ok: true, v: String(process.env.RAILWAY_GIT_COMMIT_SHA || '').slice(0, 7), ai: !!process.env.ANTHROPIC_API_KEY, google: G.enabled(), mail: !!process.env.RESEND_API_KEY, apps: A.enabled(), browser: BR.available(), voice: V.enabled(), maps: MP.enabled() }), { open: true });
 
 on('POST', '/api/auth/start', async (req, res) => {
   const { email: raw } = await json(req);
@@ -493,6 +493,9 @@ on('POST', '/api/ai/write', async (req, res, u) => {
   send(res, 200, { text, data });
 });
 
+// App version: changes on every deploy, so open apps can update themselves.
+const VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.RAILWAY_DEPLOYMENT_ID || String(Date.now());
+on('GET', '/api/version', (req, res) => send(res, 200, { v: VERSION }), { open: true });
 // Business
 on('POST', '/api/biz/payfollow', async (req, res, u) => { if (limited('pf:' + u.id, 10, 3600e3)) return fail(res, 429, 'Try again in a little while.'); send(res, 200, await PF.plan(u)); });
 on('POST', '/api/biz/payfollow/run', async (req, res, u) => send(res, 200, await PF.run(u, await json(req))));
