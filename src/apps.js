@@ -29,6 +29,8 @@ async function configFor(slug) {
   const c = one('SELECT id FROM app_configs WHERE slug = ?', slug); if (c) return c.id;
   let id = null;
   try { const l = await call('GET', `/auth_configs?toolkit_slug=${encodeURIComponent(slug)}`); id = (l.items || []).find((x) => x.status !== 'DISABLED' && (x.toolkit?.slug || '') === slug)?.id || null; } catch {}
+  // X (Twitter) has no shared sign-in any more: it needs Dioma's own X developer app, added once in Composio.
+  if (!id && slug === 'twitter') throw Object.assign(new Error('X is not switched on in Dioma yet. It needs a one-time setup by the Dioma team. Every other app works now.'), { status: 409 });
   if (!id) { const r = await call('POST', '/auth_configs', { toolkit: { slug }, auth_config: { type: 'use_composio_managed_auth', name: `Dioma ${slug}` } }); id = r.auth_config?.id || r.id; }
   if (!id) throw Object.assign(new Error('This app is not available yet.'), { status: 404 });
   run('INSERT OR REPLACE INTO app_configs (slug, id) VALUES (?, ?)', slug, id);
