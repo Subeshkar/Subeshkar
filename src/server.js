@@ -562,13 +562,43 @@ on('POST', '/api/network/find', async (req, res, u) => {
   if (limited('netfind:' + u.id, 30, 864e5)) return fail(res, 429, 'That is a lot of searches today. Try again tomorrow.');
   const sys = `You help ${u.name || 'the user'}${u.about ? ' (' + u.about + ')' : ''}, based in the UAE, reach the right business person. Use web search to find who currently holds the role asked about. Use only public, professional information: name, current title, company, public LinkedIn or company profile URL, the company's official website or general business contact. Never give personal phone numbers, personal emails or home addresses. If you are not sure who holds the role now, say so in "note". Never use the em dash.
 Reply with only JSON: {"people": [{"name": string, "title": string, "company": string, "linkedin": string or "", "source": url, "why": "one line on why this is the right person"}], "approach": "2-3 short lines: best way to reach them (warm intro, LinkedIn, company office, events in the UAE)", "message": "a short first LinkedIn message from ${u.name || 'me'} (under 300 characters), specific and polite", "note": string}`;
-  const ask = async (web) => claude({ max_tokens: 2500, system: sys, messages: [{ role: 'user', content: q }], ...(web ? { tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }] } : {}) });
-  let r; try { r = await ask(true); } catch (e) { r = await ask(false); }
-  const t = (r.content || []).filter((x) => x.type === 'text').map((x) => x.text).join('');
+  // Streams progress (one JSON per line) so the phone sees "Searching: ..." and the connection never sits silent.
+  res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store', 'x-accel-buffering': 'no' });
+  const write = (o) => { try { res.write(JSON.stringify(o) + '\n'); } catch {} };
+  const beat = setInterval(() => write({ s: 'Still looking…' }), 12e3);
+  const key = process.env.ANTHROPIC_API_KEY;
+  const call = (web) => fetch('https://api.anthropic.com/v1/messages', { method: 'POST', signal: AbortSignal.timeout(100e3), headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+    body: JSON.stringify({ model: process.env.DIOMA_MODEL || 'claude-sonnet-5-5', max_tokens: 2500, stream: true, system: sys, messages: [{ role: 'user', content: q }], ...(web ? { tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }] } : {}) }) });
+  const fin = (d) => { clearInterval(beat); write({ done: 1, data: d }); res.end(); };
+  const clean = (d) => ({ approach: String(d.approach || ''), message: String(d.message || ''), note: String(d.note || ''),
+    people: (Array.isArray(d.people) ? d.people : []).slice(0, 5).map((p) => ({ name: String(p.name || ''), title: String(p.title || ''), company: String(p.company || ''), linkedin: /^https:\/\/([a-z]+\.)?linkedin\.com\//.test(p.linkedin || '') ? p.linkedin : '', source: /^https?:\/\//.test(p.source || '') ? p.source : '', why: String(p.why || '') })) });
+  if (!key) return fin({ people: [], approach: '', message: '', note: 'Search is not switched on for this server.' });
+  let t = '';
+  try {
+    write({ s: 'Dioma is searching the web…' });
+    let r = await call(true); if (!r.ok && r.status === 400) r = await call(false);
+    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j?.error?.message || 'AI ' + r.status); }
+    const dec = new TextDecoder(); let buf = '', pj = '';
+    for await (const chunk of r.body) {
+      buf += dec.decode(chunk, { stream: true }); let i;
+      while ((i = buf.indexOf('\n\n')) >= 0) {
+        const ev = buf.slice(0, i); buf = buf.slice(i + 2);
+        const line = ev.split('\n').find((l) => l.startsWith('data: ')); if (!line) continue;
+        let d; try { d = JSON.parse(line.slice(6)); } catch { continue; }
+        if (d.type === 'content_block_start' && d.content_block?.type === 'server_tool_use') pj = '';
+        if (d.type === 'content_block_delta' && d.delta?.type === 'input_json_delta') pj += d.delta.partial_json || '';
+        if (d.type === 'content_block_stop' && pj) { try { const qq = JSON.parse(pj).query; if (qq) write({ s: 'Searching: ' + qq }); } catch {} pj = ''; }
+        if (d.type === 'content_block_start' && d.content_block?.type === 'web_search_tool_result') write({ s: 'Reading what it found…' });
+        if (d.type === 'content_block_delta' && d.delta?.type === 'text_delta') { if (!t) write({ s: 'Writing it up…' }); t += d.delta.text; }
+        if (d.type === 'error') throw new Error(d.error?.message || 'Stopped');
+      }
+    }
+  } catch (e) {
+    console.error('netfind', e.message);
+    if (!t) return fin({ people: [], approach: '', message: '', note: /timeout|abort/i.test(e.message) ? 'The search took too long. Try again, or name the company and role more simply (e.g. "CEO of Emaar").' : 'Dioma could not search just now. Try again in a moment.' });
+  }
   let d = null; try { d = JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1)); } catch {}
-  if (!d) return send(res, 200, { people: [], approach: '', message: '', note: t.slice(0, 600) || 'Dioma could not find that. Try naming the company and the role.' });
-  d.people = (Array.isArray(d.people) ? d.people : []).slice(0, 5).map((p) => ({ name: String(p.name || ''), title: String(p.title || ''), company: String(p.company || ''), linkedin: /^https:\/\/([a-z]+\.)?linkedin\.com\//.test(p.linkedin || '') ? p.linkedin : '', source: /^https?:\/\//.test(p.source || '') ? p.source : '', why: String(p.why || '') }));
-  send(res, 200, d);
+  fin(d ? clean(d) : { people: [], approach: '', message: '', note: t.replace(/[{}"]/g, '').slice(0, 600) || 'Dioma could not find that. Try naming the company and the role.' });
 });
 
 // Business
