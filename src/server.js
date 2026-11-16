@@ -556,6 +556,21 @@ on('POST', '/api/ai/write', async (req, res, u) => {
 // App version: changes on every deploy, so open apps can update themselves.
 const VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.RAILWAY_DEPLOYMENT_ID || String(Date.now());
 on('GET', '/api/version', (req, res) => send(res, 200, { v: VERSION }), { open: true });
+// Network: "I need to connect with the CEO of IFFCO" -> who that is (public, professional info only), how to reach them, a first message.
+on('POST', '/api/network/find', async (req, res, u) => {
+  const b = await json(req), q = String(b.q || '').trim().slice(0, 300); if (!q) return fail(res, 400, 'Tell Dioma who you want to meet.');
+  if (limited('netfind:' + u.id, 30, 864e5)) return fail(res, 429, 'That is a lot of searches today. Try again tomorrow.');
+  const sys = `You help ${u.name || 'the user'}${u.about ? ' (' + u.about + ')' : ''}, based in the UAE, reach the right business person. Use web search to find who currently holds the role asked about. Use only public, professional information: name, current title, company, public LinkedIn or company profile URL, the company's official website or general business contact. Never give personal phone numbers, personal emails or home addresses. If you are not sure who holds the role now, say so in "note". Never use the em dash.
+Reply with only JSON: {"people": [{"name": string, "title": string, "company": string, "linkedin": string or "", "source": url, "why": "one line on why this is the right person"}], "approach": "2-3 short lines: best way to reach them (warm intro, LinkedIn, company office, events in the UAE)", "message": "a short first LinkedIn message from ${u.name || 'me'} (under 300 characters), specific and polite", "note": string}`;
+  const ask = async (web) => claude({ max_tokens: 2500, system: sys, messages: [{ role: 'user', content: q }], ...(web ? { tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }] } : {}) });
+  let r; try { r = await ask(true); } catch (e) { r = await ask(false); }
+  const t = (r.content || []).filter((x) => x.type === 'text').map((x) => x.text).join('');
+  let d = null; try { d = JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1)); } catch {}
+  if (!d) return send(res, 200, { people: [], approach: '', message: '', note: t.slice(0, 600) || 'Dioma could not find that. Try naming the company and the role.' });
+  d.people = (Array.isArray(d.people) ? d.people : []).slice(0, 5).map((p) => ({ name: String(p.name || ''), title: String(p.title || ''), company: String(p.company || ''), linkedin: /^https:\/\/([a-z]+\.)?linkedin\.com\//.test(p.linkedin || '') ? p.linkedin : '', source: /^https?:\/\//.test(p.source || '') ? p.source : '', why: String(p.why || '') }));
+  send(res, 200, d);
+});
+
 // Business
 on('POST', '/api/biz/payfollow', async (req, res, u) => { if (limited('pf:' + u.id, 10, 3600e3)) return fail(res, 429, 'Try again in a little while.'); send(res, 200, await PF.plan(u)); });
 on('POST', '/api/biz/payfollow/run', async (req, res, u) => send(res, 200, await PF.run(u, await json(req))));

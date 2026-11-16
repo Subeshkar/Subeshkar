@@ -210,7 +210,8 @@ export function snapshot(uid) {
 // Everything the WhatsApp screen needs to sort chats (who is waiting, follow-ups, groups, unknown numbers).
 export function overview(uid, since) {
   const chats = all(`SELECT c.jid, COALESCE(c.name, ct.name) nm, c.is_group, c.unread, c.last_text, c.last_from_me, c.last_at,
-      (SELECT MAX(at) FROM wa_messages m WHERE m.user_id = c.user_id AND m.jid = c.jid AND m.from_me = 1) my_at, f.ignored_at, f.noise
+      (SELECT MAX(at) FROM wa_messages m WHERE m.user_id = c.user_id AND m.jid = c.jid AND m.from_me = 1) my_at, f.ignored_at, f.noise,
+      CASE WHEN c.last_text = '🎤 Voice message' THEN (SELECT id FROM wa_messages v WHERE v.user_id = c.user_id AND v.jid = c.jid AND v.text = c.last_text ORDER BY v.at DESC LIMIT 1) END voice_id
     FROM wa_chats c LEFT JOIN wa_contacts ct ON ct.user_id = c.user_id AND ct.jid = c.jid LEFT JOIN wa_flags f ON f.user_id = c.user_id AND f.jid = c.jid
     WHERE c.user_id = ? ORDER BY c.last_at DESC LIMIT 3000`, uid);
   const sent = one('SELECT COUNT(*) n FROM wa_messages WHERE user_id = ? AND from_me = 1 AND at >= ?', uid, Number(since) || 0)?.n || 0;
