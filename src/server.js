@@ -646,7 +646,7 @@ on('GET', '/connect/done', (req, res) => {
 }, { open: true });
 on('DELETE', '/api/apps', async (req, res, u) => { const b = await json(req); if (!slugOk(b.slug)) return fail(res, 400, 'Unknown app.'); await A.disconnect(u.id, b.slug); send(res, 200, { ok: true }); });
 on('GET', '/api/apps/inbox', async (req, res, u) => { const slug = new URL(req.url, 'http://x').searchParams.get('slug'); if (!slugOk(slug)) return fail(res, 400, 'Unknown app.'); send(res, 200, { mail: await A.inbox(u.id, slug) }); });
-on('GET', '/api/apps/events', async (req, res, u) => send(res, 200, { events: await A.events(u.id) }));
+on('GET', '/api/apps/events', async (req, res, u) => { const events = await A.events(u.id); send(res, 200, { events, errors: A.eventErrors(u.id) }); });
 on('POST', '/api/apps/run', async (req, res, u) => { const b = await json(req); if (!/^[A-Z0-9_]{3,80}$/.test(b.tool || '')) return fail(res, 400, 'Unknown action.'); send(res, 200, { data: await A.exec(u.id, b.tool, b.args || {}) }); });
 
 // Google connect

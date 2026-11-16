@@ -71,6 +71,7 @@ export async function exec(uid, tool, args = {}) {
 
 // Find a toolkit's action by name pattern (slugs differ per app), cached.
 const TOOLCACHE = new Map();
+export async function toolsOf(slug) { const k = 'all:' + slug; if (TOOLCACHE.has(k)) return TOOLCACHE.get(k); const r = await call('GET', `/tools?toolkit_slug=${encodeURIComponent(slug)}&limit=200`); const l = (r.items || []).map((x) => x.slug); TOOLCACHE.set(k, l); return l; }
 export async function findTool(slug, re) {
   const k = slug + re; if (TOOLCACHE.has(k)) return TOOLCACHE.get(k);
   const r = await call('GET', `/tools?toolkit_slug=${encodeURIComponent(slug)}&limit=200`);
@@ -94,13 +95,17 @@ export async function inbox(uid, slug) {
 
 // Today's and tomorrow's events from a calendar connected by Allow (Google or Outlook), simple shape, cached 5 minutes.
 const EVC = new Map();
+const ERR = new Map();
+export const eventErrors = (uid) => ['zoho', 'googlecalendar', 'outlook'].map((s) => ERR.get(uid + s) ? s + ': ' + ERR.get(uid + s) : '').filter(Boolean);
 export async function events(uid) {
   if (!enabled()) return [];
   const c = EVC.get(uid); if (c && Date.now() - c.at < 5 * 60e3) return c.ev;
   let ev = [];
   try {
     const on = (await connected(uid)).map((x) => x.slug);
-    const now = new Date(); now.setHours(0, 0, 0, 0); const end = new Date(now.getTime() + 2 * 864e5);
+    const tz = (one('SELECT tz FROM users WHERE id = ?', uid) || {}).tz || 'Asia/Dubai';
+    const day = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date()), offMs = Date.parse(new Date().toLocaleString('sv-SE', { timeZone: tz }).replace(' ', 'T') + 'Z') - Date.now();
+    const now = new Date(Date.parse(day + 'T00:00:00Z') - offMs), end = new Date(now.getTime() + 2 * 864e5);
     for (const slug of ['zoho', 'googlecalendar', 'outlook'].filter((s) => on.includes(s))) {
       if (slug === 'zoho') {
         try {
@@ -110,12 +115,17 @@ export async function events(uid) {
             const st = e.dateandtime?.start || e.start?.dateTime || e.start || e.startTime || e.Start_DateTime;
             if (st) ev.push({ id: String(e.uid || e.id || st), title: e.title || e.Event_Title || e.summary || '(no title)', start: /^\d{8}T\d{6}/.test(st) ? st.replace(/^(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d)(\d\d)(.*)$/, '$1-$2-$3T$4:$5:$6$7') : st, allDay: !!e.isallday, where: e.location || e.Venue || '', src: 'business' });
           }
-        } catch {}
+        } catch (x) { ERR.set(uid + slug, x.message); }
         continue;
       }
-      const tool = await findTool(slug, /(LIST|FIND).*EVENTS?$/) || await findTool(slug, /(LIST|FIND|GET).*EVENT/); if (!tool) continue;
-      const args = slug === 'googlecalendar' ? { timeMin: now.toISOString(), timeMax: end.toISOString(), singleEvents: true, orderBy: 'startTime', maxResults: 25 } : { start_datetime: now.toISOString(), end_datetime: end.toISOString(), top: 25 };
-      const data = await exec(uid, tool, args).catch(() => exec(uid, tool, {}));
+      // Google: the list tool with repeating events expanded (most daily routines repeat). Names come from the tool's own schema.
+      let tool = null;
+      if (slug === 'googlecalendar') { const all = (await toolsOf('googlecalendar').catch(() => [])); tool = ['GOOGLECALENDAR_EVENTS_LIST', 'GOOGLECALENDAR_FIND_EVENT'].find((t) => all.includes(t)) || null; }
+      tool = tool || await findTool(slug, /(LIST|FIND).*EVENTS?$|EVENTS_LIST$/) || await findTool(slug, /(LIST|FIND|GET).*EVENT/); if (!tool) { ERR.set(uid + slug, 'no calendar tool'); continue; }
+      const data = slug === 'googlecalendar'
+        ? await runFill(uid, tool, { 'calendarId|calendar_id': 'primary', 'timeMin|time_min': now.toISOString(), 'timeMax|time_max': end.toISOString(), 'singleEvents|single_events': true, 'orderBy|order_by': 'startTime', 'maxResults|max_results': 100 })
+        : await runFill(uid, tool, { 'start_datetime|startDateTime|start': now.toISOString(), 'end_datetime|endDateTime|end': end.toISOString(), 'top|max_results': 100 }).catch(() => exec(uid, tool, {}));
+      ERR.delete(uid + slug);
       for (const e of firstArray(data) || []) {
         const st = e.start?.dateTime || e.start?.date || e.start || e.startDateTime;
         const where = typeof e.location === 'string' ? e.location : e.location?.displayName || e.location?.address?.street || '';
