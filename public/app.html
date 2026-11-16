@@ -94,6 +94,7 @@ nav.bot .wrap{display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
 .mwhen{display:flex;flex-direction:column;align-items:center;gap:6px;flex:none;min-width:40px}.mtick{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--line2);background:transparent;color:var(--dim);font-size:15px;cursor:pointer;line-height:1}.mtick:hover{border-color:#3ecf6e;color:#3ecf6e}.mexp{margin:-2px 0 10px;padding:12px}
 .aimsgs{display:flex;flex-direction:column;gap:14px;padding:14px 0 150px}.aimsg{max-width:100%;line-height:1.55;font-size:15.5px;overflow-wrap:anywhere}.aimsg.me{align-self:flex-end;max-width:85%;background:var(--acc);color:var(--accink);padding:9px 14px;border-radius:18px 18px 4px 18px}.aimsg.ai{align-self:stretch}.md p{margin:0 0 8px}.md h4{margin:12px 0 6px;font-size:16px}.md ul,.md ol{margin:4px 0 10px;padding-left:22px}.md li{margin:3px 0}.md pre{background:#111;border:1px solid var(--line2);border-radius:10px;padding:10px;overflow-x:auto;font-size:13px}.md code{background:#1b1b1b;border-radius:5px;padding:1px 5px;font-size:13.5px}.md pre code{background:none;padding:0}.mdt{overflow-x:auto;margin:6px 0 10px}.mdt table{border-collapse:collapse;font-size:14px}.mdt td,.mdt th{border:1px solid var(--line2);padding:6px 9px;text-align:left}.md a{color:var(--acc)}.aibar{position:fixed;left:0;right:0;bottom:calc(64px + env(safe-area-inset-bottom,0px));z-index:9;background:rgba(0,0,0,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--line);padding:8px max(16px,env(safe-area-inset-left,0px)) 8px}.aibar>*{max-width:640px;margin:0 auto}#aiq{min-height:44px;max-height:160px;resize:none;line-height:1.4}.aihello{padding:30px 0 10px}
 .wvl{margin-top:6px}.wvl audio{height:34px;max-width:230px}
+.spk{display:inline-flex;align-items:center;justify-content:center;width:26px;height:22px;padding:0;margin-right:4px;vertical-align:middle;background:transparent;border:0;color:inherit;opacity:.7;cursor:pointer}.spk svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.spk.on,[data-spk].on{opacity:1;color:#3ecf6e}
 .wtop{position:sticky;z-index:5;background:var(--bg);padding:8px 0;gap:8px;border-bottom:1px solid var(--line)}
 .wstats{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px}
 @media (max-width:620px){#wst.wstats{display:flex;overflow-x:auto;scrollbar-width:none}#wst .wst{flex:none;min-width:76px}#cst.wstats{grid-template-columns:repeat(3,minmax(0,1fr))!important}.wstats{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.wst{padding:5px 3px;border-radius:10px}.wst b{font-size:15px}.wst span{font-size:10px}.wsug{flex-wrap:wrap}.wsug .field{flex:1 1 100%}}
@@ -448,6 +449,20 @@ async function say(text) {
     AUD = new Audio(URL.createObjectURL(await r.blob())); await AUD.play();
   } catch (x) { if (window.speechSynthesis) { const u = new SpeechSynthesisUtterance(text); u.lang = 'en-GB'; speechSynthesis.speak(u); } }
 }
+// 🔊 Read aloud: tap any speaker to hear that text, tap again to stop.
+let SPKB = null;
+function spkStop() { try { if (AUD) { AUD.pause(); AUD = null; } if (window.speechSynthesis) speechSynthesis.cancel(); } catch {} if (SPKB) { SPKB.classList.remove('on'); SPKB = null; } }
+async function speak(btn, text) {
+  if (SPKB === btn) return spkStop(); spkStop(); text = String(text || '').trim(); if (!text) return;
+  SPKB = btn; btn.classList.add('on');
+  try { const r = await fetch('/api/voice/speak', { method: 'POST', headers: { 'content-type': 'application/json', 'x-dioma': '1' }, body: JSON.stringify({ text: text.slice(0, 3000) }) }); if (!r.ok) throw new Error('tts');
+    if (SPKB !== btn) return; AUD = new Audio(URL.createObjectURL(await r.blob())); AUD.onended = () => { if (SPKB === btn) spkStop(); }; await AUD.play(); }
+  catch { if (SPKB !== btn) return; if (window.speechSynthesis) { const u = new SpeechSynthesisUtterance(text); u.onend = () => { if (SPKB === btn) spkStop(); }; speechSynthesis.speak(u); } else spkStop(); }
+}
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-spk]'); if (!b) return; e.stopPropagation(); e.preventDefault();
+  const src = b.dataset.spk ? document.querySelector(b.dataset.spk) : null, box = src || b.closest('[data-spkbox]');
+  const t = box ? (box.querySelector('.spkt') || box).innerText : ''; speak(b, t); }, true);
+const SPK = '<button type="button" class="spk" data-spk title="Read aloud" aria-label="Read aloud"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg></button>';
 let REC = null;
 async function micToggle(btn, onText) {
   if (REC) { REC.stop(); return; }
@@ -1693,7 +1708,7 @@ async function mailOpen(i) {
   const to = sent ? (m.toAddr || '') : (m.fromAddr || '');
   const canSend = MACC === 'gmail' || MACC === 'zoho_mail';
   const box = document.createElement('div'); box.className = 'mexp card stack'; row.after(box);
-  box.innerHTML = `<div class="note">${esc(m.subject)}</div><div class="mbody" style="white-space:pre-wrap;line-height:1.5;max-height:340px;overflow:auto;font-size:14.5px">${esc(m.snippet || '')}<div class="note">Loading the full email…</div></div>
+  box.innerHTML = `<div class="row" style="justify-content:space-between;gap:8px"><div class="note">${esc(m.subject)}</div><span data-spkbox>${SPK.replace('data-spk', 'data-spk=".mexp .mbody"')}</span></div><div class="mbody" style="white-space:pre-wrap;line-height:1.5;max-height:340px;overflow:auto;font-size:14.5px">${esc(m.snippet || '')}<div class="note">Loading the full email…</div></div>
     <input class="field" data-mto value="${esc(to)}" placeholder="To">
     <textarea class="field" rows="5" placeholder="Your reply…"></textarea>
     <div class="row" style="gap:6px"><input class="field grow" data-mins placeholder="✍️ Tell AI what to say, e.g. yes, freezer confirmed for 8am" style="min-height:40px"><button class="btn sm" data-mx="write">Write</button></div>
@@ -1758,14 +1773,14 @@ async function viewAi() {
 function drawAi(list) {
   const box = $('#aimsgs'); if (!box) return;
   box.innerHTML = list.length ? list.map((m) => aiBubble(m.role, m.text, m.files)).join('') : `<div class="aihello"><div style="font-size:24px;font-weight:600">Let's start${S.me && S.me.name ? ', ' + esc(S.me.name.split(' ')[0]) : ''}.</div></div>`;
-  box.onclick = (e) => { const s2 = e.target.closest('[data-aisug]'); if (s2) aiSend(s2.dataset.aisug); const c = e.target.closest('[data-aicp]'); if (c) copyT(c.closest('.aimsg').querySelector('.aitxt').innerText); const sp = e.target.closest('[data-aisay]'); if (sp) say(sp.closest('.aimsg').querySelector('.aitxt').innerText); };
+  box.onclick = (e) => { const s2 = e.target.closest('[data-aisug]'); if (s2) aiSend(s2.dataset.aisug); const c = e.target.closest('[data-aicp]'); if (c) copyT(c.closest('.aimsg').querySelector('.aitxt').innerText);  };
   if (list.length) setTimeout(() => window.scrollTo({ top: document.body.scrollHeight }), 30); else window.scrollTo({ top: 0 });
 }
-const aiBubble = (role, text, files) => role === 'user' ? `<div class="aimsg me">${(files || []).map((f) => `<div class="note">📎 ${esc(f.name)}</div>`).join('')}<div class="aitxt">${esc(text).replace(/\n/g, '<br>')}</div></div>` : `<div class="aimsg ai"><div class="aitxt md">${md(text)}</div><div class="row" style="gap:4px;margin-top:6px"><button type="button" class="btn sm" data-aicp>Copy</button><button type="button" class="btn sm" data-aisay>🔊</button></div></div>`;
+const aiBubble = (role, text, files) => role === 'user' ? `<div class="aimsg me">${(files || []).map((f) => `<div class="note">📎 ${esc(f.name)}</div>`).join('')}<div class="aitxt">${esc(text).replace(/\n/g, '<br>')}</div></div>` : `<div class="aimsg ai" data-spkbox><div class="aitxt md spkt">${md(text)}</div><div class="row" style="gap:4px;margin-top:6px"><button type="button" class="btn sm" data-aicp>Copy</button><button type="button" class="btn sm" data-spk title="Read aloud">🔊</button></div></div>`;
 async function aiSend(text) {
   const box = $('#aimsgs'); if (!box) return; if (box.querySelector('.aihello')) box.innerHTML = '';
   const files = AIFILES; AIFILES = []; $('#aifl').innerHTML = '';
-  box.insertAdjacentHTML('beforeend', aiBubble('user', text, files) + '<div class="aimsg ai live"><div class="aitxt md"><span class="note">Thinking…</span></div></div>');
+  box.insertAdjacentHTML('beforeend', aiBubble('user', text, files) + '<div class="aimsg ai live" data-spkbox><div class="aitxt md spkt"><span class="note">Thinking…</span></div></div>');
   const live = box.lastElementChild, out = live.querySelector('.aitxt'); window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
   const ctl = new AbortController(); AIBUSY = ctl; $('#aisend').textContent = '■';
   let full = '', lastDraw = 0;
@@ -1779,7 +1794,7 @@ async function aiSend(text) {
         if (d.t) { full += d.t; if (Date.now() - lastDraw > 60) { out.innerHTML = md(full); lastDraw = Date.now(); const nearBottom = innerHeight + scrollY > document.body.scrollHeight - 220; if (nearBottom) window.scrollTo({ top: document.body.scrollHeight }); } } } }
     out.innerHTML = md(full || '(no answer)');
   } catch (x) { out.innerHTML = full ? md(full) + '<p class="note">Stopped.</p>' : `<p class="err">${esc(x.name === 'AbortError' ? 'Stopped.' : x.message)}</p>`; }
-  live.classList.remove('live'); live.insertAdjacentHTML('beforeend', '<div class="row" style="gap:4px;margin-top:6px"><button type="button" class="btn sm" data-aicp>Copy</button><button type="button" class="btn sm" data-aisay>🔊</button></div>');
+  live.classList.remove('live'); live.insertAdjacentHTML('beforeend', '<div class="row" style="gap:4px;margin-top:6px"><button type="button" class="btn sm" data-aicp>Copy</button><button type="button" class="btn sm" data-spk title="Read aloud">🔊</button></div>');
   AIBUSY = null; if ($('#aisend')) $('#aisend').textContent = '↑';
 }
 let CALF = 'all';
@@ -1894,7 +1909,7 @@ async function expClick(e) {
 }
 // Chat bubbles: yours on the right in colour, theirs on the left with their name.
 let WAREF = null, WAD = null;
-const wbub = (jid, m, name) => `<div class="wb ${m.from_me ? 'me' : 'them'}" data-mid="${esc(m.id)}" data-mj="${esc(jid)}" title="Tap to react">${m.my_react ? `<span class="wre">${esc(m.my_react)}</span>` : ''}<div class="wn">${m.from_me ? 'You' : esc(m.sender_name || name || 'Them')}</div>${m.audio ? vnote(jid, m) : esc(m.text)}<div class="wt">${new Date(m.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div></div>`;
+const wbub = (jid, m, name) => `<div class="wb ${m.from_me ? 'me' : 'them'}" data-mid="${esc(m.id)}" data-mj="${esc(jid)}" data-spkbox title="Tap to react">${m.my_react ? `<span class="wre">${esc(m.my_react)}</span>` : ''}<div class="wn">${m.from_me ? 'You' : esc(m.sender_name || name || 'Them')}</div>${m.audio ? vnote(jid, m) : `<span class="spkt">${esc(m.text)}</span>`}<div class="wt">${m.audio ? '' : SPK}${new Date(m.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div></div>`;
 const waDone = (jid, flag) => { if (flag) { const c = (WAD && WAD.chats || []).find((x) => x.jid === jid); if (c) { if (flag === 'noise') c.noise = 1; else c.ignored_at = Date.now(); } } const row = document.querySelector(`#wl [data-jid="${CSS.escape(jid)}"]`); if (row) { row.style.transition = 'opacity .3s'; row.style.opacity = '0'; setTimeout(() => row.remove(), 300); } document.querySelector('.wexp')?.remove(); WEXP = null; setTimeout(() => WAREF && WAREF(), 600); };
 // Voice notes: play them here (and turn them into text), record and send your own.
 const vnote = (jid, m) => `<div class="vnote"><audio controls preload="none" src="/api/wa/voice?jid=${encodeURIComponent(jid)}&id=${encodeURIComponent(m.id)}"></audio><button type="button" class="btn sm" data-vt="${esc(m.id)}" data-vj="${esc(jid)}">Text</button><div class="note vtx"></div></div>`;
