@@ -1714,7 +1714,7 @@ async function viewAi() {
 }
 function drawAi(list) {
   const box = $('#aimsgs'); if (!box) return;
-  box.innerHTML = list.length ? list.map((m) => aiBubble(m.role, m.text, m.files)).join('') : `<div class="aihello"><div style="font-size:26px;font-weight:600">Ask me anything${S.me && S.me.name ? ', ' + esc(S.me.name.split(' ')[0]) : ''}.</div><div class="note">Questions, writing, maths, code, plans, news, photos and PDFs. Dioma searches the web for anything current.</div><div class="row" style="gap:6px;flex-wrap:wrap;margin-top:12px">${['Explain cold chain logistics simply', 'Write a LinkedIn post about my week', 'What is the news in the UAE today?', 'Plan a healthy week of meals'].map((x) => `<button type="button" class="btn sm" data-aisug="${esc(x)}">${esc(x)}</button>`).join('')}</div></div>`;
+  box.innerHTML = list.length ? list.map((m) => aiBubble(m.role, m.text, m.files)).join('') : `<div class="aihello"><div style="font-size:24px;font-weight:600">Let's start${S.me && S.me.name ? ', ' + esc(S.me.name.split(' ')[0]) : ''}.</div></div>`;
   box.onclick = (e) => { const s2 = e.target.closest('[data-aisug]'); if (s2) aiSend(s2.dataset.aisug); const c = e.target.closest('[data-aicp]'); if (c) copyT(c.closest('.aimsg').querySelector('.aitxt').innerText); const sp = e.target.closest('[data-aisay]'); if (sp) say(sp.closest('.aimsg').querySelector('.aitxt').innerText); };
   if (list.length) setTimeout(() => window.scrollTo({ top: document.body.scrollHeight }), 30); else window.scrollTo({ top: 0 });
 }
