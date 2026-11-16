@@ -71,13 +71,34 @@ export function savePublicImage(buf, mime) {
 }
 export const publicFile = (id) => (/^[a-f0-9]{24}\.(jpg|png)$/.test(id) && fs.existsSync(path.join(PUB, id)) ? path.join(PUB, id) : null);
 
+// Who you are on LinkedIn (the "author" every post needs). The answer is nested differently per version, so look everywhere.
+function deep(o, test, depth = 0) { if (!o || typeof o !== 'object' || depth > 6) return null; for (const [k, v] of Object.entries(o)) { const r = test(k, v); if (r) return r; } for (const v of Object.values(o)) { const r = deep(v, test, depth + 1); if (r) return r; } return null; }
+export async function liMe(uid) {
+  const k = uid + ':li'; const c = C.get(k); if (c && c.data.author) return c.data;
+  const me = await A.runFill(uid, 'LINKEDIN_GET_MY_INFO', {});
+  const urn = deep(me, (kk, v) => (typeof v === 'string' && /^urn:li:person:/.test(v) ? v : null));
+  const id = urn ? null : deep(me, (kk, v) => (/^(sub|author_id|person_id|id)$/.test(kk) && (typeof v === 'string' || typeof v === 'number') && String(v).length > 3 ? String(v) : null));
+  const name = deep(me, (kk, v) => (/^(name|localizedFirstName|given_name)$/.test(kk) && typeof v === 'string' ? v : null)) || '';
+  const v = { author: urn || (id ? (id.startsWith('urn:') ? id : 'urn:li:person:' + id) : ''), name, raw: me };
+  if (v.author) C.set(k, { data: v });
+  return v;
+}
+export async function check(uid, net) {
+  const on = (await A.connected(uid)).some((x) => x.slug === net);
+  if (!on) return { connected: false, ok: false, message: 'Not connected. Tap + Add and connect it.' };
+  try {
+    if (net === 'linkedin') { const me = await liMe(uid); return me.author ? { connected: true, ok: true, message: `Connected as ${me.name || 'you'}. Posting works.` } : { connected: true, ok: false, message: 'Connected, but LinkedIn did not share your profile. Disconnect and connect again, and allow all permissions.', detail: JSON.stringify(me.raw).slice(0, 600) }; }
+    if (net === 'instagram') { const u = await igUser(uid); return { connected: true, ok: !!u.id, message: u.id ? `Connected as @${u.name}.` : 'Connected, but Instagram did not share the account. Use an Instagram professional (business or creator) account.' }; }
+    if (net === 'facebook') { const pg = await fbPage(uid); return { connected: true, ok: !!pg.id, message: pg.id ? `Connected to the Page "${pg.name}".` : 'Connected, but no Facebook Page found. Dioma posts to a Page you manage.' }; }
+    return { connected: true, ok: true, message: 'Connected.' };
+  } catch (e) { return { connected: true, ok: false, message: e.message }; }
+}
 export async function post(uid, net, text, imageUrl) {
   C.delete(uid + ':feed');
   if (net === 'linkedin') {
-    const me = await A.runFill(uid, 'LINKEDIN_GET_MY_INFO', {});
-    const pid = me?.sub || me?.id || me?.data?.sub || me?.data?.id || me?.author_id || '';
-    const author = String(pid).startsWith('urn:') ? pid : pid ? 'urn:li:person:' + pid : '';
-    return A.runFill(uid, 'LINKEDIN_CREATE_LINKED_IN_POST', { 'author': author, 'commentary|text|content': text, 'visibility': 'PUBLIC', 'lifecycleState|lifecycle_state': 'PUBLISHED' });
+    const me = await liMe(uid);
+    if (!me.author) throw err('LinkedIn did not tell Dioma who you are. Disconnect LinkedIn and connect it again.', 400);
+    return A.runFill(uid, 'LINKEDIN_CREATE_LINKED_IN_POST', { 'author|author_urn|author_id': me.author, 'commentary|text|content': text, 'visibility': 'PUBLIC', 'lifecycleState|lifecycle_state': 'PUBLISHED' });
   }
   if (net === 'facebook') {
     const pg = await fbPage(uid); if (!pg.id) throw err('No Facebook Page found on this account.', 400);

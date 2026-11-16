@@ -847,7 +847,8 @@ async function viewSocial() {
     <div id="more-social" hidden style="margin-top:10px">${appList('social', 'social')}</div>
     <div class="sacts" id="sot">${SACTS.map(([k, l, ic]) => `<button type="button" data-t="${k}" class="${SOT === k || (k === 'create' && SOT === 'weekly') ? 'on' : ''}"><svg viewBox="0 0 24 24">${ic}</svg><span>${l}</span></button>`).join('')}</div>
     <div id="sov" style="margin-top:14px"><div class="empty">Loading…</div></div>`;
-  $('#sonet').onclick = (e) => { const b = e.target.closest('[data-n]'); if (!b) return; SONET = b.dataset.n; $('#sonet').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); drawSo(on); };
+  $('#sonet').onclick = (e) => { const b = e.target.closest('[data-n]'); if (!b) return; SONET = b.dataset.n; $('#sonet').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); soCheck(); drawSo(on); };
+  soCheck();
   $('#sot').onclick = (e) => { const b = e.target.closest('[data-t]'); if (!b) return; SOT = b.dataset.t; $('#sot').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); drawSo(on); };
   if (SOT === 'comments' || SOT === 'posts') SOD = await api('GET', '/api/social/feed').catch((x) => ({ posts: [], errors: [x.message] }));
   drawSo(on);
@@ -893,6 +894,15 @@ async function drawWeekly(tgt) {
   };
 }
 const STAG = { instagram: 'https://www.instagram.com/explore/tags/', tiktok: 'https://www.tiktok.com/tag/', twitter: 'https://x.com/hashtag/', linkedin: 'https://www.linkedin.com/feed/hashtag/', facebook: 'https://www.facebook.com/hashtag/', youtube: 'https://www.youtube.com/hashtag/' };
+// One line under the network tabs: is this network really working? (connected, who you are, what to fix)
+async function soCheck() {
+  let el = $('#sochk'); if (!el) { $('#sonet')?.closest('.row')?.insertAdjacentHTML('afterend', '<div id="sochk" class="note" style="margin-top:8px"></div>'); el = $('#sochk'); } if (!el) return;
+  const net = SONET; if (net === 'all' || net === 'snapchat') { el.textContent = ''; return; }
+  el.textContent = 'Checking ' + (NETN[net] || net) + '…';
+  const r = await api('GET', '/api/social/check?net=' + net).catch((x) => ({ ok: false, message: x.message }));
+  if (SONET !== net || !$('#sochk')) return;
+  el.innerHTML = `<span style="color:${r.ok ? '#3ecf6e' : '#e5484d'}">●</span> ${esc(NETN[net] || net)}: ${esc(r.message)}${r.connected && !r.ok ? ' <button class="btn sm" data-addmore="social">Reconnect</button>' : ''}`;
+}
 async function drawTrendNet(v) {
   const net = SONET, nm = NETN[net] || net;
   const d = await api('GET', '/api/social/trending?net=' + net).catch((x) => ({ posts: [], topics: [], tags: [], news: [], errors: [x.message] })); if (SOT !== 'trending' || SONET !== net || !$('#sov')) return;
