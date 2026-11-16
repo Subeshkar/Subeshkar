@@ -710,6 +710,7 @@ on('POST', '/api/wa/sendfile', async (req, res, u) => {
   const q = new URL(req.url, 'http://x').searchParams; const buf = await readBody(req, 15 * 1024 * 1024); if (!buf.length) return fail(res, 400, 'Empty file.');
   send(res, 200, await W.sendFile(u.id, q.get('jid') || '', (q.get('name') || 'file').slice(0, 120), String(req.headers['content-type'] || ''), buf, (q.get('caption') || '').slice(0, 1000)));
 }, { raw: true });
+on('POST', '/api/wa/react', async (req, res, u) => { const b = await json(req); send(res, 200, await W.react(u.id, String(b.jid || ''), String(b.id || ''), String(b.emoji || ''))); });
 on('POST', '/api/wa/ignore', async (req, res, u) => { const b = await json(req); W.ignore(u.id, String(b.jid || '')); send(res, 200, { ok: true }); });
 on('POST', '/api/wa/noise', async (req, res, u) => { const b = await json(req); W.setNoise(u.id, String(b.jid || ''), b.on !== false); send(res, 200, { ok: true }); });
 on('POST', '/api/wa/send', async (req, res, u) => { const b = await json(req); if (!String(b.text || '').trim()) return fail(res, 400, 'Write a message first.'); send(res, 200, await W.send(u.id, String(b.jid || ''), String(b.text))); });

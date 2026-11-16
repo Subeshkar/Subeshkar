@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS wa_contacts (user_id INTEGER NOT NULL, jid TEXT NOT N
 `);
 
 try { db.exec('ALTER TABLE wa_messages ADD COLUMN media TEXT'); } catch { /* already there */ }
+for (const c of ['participant TEXT', 'my_react TEXT']) { try { db.exec('ALTER TABLE wa_messages ADD COLUMN ' + c); } catch { /* already there */ } }
 const MEDIA = path.join(DIR, 'wa-media'); fs.mkdirSync(MEDIA, { recursive: true });
 db.exec(`CREATE TABLE IF NOT EXISTS wa_flags (user_id INTEGER NOT NULL, jid TEXT NOT NULL, ignored_at INTEGER, noise INTEGER DEFAULT 0, PRIMARY KEY (user_id, jid));`);
 export const ignore = (uid, jid) => run('INSERT INTO wa_flags (user_id, jid, ignored_at) VALUES (?, ?, ?) ON CONFLICT(user_id, jid) DO UPDATE SET ignored_at = excluded.ignored_at', uid, jid, Date.now());
@@ -52,7 +53,7 @@ function saveMessage(uid, m, live) {
   const inner = m.message?.ephemeralMessage?.message || m.message?.viewOnceMessage?.message || m.message || {};
   // Voice notes: keep what is needed to download them later (only when the customer taps play).
   const media = m.media || (inner.audioMessage && inner.audioMessage.mediaKey ? JSON.stringify({ key: m.key, message: { audioMessage: inner.audioMessage } }, BufferJSON.replacer) : null);
-  run('INSERT INTO wa_messages (user_id, jid, id, from_me, sender_name, text, at, media) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, jid, id) DO UPDATE SET media = COALESCE(wa_messages.media, excluded.media)', uid, jid, m.key.id, fromMe, fromMe ? 'You' : m.pushName || null, text.slice(0, 4000), at, media);
+  run('INSERT INTO wa_messages (user_id, jid, id, from_me, sender_name, text, at, media, participant) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, jid, id) DO UPDATE SET media = COALESCE(wa_messages.media, excluded.media), participant = COALESCE(wa_messages.participant, excluded.participant)', uid, jid, m.key.id, fromMe, fromMe ? 'You' : m.pushName || null, text.slice(0, 4000), at, media, m.key.participant || null);
   run(`INSERT INTO wa_chats (user_id, jid, name, is_group, last_text, last_from_me, last_at, unread) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(user_id, jid) DO UPDATE SET last_text = CASE WHEN excluded.last_at >= wa_chats.last_at THEN excluded.last_text ELSE wa_chats.last_text END,
          last_from_me = CASE WHEN excluded.last_at >= wa_chats.last_at THEN excluded.last_from_me ELSE wa_chats.last_from_me END,
@@ -108,9 +109,20 @@ export function status(uid) {
 export const chats = (uid, q = '') => all(`SELECT c.jid, COALESCE(c.name, ct.name, substr(c.jid, 1, instr(c.jid, '@') - 1)) name, c.is_group, c.unread, c.last_text, c.last_from_me, c.last_at
   FROM wa_chats c LEFT JOIN wa_contacts ct ON ct.user_id = c.user_id AND ct.jid = c.jid
   WHERE c.user_id = ? AND c.last_at > 0 ${q ? 'AND (c.name LIKE ? OR ct.name LIKE ? OR c.jid LIKE ?)' : ''} ORDER BY c.last_at DESC LIMIT 80`, ...(q ? [uid, `%${q}%`, `%${q}%`, `%${q}%`] : [uid]));
-export const messages = (uid, jid) => all('SELECT id, from_me, sender_name, text, at, (media IS NOT NULL OR text = ?) audio FROM wa_messages WHERE user_id = ? AND jid = ? ORDER BY at DESC LIMIT 60', '🎤 Voice message', uid, jid).reverse();
+export const messages = (uid, jid) => all('SELECT id, from_me, sender_name, text, at, (media IS NOT NULL OR text = ?) audio, my_react FROM wa_messages WHERE user_id = ? AND jid = ? ORDER BY at DESC LIMIT 60', '🎤 Voice message', uid, jid).reverse();
 export const markRead = (uid, jid) => run('UPDATE wa_chats SET unread = 0 WHERE user_id = ? AND jid = ?', uid, jid);
 
+// React to a message with an emoji (empty emoji removes your reaction), like long-press in WhatsApp.
+export async function react(uid, jid, id, emoji) {
+  const st = S.get(uid);
+  if (!st || st.status !== 'open') throw Object.assign(new Error('WhatsApp is not connected right now.'), { status: 409 });
+  const m = one('SELECT from_me, participant FROM wa_messages WHERE user_id = ? AND jid = ? AND id = ?', uid, jid, id);
+  if (!m) throw Object.assign(new Error('Message not found.'), { status: 404 });
+  const key = { remoteJid: jid, id, fromMe: !!m.from_me }; if (m.participant) key.participant = m.participant;
+  await st.sock.sendMessage(jid, { react: { text: String(emoji || '').slice(0, 16), key } });
+  run('UPDATE wa_messages SET my_react = ? WHERE user_id = ? AND jid = ? AND id = ?', emoji || null, uid, jid, id);
+  return { ok: true };
+}
 export async function send(uid, jid, text) {
   const st = S.get(uid);
   if (!st || st.status !== 'open') throw Object.assign(new Error('WhatsApp is not connected right now.'), { status: 409 });

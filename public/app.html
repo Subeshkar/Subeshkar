@@ -90,6 +90,7 @@ nav.bot .wrap{display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
 .wmsgs{display:flex;flex-direction:column;gap:8px}.wb{max-width:82%;padding:7px 12px 6px;border-radius:16px;font-size:14.5px;line-height:1.4;white-space:pre-wrap;overflow-wrap:anywhere}.wb.me{align-self:flex-end;background:var(--acc);color:var(--accink);border-bottom-right-radius:4px}.wb.them{align-self:flex-start;background:#1c1c1c;border:1px solid var(--line2);border-bottom-left-radius:4px}.wb .wn{font-size:11px;font-weight:600;opacity:.7;margin-bottom:2px}.wb .wt{font-size:10.5px;opacity:.6;margin-top:3px;text-align:right}.wb.me .vnote .btn{color:var(--accink);border-color:rgba(0,0,0,.3)}
 #wl .item.open .wsug{display:none}
 .emop{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:2px;padding:6px;margin-top:6px;border:1px solid var(--line2);border-radius:12px;background:#111;max-width:420px}.emop button{font-size:22px;line-height:1;padding:6px 0;background:transparent;border:0;border-radius:8px;cursor:pointer}.emop button:hover{background:rgba(255,255,255,.08)}@media (max-width:620px){.emop{grid-template-columns:repeat(8,minmax(0,1fr))}}
+.wb{position:relative;cursor:pointer}.wre{position:absolute;bottom:-12px;right:10px;background:#222;border:1px solid var(--line2);border-radius:99px;padding:1px 5px;font-size:13px;line-height:1.3}.wb.them .wre{right:auto;left:10px}.wb:has(.wre){margin-bottom:10px}.wreb{display:flex;gap:2px;padding:4px 6px;border:1px solid var(--line2);border-radius:99px;background:#151515;align-self:flex-start}.wreb.me{align-self:flex-end}.wreb button{font-size:22px;line-height:1;padding:4px 5px;background:transparent;border:0;border-radius:99px;cursor:pointer}.wreb button:hover{background:rgba(255,255,255,.1)}
 .wtop{position:sticky;z-index:5;background:var(--bg);padding:8px 0;gap:8px;border-bottom:1px solid var(--line)}
 .wstats{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px}
 @media (max-width:620px){#wst.wstats{display:flex;overflow-x:auto;scrollbar-width:none}#wst .wst{flex:none;min-width:76px}#cst.wstats{grid-template-columns:repeat(3,minmax(0,1fr))!important}.wstats{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.wst{padding:5px 3px;border-radius:10px}.wst b{font-size:15px}.wst span{font-size:10px}.wsug{flex-wrap:wrap}.wsug .field{flex:1 1 100%}}
@@ -1668,7 +1669,7 @@ async function expClick(e) {
 }
 // Chat bubbles: yours on the right in colour, theirs on the left with their name.
 let WAREF = null;
-const wbub = (jid, m, name) => `<div class="wb ${m.from_me ? 'me' : 'them'}"><div class="wn">${m.from_me ? 'You' : esc(m.sender_name || name || 'Them')}</div>${m.audio ? vnote(jid, m) : esc(m.text)}<div class="wt">${new Date(m.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div></div>`;
+const wbub = (jid, m, name) => `<div class="wb ${m.from_me ? 'me' : 'them'}" data-mid="${esc(m.id)}" data-mj="${esc(jid)}" title="Tap to react">${m.my_react ? `<span class="wre">${esc(m.my_react)}</span>` : ''}<div class="wn">${m.from_me ? 'You' : esc(m.sender_name || name || 'Them')}</div>${m.audio ? vnote(jid, m) : esc(m.text)}<div class="wt">${new Date(m.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div></div>`;
 const waDone = (jid) => { const row = document.querySelector(`#wl [data-jid="${CSS.escape(jid)}"]`); if (row) { row.style.transition = 'opacity .3s'; row.style.opacity = '0'; setTimeout(() => row.remove(), 300); } document.querySelector('.wexp')?.remove(); WEXP = null; setTimeout(() => WAREF && WAREF(), 600); };
 // Voice notes: play them here (and turn them into text), record and send your own.
 const vnote = (jid, m) => `<div class="vnote"><audio controls preload="none" src="/api/wa/voice?jid=${encodeURIComponent(jid)}&id=${encodeURIComponent(m.id)}"></audio><button type="button" class="btn sm" data-vt="${esc(m.id)}" data-vj="${esc(jid)}">Text</button><div class="note vtx"></div></div>`;
@@ -1688,6 +1689,16 @@ document.addEventListener('click', (e) => {
   const k = Math.random().toString(36).slice(2); b.dataset.k = k;
   const pop = document.createElement('div'); pop.className = 'emop'; pop.dataset.for = k; pop.innerHTML = EMOJI.map((x) => `<button type="button" data-e="${x}">${x}</button>`).join('');
   (b.closest('.row') || b.parentElement).after(pop);
+}, true);
+// Tap a message to react with an emoji (tap the same emoji again to remove it).
+const REACTS = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '✅'];
+document.addEventListener('click', async (e) => {
+  const r = e.target.closest('.wreb [data-r]');
+  if (r) { e.stopPropagation(); const bar = r.closest('.wreb'), bub = bar.previousElementSibling, cur0 = bub.querySelector('.wre')?.textContent || '', emo = r.dataset.r === cur0 ? '' : r.dataset.r; bar.remove();
+    try { await api('POST', '/api/wa/react', { jid: bub.dataset.mj, id: bub.dataset.mid, emoji: emo }); bub.querySelector('.wre')?.remove(); if (emo) bub.insertAdjacentHTML('afterbegin', `<span class="wre">${emo}</span>`); } catch (x) { toast(x.message); } return; }
+  const bub = e.target.closest('.wb[data-mid]'); if (!bub || e.target.closest('audio, button, a')) return;
+  e.stopPropagation(); const open = bub.nextElementSibling?.classList.contains('wreb'); document.querySelectorAll('.wreb').forEach((x) => x.remove()); if (open) return;
+  bub.insertAdjacentHTML('afterend', `<div class="wreb ${bub.classList.contains('me') ? 'me' : ''}">${REACTS.map((x) => `<button type="button" data-r="${x}">${x}</button>`).join('')}</div>`);
 }, true);
 let VREC = null;
 async function voiceRec(btn, box, jid, done) {
