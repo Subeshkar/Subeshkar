@@ -71,7 +71,8 @@ export function savePublicImage(buf, mime) {
   const ext = /png/.test(mime) ? 'png' : 'jpg', id = crypto.randomBytes(12).toString('hex') + '.' + ext;
   fs.writeFileSync(path.join(PUB, id), buf); return id;
 }
-export const publicFile = (id) => (/^[a-f0-9]{24}\.(jpg|png)$/.test(id) && fs.existsSync(path.join(PUB, id)) ? path.join(PUB, id) : null);
+export function savePublicFile(buf, ext) { const id = crypto.randomBytes(12).toString('hex') + '.' + (/^[a-z0-9]{1,5}$/.test(ext) ? ext : 'bin'); fs.writeFileSync(path.join(PUB, id), buf); return id; }
+export const publicFile = (id) => (/^[a-f0-9]{24}\.[a-z0-9]{1,5}$/.test(id) && fs.existsSync(path.join(PUB, id)) ? path.join(PUB, id) : null);
 
 // Who you are on LinkedIn (the "author" every post needs). The answer is nested differently per version, so look everywhere.
 function deep(o, test, depth = 0) { if (!o || typeof o !== 'object' || depth > 6) return null; for (const [k, v] of Object.entries(o)) { const r = test(k, v); if (r) return r; } for (const v of Object.values(o)) { const r = deep(v, test, depth + 1); if (r) return r; } return null; }
