@@ -1581,16 +1581,17 @@ async function viewMail() {
   }
   const FL = [['reply', 'To reply'], ['unread', 'Unread'], ['inbox', 'Inbox'], ['sent', 'Sent'], ['all', 'All mail'], ['drafts', 'Drafts']];
   main.innerHTML = `<div class="row" style="justify-content:space-between;align-items:center"><a href="#home" class="back" style="color:var(--acc);text-decoration:none;font-weight:500">← Home</a><button class="btn sm" id="madd">+ Add mailbox</button></div>
-    <div class="wstats" id="mst"></div>
+    <div class="row" style="gap:8px;margin-top:10px"><div class="seg wtabs grow" id="macc" style="display:flex;overflow-x:auto"></div><button class="btn sm" id="mmore" title="Mailbox options" style="height:44px">▾</button></div>
+    <div id="maddbox" style="margin-top:8px"></div>
+    <div class="wstats" id="mst" style="margin-top:10px"></div>
     <div class="card stack" style="margin-top:14px">
-      <div class="row" style="gap:8px"><div class="seg wtabs grow" id="macc" style="display:flex;overflow-x:auto"></div><button class="btn sm" id="mmore" title="Mailbox options" style="height:44px">▾</button></div>
       <div class="wfil" id="mfl"></div>
       <form class="row" id="mcmd" style="gap:6px;margin-bottom:8px"><input class="field grow" id="mcq" placeholder="✍️ Tell Dioma what to do, e.g. chase unpaid invoices"><button class="btn sm pri" style="height:48px">Do it</button></form>
       <div id="mcout"></div>
       <form class="row" id="msf" style="gap:6px"><input class="field grow" id="mq" placeholder="Search this mailbox" value="${esc(MF.q)}"><button class="btn sm" style="height:48px">Go</button><button type="button" class="btn sm" id="mref" style="height:48px" title="Refresh">↻</button><button type="button" class="btn sm" id="mai" style="height:48px">AI</button></form>
       <div class="list" id="mlist"><div class="empty">Loading your mail…</div></div>
     </div>
-    <div id="maddbox"></div>`;
+`;
   const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
   const draw = () => {
     if (cur() !== 'mail' || !$('#mlist') || !MD) return;
