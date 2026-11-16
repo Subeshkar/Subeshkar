@@ -20,6 +20,7 @@ import * as V from './voice.js';
 import * as AT from './autotodo.js';
 import * as SO from './social.js';
 import * as BZ from './biz.js';
+import * as PF from './payfollow.js';
 import * as MP from './maps.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -493,6 +494,8 @@ on('POST', '/api/ai/write', async (req, res, u) => {
 });
 
 // Business
+on('POST', '/api/biz/payfollow', async (req, res, u) => { if (limited('pf:' + u.id, 10, 3600e3)) return fail(res, 429, 'Try again in a little while.'); send(res, 200, await PF.plan(u)); });
+on('POST', '/api/biz/payfollow/run', async (req, res, u) => send(res, 200, await PF.run(u, await json(req))));
 on('GET', '/api/biz', async (req, res, u) => send(res, 200, await BZ.overview(u.id, new URL(req.url, 'http://x').searchParams.get('fresh') === '1')));
 
 // Personal notebook: CV, jobs, goals, habits, people, plan, learning progress, news topics. One JSON value per key.

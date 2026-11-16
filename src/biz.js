@@ -30,7 +30,7 @@ export async function overview(uid, force) {
         A.runFill(uid, 'ZOHO_BOOKS_LIST_PURCHASE_ORDERS', f).catch((e) => (out.errors.push('Purchase orders: ' + e.message), [])),
         A.runFill(uid, 'ZOHO_BOOKS_LIST_CUSTOMER_PAYMENTS', f).catch(() => []),
       ]);
-      out.invoices = arr(inv).map((x) => ({ id: x.invoice_id, no: x.invoice_number, who: x.customer_name, status: x.status, date: x.date, due: x.due_date, total: num(x.total), balance: num(x.balance), cur: x.currency_code || 'AED' }));
+      out.invoices = arr(inv).map((x) => ({ id: x.invoice_id, no: x.invoice_number, who: x.customer_name, customerId: x.customer_id, email: x.email || '', status: x.status, date: x.date, due: x.due_date, total: num(x.total), balance: num(x.balance), cur: x.currency_code || 'AED' }));
       out.invoices.forEach((x) => { x.overdue = x.balance > 0 && x.due && x.due < today; x.days = x.overdue ? Math.round((Date.parse(today) - Date.parse(x.due)) / DAY) : 0; });
       out.bills = arr(bil).map((x) => ({ id: x.bill_id, no: x.bill_number, who: x.vendor_name, status: x.status, due: x.due_date, total: num(x.total), balance: num(x.balance), cur: x.currency_code || 'AED' }));
       out.bills.forEach((x) => { x.overdue = x.balance > 0 && x.due && x.due < today; });

@@ -13,8 +13,10 @@ const err = (m, s = 502) => Object.assign(new Error(m), { status: s });
 
 async function igUser(uid) {
   const k = uid + ':igid'; const c = C.get(k); if (c) return c.data;
-  const d = await A.runFill(uid, 'INSTAGRAM_GET_USER_INFO', { 'ig_user_id|user_id': 'me', 'fields': 'id,username,name' });
-  const v = { id: String(d?.id || d?.data?.id || ''), name: d?.username || d?.data?.username || d?.name || '' };
+  const d = await A.runFill(uid, 'INSTAGRAM_GET_USER_INFO', { 'ig_user_id|user_id': 'me', 'fields': 'id,user_id,username,name' });
+  // Instagram gives two ids: "user_id" is the professional account id that messages and media need; "id" is app-scoped.
+  const r = d?.data && typeof d.data === 'object' ? d.data : d || {};
+  const v = { id: String(r.user_id || r.id || ''), appId: String(r.id || ''), name: r.username || r.name || '' };
   C.set(k, { data: v }); return v;
 }
 async function fbPage(uid) {
@@ -125,7 +127,9 @@ export async function dms(uid) {
     return { net, id: String(t.id || ''), who: other.username || other.name || msgs.find((m) => m.fromId !== String(meId))?.from || 'Someone', whoId: String(other.id || msgs.find((m) => m.fromId !== String(meId))?.fromId || ''), at: +new Date(t.updated_time || msgs[0]?.at || 0), messages: msgs };
   };
   if (on.includes('instagram')) {
-    try { const u = await igUser(uid); const d = await A.runFill(uid, 'INSTAGRAM_LIST_ALL_CONVERSATIONS', { 'ig_user_id|user_id': u.id || 'me', 'limit': 20, 'fields': 'id,updated_time,participants,messages{message,from,created_time}' }); out.threads.push(...arr(d).map((t) => norm('instagram', t, u.id))); }
+    try { const u = await igUser(uid); const ask = (id) => A.runFill(uid, 'INSTAGRAM_LIST_ALL_CONVERSATIONS', { 'ig_user_id|user_id': id, 'platform': 'instagram', 'limit': 20, 'fields': 'id,updated_time,participants,messages{message,from,created_time}' });
+      let d; try { d = await ask('me'); } catch { d = await ask(u.id); }
+      out.threads.push(...arr(d).map((t) => norm('instagram', t, u.id))); }
     catch (e) { out.errors.push('Instagram messages: ' + e.message); }
   }
   if (on.includes('facebook')) {
@@ -137,7 +141,7 @@ export async function dms(uid) {
 }
 export async function dmSend(uid, net, to, text) {
   C.delete(uid + ':dms');
-  if (net === 'instagram') { const u = await igUser(uid); return A.runFill(uid, 'INSTAGRAM_SEND_TEXT_MESSAGE', { 'ig_user_id|user_id': u.id, 'recipient_id|recipient': to, 'text|message': text }); }
+  if (net === 'instagram') { const u = await igUser(uid); const go = (id) => A.runFill(uid, 'INSTAGRAM_SEND_TEXT_MESSAGE', { 'ig_user_id|user_id': id, 'recipient_id|recipient': to, 'text|message': text }); try { return await go('me'); } catch { return go(u.id); } }
   if (net === 'facebook') { const pg = await fbPage(uid); return A.runFill(uid, 'FACEBOOK_SEND_MESSAGE', { 'page_id': pg.id, 'recipient_id|recipient': to, 'message|text': text }); }
   throw err('Messages for this network are coming soon.', 400);
 }

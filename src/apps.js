@@ -168,7 +168,7 @@ async function zohoMailbox(uid, folder, q) {
 export async function mailbox(uid, slug, folder = 'inbox', q = '') {
   if (slug === 'gmail') {
     const tool = (await findTool(slug, /^GMAIL_FETCH_EMAILS$/)) || (await findTool(slug, /(FETCH|LIST).*(EMAILS|MESSAGES)$/));
-    const query = { inbox: 'in:inbox', unread: 'in:inbox is:unread', sent: 'in:sent', drafts: 'in:drafts' }[folder] || 'in:inbox';
+    const query = { inbox: 'in:inbox', unread: 'in:inbox is:unread', sent: 'in:sent', drafts: 'in:drafts', all: '' }[folder] ?? 'in:inbox';
     const data = await exec(uid, tool, { query: (query + ' ' + (q || '')).trim(), max_results: 30, include_payload: false });
     return (firstArray(data) || []).map((m) => {
       const lab = m.labelIds || m.label_ids || [];

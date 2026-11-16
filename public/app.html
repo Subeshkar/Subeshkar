@@ -1008,10 +1008,11 @@ let BZT = 'owed', BZD = null;
 async function viewBiz() {
   const main = $('#main'); await loadApps(true); if (cur() !== 'biz') return;
   const on = ((APPS && APPS.catalog.biz) || []).filter(([k]) => appOn(k));
-  main.innerHTML = `${on.length ? `<div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><div class="row" style="gap:6px;flex-wrap:wrap">${on.map(([, n]) => `<span class="srcb" style="font-size:12px;padding:4px 10px">${n}</span>`).join('')}</div><div class="row" style="gap:6px"><button class="btn sm" id="bzr">↻</button><button class="btn sm pri" data-addmore="biz">+ Add app</button></div></div><div id="more-biz" hidden style="margin-top:10px">${appList('biz', 'biz')}</div>` : connBlock('biz', 'biz', 'Add app')}
+  main.innerHTML = `${on.length ? `<div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><div class="row" style="gap:6px;flex-wrap:wrap">${on.map(([, n]) => `<span class="srcb" style="font-size:12px;padding:4px 10px">${n}</span>`).join('')}</div><div class="row" style="gap:6px"><button class="btn sm pri" id="bzpf">💰 Payment follow-up</button><button class="btn sm" id="bzr">↻</button><button class="btn sm pri" data-addmore="biz">+ Add app</button></div></div><div id="more-biz" hidden style="margin-top:10px">${appList('biz', 'biz')}</div>` : connBlock('biz', 'biz', 'Add app')}
     <div class="wstats" id="bzs"></div><div id="bzt"></div><div id="bzv" style="margin-top:14px"><div class="empty">Loading…</div></div>`;
   const load = async (fresh) => { BZD = await api('GET', '/api/biz' + (fresh ? '?fresh=1' : '')).catch((x) => ({ errors: [x.message], invoices: [], bills: [], pos: [], payments: [], leads: [], deals: [], followups: [], totals: {} })); if (cur() === 'biz') drawBz(); };
   $('#bzr')?.addEventListener('click', () => load(true));
+  $('#bzpf')?.addEventListener('click', () => { const o = document.getElementById('bzpfo') || (() => { const d = document.createElement('div'); d.id = 'bzpfo'; d.style.marginTop = '12px'; $('#bzs').before(d); return d; })(); payFollow(o); });
   load();
 }
 function drawBz() {
@@ -1064,6 +1065,33 @@ const hdr = (title, sub) => `<div style="margin:4px 0 14px"><div class="note" st
 const statT = (list) => `<div class="wstats" style="grid-template-columns:repeat(${Math.min(4, list.length)},minmax(0,1fr))">${list.map(([n, l, k], i) => `<button type="button" class="wst ${i === 0 ? 'hi' : ''}" ${k ? `data-st="${k}"` : ''}><b>${n}</b><span>${l}</span></button>`).join('')}</div>`;
 const copyBtnH = (id) => `<button class="btn sm" data-copy="${id}">Copy</button>`;
 document.addEventListener('click', (e) => { const b = e.target.closest('[data-copy]'); if (!b) return; const el = document.getElementById(b.dataset.copy); if (el) copyT(el.value ?? el.textContent); });
+
+// ---------- Payment follow-up: who paid (bank vs Zoho Books), who to chase (same email thread). You tap OK once. ----------
+async function payFollow(box) {
+  if (!box) return; box.innerHTML = '<div class="card"><div class="note">Checking Zoho Books, your bank transactions and your email threads… this takes up to a minute.</div></div>'; box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  let P; try { P = await api('POST', '/api/biz/payfollow'); } catch (x) { box.innerHTML = `<div class="card"><p class="err">${esc(x.message)}</p></div>`; return; }
+  const m = (n, c) => `${c || 'AED'} ${Number(n || 0).toLocaleString('en', { maximumFractionDigits: 2 })}`;
+  box.innerHTML = `<div class="card stack"><div class="row" style="justify-content:space-between"><b style="font-size:16px;font-weight:600">💰 Payment follow-up</b><button class="btn sm" id="pfx">✕</button></div>
+    ${P.note ? `<p class="note">${esc(P.note)}</p>` : ''}
+    <b style="font-weight:600">Paid: found in your bank (${P.paid.length})</b>
+    ${P.paid.length ? `<p class="note">Dioma will mark these paid in Zoho Books.</p><div class="list">${P.paid.map((p) => `<label class="item" style="gap:10px;align-items:flex-start;cursor:pointer"><input type="checkbox" data-pp="${esc(p.invoice.id)}" checked style="margin-top:4px"><div class="grow"><div class="t">${esc(p.invoice.who)} · ${esc(p.invoice.no)} · ${m(p.invoice.balance, p.invoice.cur)}</div><div class="s">Bank ${esc(p.tx.date)} · ${m(p.tx.amount)} · ${esc(String(p.tx.text || '').slice(0, 80))}</div><div class="note">${esc(p.why)}</div></div></label>`).join('')}</div>` : '<p class="note">No matching payments found in your bank for the unpaid invoices.</p>'}
+    <b style="font-weight:600;margin-top:6px">Still owed: follow-up email (${P.follow.length})</b>
+    ${P.follow.length ? `<p class="note">Each goes as a reply in the same email thread as the invoice when Dioma finds it, otherwise as a new email. Edit anything before you tap OK.</p><div class="stack">${P.follow.map((f, i) => `<div class="item" style="flex-direction:column;align-items:stretch;gap:6px"><label class="row" style="gap:10px;cursor:pointer"><input type="checkbox" data-pfs="${i}" ${f.to ? 'checked' : ''}><b class="grow" style="font-weight:500">${esc(f.invoice.who)} · ${esc(f.invoice.no)} · ${m(f.invoice.balance, f.invoice.cur)}</b><span class="note">${f.invoice.days ? f.invoice.days + ' days late' : 'due ' + esc(f.invoice.due || '')}</span></label>
+      <div class="note">${f.thread ? `↩ Reply in thread "${esc(f.thread.subject || '')}"` : '✉ New email (no earlier thread found)'} · from ${f.via === 'zoho_mail' ? 'Zoho Mail' : f.via === 'gmail' ? 'Gmail' : '<span class="err">connect a mailbox</span>'}</div>
+      <input class="field" data-pft="${i}" placeholder="Customer email" value="${esc(f.to)}"><textarea class="field" data-pfb="${i}" rows="6">${esc(f.body)}</textarea></div>`).join('')}</div>` : '<p class="note">Nothing overdue to chase.</p>'}
+    ${P.paid.length || P.follow.length ? '<button class="btn pri" id="pfok" style="justify-self:start">OK, do it</button>' : ''}<div id="pfres"></div></div>`;
+  $('#pfx').onclick = () => { box.innerHTML = ''; };
+  const ok = $('#pfok'); if (!ok) return;
+  twoTap(ok, 'OK, do it', async () => {
+    const paid = [...box.querySelectorAll('[data-pp]:checked')].map((x) => x.dataset.pp);
+    const follow = [...box.querySelectorAll('[data-pfs]:checked')].map((x) => { const i = x.dataset.pfs; return { id: P.follow[i].invoice.id, to: box.querySelector(`[data-pft="${i}"]`).value.trim(), body: box.querySelector(`[data-pfb="${i}"]`).value }; });
+    if (!paid.length && !follow.length) throw new Error('Nothing is ticked.');
+    ok.textContent = 'Working…';
+    const r = await api('POST', '/api/biz/payfollow/run', { paid, follow });
+    $('#pfres').innerHTML = `<div class="ycard" style="margin-top:8px">${r.marked.length ? `✓ Marked paid in Zoho Books: ${r.marked.map(esc).join(', ')}<br>` : ''}${r.sent.length ? `✓ Follow-up sent: ${r.sent.map(esc).join(', ')}` : ''}${!r.marked.length && !r.sent.length ? 'Nothing was done.' : ''}</div>${r.errors.length ? `<p class="err" style="margin-top:6px">${r.errors.map(esc).join('<br>')}</p>` : ''}`;
+    ok.textContent = 'Done ✓';
+  });
+}
 
 // ---------- Career: applications from Gmail, find jobs, tailor an application, CV ----------
 let CRT = 'apps';
@@ -1544,6 +1572,9 @@ async function viewMail() {
     <div class="card stack" style="margin-top:14px">
       <div class="row" style="gap:8px"><div class="seg wtabs grow" id="macc" style="display:flex;overflow-x:auto"></div><button class="btn sm" id="mmore" title="Mailbox options" style="height:44px">▾</button></div>
       <div class="wfil" id="mfl"></div>
+      <form class="row" id="mcmd" style="gap:6px;margin-bottom:8px"><input class="field grow" id="mcq" placeholder="✍️ Tell Dioma what to do, e.g. follow up on payments"><button class="btn sm pri" style="height:48px">Do it</button></form>
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:8px"><button type="button" class="btn sm" data-mc="pay">💰 Follow up on payments</button><button type="button" class="btn sm" data-mc="reply">Who needs my reply today</button></div>
+      <div id="mcout"></div>
       <form class="row" id="msf" style="gap:6px"><input class="field grow" id="mq" placeholder="Search this mailbox" value="${esc(MF.q)}"><button class="btn sm" style="height:48px">Go</button><button type="button" class="btn sm" id="mref" style="height:48px" title="Refresh">↻</button><button type="button" class="btn sm" id="mai" style="height:48px">AI</button></form>
       <div class="list" id="mlist"><div class="empty">Loading your mail…</div></div>
     </div>
@@ -1573,6 +1604,9 @@ async function viewMail() {
   $('#mfl').addEventListener('click', (e) => { const b = e.target.closest('[data-f]'); if (!b) return; MF.f = b.dataset.f; draw(); });
   $('#msf').addEventListener('submit', (e) => { e.preventDefault(); MF.q = $('#mq').value.trim(); load(); });
   $('#mref').addEventListener('click', load);
+  const mcRun = (t) => { t = String(t || '').trim(); if (!t) return; if (/pay|invoice|owe|owing|due|collect|receivable|follow ?up/i.test(t)) return payFollow($('#mcout')); location.hash = '#ask'; setTimeout(() => { const q = $('#q'); if (q) { q.value = t; q.focus(); } }, 450); };
+  $('#mcmd').onsubmit = (e) => { e.preventDefault(); mcRun($('#mcq').value); };
+  main.querySelectorAll('[data-mc]').forEach((b) => (b.onclick = () => (b.dataset.mc === 'pay' ? payFollow($('#mcout')) : $('#mai').click())));
   $('#mai').addEventListener('click', () => { location.hash = '#ask'; setTimeout(() => { const q = $('#q'); if (q) { q.value = 'Go through my email: which ones need my reply today, and draft short replies for the top 3.'; q.focus(); } }, 400); });
   const addBox = () => { $('#maddbox').innerHTML = `<section class="sec"><h2>Add another mailbox</h2>${mailChooser()}</section>`; wireChooser(); $('#maddbox').scrollIntoView({ behavior: 'smooth' }); };
   $('#madd').addEventListener('click', addBox);
