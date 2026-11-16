@@ -1584,8 +1584,7 @@ async function viewMail() {
     <div class="card stack" style="margin-top:14px">
       <div class="row" style="gap:8px"><div class="seg wtabs grow" id="macc" style="display:flex;overflow-x:auto"></div><button class="btn sm" id="mmore" title="Mailbox options" style="height:44px">▾</button></div>
       <div class="wfil" id="mfl"></div>
-      <form class="row" id="mcmd" style="gap:6px;margin-bottom:8px"><input class="field grow" id="mcq" placeholder="✍️ Tell Dioma what to do, e.g. follow up on payments"><button class="btn sm pri" style="height:48px">Do it</button></form>
-      <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:8px"><button type="button" class="btn sm" data-mc="pay">💰 Follow up on payments</button><button type="button" class="btn sm" data-mc="reply">Who needs my reply today</button></div>
+      <form class="row" id="mcmd" style="gap:6px;margin-bottom:8px"><input class="field grow" id="mcq" placeholder="✍️ Tell Dioma what to do, e.g. chase unpaid invoices"><button class="btn sm pri" style="height:48px">Do it</button></form>
       <div id="mcout"></div>
       <form class="row" id="msf" style="gap:6px"><input class="field grow" id="mq" placeholder="Search this mailbox" value="${esc(MF.q)}"><button class="btn sm" style="height:48px">Go</button><button type="button" class="btn sm" id="mref" style="height:48px" title="Refresh">↻</button><button type="button" class="btn sm" id="mai" style="height:48px">AI</button></form>
       <div class="list" id="mlist"><div class="empty">Loading your mail…</div></div>
@@ -1621,7 +1620,6 @@ async function viewMail() {
   $('#mlist').addEventListener('click', (e) => { const t = e.target.closest('[data-mdone]'); if (t) { e.stopPropagation(); return mailDone(+t.dataset.mdone); } if (e.target.closest('.mexp')) return; const r = e.target.closest('[data-mi]'); if (r) mailOpen(+r.dataset.mi); });
   const mcRun = (t) => { t = String(t || '').trim(); if (!t) return; if (/pay|invoice|owe|owing|due|collect|receivable|follow ?up/i.test(t)) return payFollow($('#mcout')); location.hash = '#ask'; setTimeout(() => { const q = $('#q'); if (q) { q.value = t; q.focus(); } }, 450); };
   $('#mcmd').onsubmit = (e) => { e.preventDefault(); mcRun($('#mcq').value); };
-  main.querySelectorAll('[data-mc]').forEach((b) => (b.onclick = () => (b.dataset.mc === 'pay' ? payFollow($('#mcout')) : $('#mai').click())));
   $('#mai').addEventListener('click', () => { location.hash = '#ask'; setTimeout(() => { const q = $('#q'); if (q) { q.value = 'Go through my email: which ones need my reply today, and draft short replies for the top 3.'; q.focus(); } }, 400); });
   const addBox = () => { $('#maddbox').innerHTML = `<section class="sec"><h2>Add another mailbox</h2>${mailChooser()}</section>`; wireChooser(); $('#maddbox').scrollIntoView({ behavior: 'smooth' }); };
   $('#madd').addEventListener('click', addBox);
