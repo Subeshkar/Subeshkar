@@ -511,7 +511,7 @@ on('GET', '/api/mail/summary', async (req, res, u) => {
   const toReply = inbox.filter((m) => !done.has(m.id) && m.at > now - 7 * DAY && !AUTO_SENDER.test(m.fromAddr + ' ' + m.from) && !(m.fromAddr && lastSentTo[m.fromAddr] > m.at));
   const follow = sent.filter((m) => m.at < now - 3 * DAY && m.at > now - 30 * DAY && m.toAddr && !(lastFrom[m.toAddr] > m.at));
   const replies = inbox.filter((m) => m.unread && /^\s*re:/i.test(m.subject));
-  send(res, 200, { accounts: accts, acct: a.key, errors: [...new Set(errors)].slice(0, 2), lists: { reply: toReply, unread, inbox, sent, drafts, follow, replies, sentToday: sent.filter((m) => m.at >= since) } });
+  send(res, 200, { accounts: accts, acct: a.key, errors: [...new Set(errors)].slice(0, 2), lists: { reply: toReply, unread, inbox, sent, all: [...new Map([...inbox, ...sent.map((m) => ({ ...m, out: 1 }))].map((m) => [m.id, m])).values()].sort((x, y) => y.at - x.at), drafts, follow, replies, sentToday: sent.filter((m) => m.at >= since) } });
 });
 
 // One AI helper for every section: posts, comment replies, CV, cover letters, plans, lessons, follow-ups.

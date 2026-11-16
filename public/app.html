@@ -99,7 +99,7 @@ nav.bot .wrap{display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
 .wst b{font-size:17px;font-weight:600;line-height:1.1}.wst span{font-size:10.5px;color:var(--dim);line-height:1.2}
 .wst.hi{background:var(--acc);border-color:var(--acc)}.wst.hi b,.wst.hi span{color:var(--accink)}
 .wtabs{display:grid;grid-template-columns:repeat(3,1fr);border-radius:12px}.wtabs button{border-radius:9px}.seg.wtabs button.on{background:var(--acc);color:var(--accink)}.wtabs button{padding:10px 6px;font-size:14px}
-.wfil{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;background:#0b0b0b;border-radius:12px;padding:4px}.wfil::-webkit-scrollbar{display:none}
+.wfil{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;background:#0b0b0b;border-radius:12px;padding:4px}.wfil::-webkit-scrollbar{display:none}#mfl.wfil{flex-wrap:wrap}
 .wfil button{flex:none;border:0;background:transparent;color:var(--fg);padding:8px 12px;border-radius:9px;font:500 13.5px var(--sans);cursor:pointer;white-space:nowrap}
 .wfil button.on{background:var(--acc);color:var(--accink)}
 .wun{display:inline-block;min-width:20px;height:20px;line-height:20px;border-radius:10px;background:var(--acc);color:var(--accink);font:600 11px var(--mono);text-align:center;margin-top:4px;padding:0 5px}
@@ -1578,7 +1578,7 @@ async function viewMail() {
     main.innerHTML = `<h1>Connect your mail</h1><p class="dim" style="margin:8px 0 18px">Which email do you use? Pick it and sign in. You can add more later.</p>${mailChooser()}`;
     return wireChooser();
   }
-  const FL = [['reply', 'To reply'], ['unread', 'Unread'], ['inbox', 'Inbox'], ['sent', 'Sent'], ['drafts', 'Drafts']];
+  const FL = [['reply', 'To reply'], ['unread', 'Unread'], ['inbox', 'Inbox'], ['sent', 'Sent'], ['all', 'All mail'], ['drafts', 'Drafts']];
   main.innerHTML = `<div class="row" style="justify-content:space-between;align-items:center"><a href="#home" class="back" style="color:var(--acc);text-decoration:none;font-weight:500">← Home</a><button class="btn sm" id="madd">+ Add mailbox</button></div>
     <div class="wstats" id="mst"></div>
     <div class="card stack" style="margin-top:14px">
@@ -1601,7 +1601,7 @@ async function viewMail() {
     const list = L[MF.f] || [];
     const gm = MD.acct === 'gmail' || MD.acct === 'google';
     MLIST = list; MACC = MD.acct;
-    $('#mlist').innerHTML = list.length ? list.slice(0, 60).map((m, i) => { const who = ['sent', 'drafts', 'follow', 'sentToday'].includes(MF.f) ? 'To: ' + (m.to || m.toAddr || '') : m.from;
+    $('#mlist').innerHTML = list.length ? list.slice(0, 60).map((m, i) => { const who = ['sent', 'drafts', 'follow', 'sentToday'].includes(MF.f) || m.out ? 'To: ' + (m.to || m.toAddr || '') : m.from;
       return `<div class="item mrow" data-mi="${i}" style="cursor:pointer"><div class="mwhen"><span class="when">${m.at ? ago(m.at) : ''}</span>${MF.f === 'reply' || MF.f === 'unread' || MF.f === 'inbox' ? `<button type="button" class="mtick" data-mdone="${i}" title="Done: take it off the list">✓</button>` : ''}</div><div class="grow" style="min-width:0"><div class="t" style="${m.unread ? 'font-weight:600' : ''}">${esc(who || '(unknown)')}</div><div class="s">${esc(m.subject)}${m.snippet ? ' · ' + esc(m.snippet) : ''}</div></div>${m.unread ? '<b class="wun">New</b>' : ''}</div>`; }).join('')
       : MD.errors && MD.errors.length ? `<div class="err" style="padding:10px 0">Could not read this mailbox: ${esc(MD.errors[0])}. Tap ↻ to try again; if it keeps failing, disconnect it under ▾ and connect again.</div>` : `<div class="empty">${MF.f === 'reply' ? 'Nothing waiting for your reply.' : MD.acct !== 'gmail' && MD.acct !== 'imap' && ['sent', 'drafts', 'follow', 'sentToday'].includes(MF.f) ? 'This folder is not available for this mailbox yet.' : 'Nothing here.'}</div>`;
   };
@@ -1645,7 +1645,7 @@ async function mailDone(i) {
 async function mailOpen(i) {
   document.querySelectorAll('#mlist .mexp').forEach((x) => x.remove()); if (MOPEN === i) { MOPEN = -1; return; } MOPEN = i;
   const m = MLIST[i], row = document.querySelector(`#mlist [data-mi="${i}"]`); if (!m || !row) return;
-  const sent = !!(m.toAddr && !m.fromAddr) || ['sent', 'drafts', 'follow', 'sentToday'].includes(MF.f);
+  const sent = !!m.out || !!(m.toAddr && !m.fromAddr) || ['sent', 'drafts', 'follow', 'sentToday'].includes(MF.f);
   const to = sent ? (m.toAddr || '') : (m.fromAddr || '');
   const canSend = MACC === 'gmail' || MACC === 'zoho_mail';
   const box = document.createElement('div'); box.className = 'mexp card stack'; row.after(box);
