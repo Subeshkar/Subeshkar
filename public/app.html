@@ -1626,19 +1626,19 @@ function waGroups(d) {
   const F = {
     action: (c) => isAction(c),
     priority: (c) => isAction(c) && c.unread > 0 && c.last_at > now - 2 * DAYMS,
-    follow: (c) => !c.is_group && c.last_from_me && c.last_at < now - 2 * DAYMS && c.last_at > now - 30 * DAYMS,
-    unread: (c) => c.unread > 0,
+    follow: (c) => !c.is_group && c.last_from_me && c.last_at < now - 2 * DAYMS && c.last_at > now - 30 * DAYMS && !quiet(c),
+    unread: (c) => c.unread > 0 && !quiet(c),
     all: () => true,
     groups: (c) => !!c.is_group,
     noise: (c) => !!c.noise || (!!c.is_group && !c.last_from_me && (!c.my_at || c.my_at < now - 30 * DAYMS)),
-    dunread: (c) => !c.is_group && c.unread > 0,
-    gunread: (c) => !!c.is_group && c.unread > 0,
+    dunread: (c) => !c.is_group && c.unread > 0 && !quiet(c),
+    gunread: (c) => !!c.is_group && c.unread > 0 && !quiet(c),
     sent: (c) => !!c.my_at && c.my_at >= WAF.midnight,
   };
   const named = C.filter((c) => tabOf(c) === 'personal');
   const stats = {
-    reply: named.filter(F.action).length, unread: C.filter((c) => !c.is_group && c.unread > 0).length,
-    groups: C.filter((c) => c.is_group && c.unread > 0).length, priority: named.filter(F.priority).length, sent: d.sentToday,
+    reply: named.filter(F.action).length, unread: C.filter((c) => !c.is_group && c.unread > 0 && !quiet(c)).length,
+    groups: C.filter((c) => c.is_group && c.unread > 0 && !quiet(c)).length, priority: named.filter(F.priority).length, sent: d.sentToday,
   };
   const counts = Object.fromEntries(Object.keys(F).map((k) => [k, inTab.filter(F[k]).length]));
   const q = WAF.q.trim().toLowerCase();
@@ -1669,7 +1669,7 @@ async function expClick(e) {
   const box = e.target.closest('.wexp'), b = e.target.closest('[data-x]'); if (!b) return; e.stopPropagation();
   const jid = box.dataset.jid, ta = box.querySelector('textarea'), k = b.dataset.x;
   if (k === 'voice') return voiceRec(b, box.querySelector('.vrec'), jid, () => waDone(jid));
-  if (k === 'ignore' || k === 'noise') { await api('POST', k === 'ignore' ? '/api/wa/ignore' : '/api/wa/noise', { jid, on: true }).catch(() => {}); toast(k === 'ignore' ? 'Ignored until they write again' : 'Moved to Noise'); return waDone(jid); }
+  if (k === 'ignore' || k === 'noise') { await api('POST', k === 'ignore' ? '/api/wa/ignore' : '/api/wa/noise', { jid, on: true }).catch(() => {}); toast(k === 'ignore' ? 'Ignored until they write again' : 'Moved to Noise'); return waDone(jid, k); }
   if (k === 'full') { WEXP = null; waOpen = { jid, name: box.dataset.name }; return waChat(waOpen); }
   if (k === 'send') { const t = ta.value.trim(); if (!t) return toast('Write a message first.'); b.disabled = true; try { await api('POST', '/api/wa/send', { jid, text: t }); toast('Sent'); ta.value = ''; waDone(jid); } catch (x) { toast(x.message); } b.disabled = false; return; }
   if (k === 'fix' && !ta.value.trim()) return toast('Write something first.');
@@ -1678,9 +1678,9 @@ async function expClick(e) {
   b.disabled = false; b.textContent = l;
 }
 // Chat bubbles: yours on the right in colour, theirs on the left with their name.
-let WAREF = null;
+let WAREF = null, WAD = null;
 const wbub = (jid, m, name) => `<div class="wb ${m.from_me ? 'me' : 'them'}" data-mid="${esc(m.id)}" data-mj="${esc(jid)}" title="Tap to react">${m.my_react ? `<span class="wre">${esc(m.my_react)}</span>` : ''}<div class="wn">${m.from_me ? 'You' : esc(m.sender_name || name || 'Them')}</div>${m.audio ? vnote(jid, m) : esc(m.text)}<div class="wt">${new Date(m.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div></div>`;
-const waDone = (jid) => { const row = document.querySelector(`#wl [data-jid="${CSS.escape(jid)}"]`); if (row) { row.style.transition = 'opacity .3s'; row.style.opacity = '0'; setTimeout(() => row.remove(), 300); } document.querySelector('.wexp')?.remove(); WEXP = null; setTimeout(() => WAREF && WAREF(), 600); };
+const waDone = (jid, flag) => { if (flag) { const c = (WAD && WAD.chats || []).find((x) => x.jid === jid); if (c) { if (flag === 'noise') c.noise = 1; else c.ignored_at = Date.now(); } } const row = document.querySelector(`#wl [data-jid="${CSS.escape(jid)}"]`); if (row) { row.style.transition = 'opacity .3s'; row.style.opacity = '0'; setTimeout(() => row.remove(), 300); } document.querySelector('.wexp')?.remove(); WEXP = null; setTimeout(() => WAREF && WAREF(), 600); };
 // Voice notes: play them here (and turn them into text), record and send your own.
 const vnote = (jid, m) => `<div class="vnote"><audio controls preload="none" src="/api/wa/voice?jid=${encodeURIComponent(jid)}&id=${encodeURIComponent(m.id)}"></audio><button type="button" class="btn sm" data-vt="${esc(m.id)}" data-vj="${esc(jid)}">Text</button><div class="note vtx"></div></div>`;
 document.addEventListener('click', async (e) => { const b = e.target.closest('[data-vt]'); if (!b) return; e.stopPropagation(); const out = b.parentElement.querySelector('.vtx'); b.disabled = true; out.textContent = 'Listening…'; try { const r = await api('POST', '/api/wa/voicetext', { jid: b.dataset.vj, id: b.dataset.vt }); out.textContent = r.text || '(nothing heard)'; b.remove(); } catch (x) { out.textContent = x.message; b.disabled = false; } }, true);
@@ -1739,7 +1739,7 @@ const sugBar = (c) => { const s = WSUG[skey(c)]; return `<div class="wsug" data-
 async function sugLoad(list) {
   if (sugBusy) return; const need = list.filter((c) => !WSUG[skey(c)]).slice(0, 8); if (!need.length) return;
   sugBusy = true;
-  try { const r = await api('POST', '/api/wa/suggest', { jids: need.map((c) => c.jid) }); for (const c of need) WSUG[skey(c)] = r.items && r.items[c.jid] ? { text: String(r.items[c.jid]) } : { text: '', err: 1 }; }
+  try { const r = await api('POST', '/api/wa/suggest', { jids: need.map((c) => c.jid), follow: need.filter((c) => c.last_from_me).map((c) => c.jid) }); for (const c of need) WSUG[skey(c)] = r.items && r.items[c.jid] ? { text: String(r.items[c.jid]) } : { text: '', err: 1 }; }
   catch { for (const c of need) WSUG[skey(c)] = { text: '', err: 1 }; }
   sugBusy = false;
   for (const c of need) { const el = document.querySelector(`.wsug[data-sk="${CSS.escape(skey(c))}"]`); if (el) el.outerHTML = sugBar(c); }
@@ -1748,7 +1748,7 @@ async function sugClick(e) {
   const bar = e.target.closest('.wsug'), b = e.target.closest('[data-sa]'); if (!b) return; e.stopPropagation();
   const k = bar.dataset.sk, jid = bar.dataset.sj, inp = bar.querySelector('input');
   if (b.dataset.sa === 'new') { b.disabled = true; inp.value = ''; inp.placeholder = 'Thinking…'; try { const r = await api('POST', '/api/wa/draft', { jid, mode: 'write', text: 'One short line, max 15 words.' }); inp.value = r.text; WSUG[k] = { text: r.text }; } catch (x) { toast(x.message); } b.disabled = false; return; }
-  if (b.dataset.sa === 'ignore') { b.disabled = true; await api('POST', '/api/wa/ignore', { jid, on: true }).catch(() => {}); toast('Ignored until they write again'); return waDone(jid); }
+  if (b.dataset.sa === 'ignore') { b.disabled = true; await api('POST', '/api/wa/ignore', { jid, on: true }).catch(() => {}); toast('Ignored until they write again'); return waDone(jid, 'ignore'); }
   const t = inp.value.trim(); if (!t) return toast('Write a reply first.');
   b.disabled = true; b.textContent = 'Sending…';
   try { await api('POST', '/api/wa/send', { jid, text: t }); WSUG[k] = { text: t, sent: 1 }; bar.innerHTML = '<span class="note">✓ Sent</span>'; toast('Sent'); waDone(jid); } catch (x) { toast(x.message); b.disabled = false; b.textContent = 'Send'; }
@@ -1781,12 +1781,12 @@ async function viewWa() {
     if (false) $('#wfl').innerHTML = FL.map(([k, l]) => `<button data-f="${k}" class="${WAF.f === k ? 'on' : ''}">${l}${g.counts[k] && ['action', 'priority', 'noise', 'follow'].includes(k) ? ' ' + g.counts[k] : ''}</button>`).join('');
     if ((document.activeElement && document.activeElement.closest && document.activeElement.closest('#wl .wsug')) || (WEXP && document.querySelector('.wexp'))) return; // you are typing a reply: do not redraw
     if (WAF.tab === 'business') { $('#wl').innerHTML = '<div class="empty">Business WhatsApp (your company number) is coming soon. Your personal chats are in Personal.</div>'; return; }
-    $('#wl').innerHTML = g.list.length ? g.list.slice(0, WALIM).map((c) => `<div class="item" data-jid="${esc(c.jid)}" data-name="${esc(c.name)}" style="cursor:pointer"><span class="ficon mono">${esc((c.name || '?').replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase() || '#')}</span><div class="grow" style="min-width:0"><div class="t">${esc(c.name)}${c.is_group ? ' <span class="soon">Group</span>' : ''}</div><div class="s">${c.last_from_me ? 'You: ' : ''}${esc(c.last_text || '')}</div>${!c.last_from_me && !c.is_group ? sugBar(c) : ''}</div><div style="text-align:right;flex:none"><div class="when">${c.last_at ? ago(c.last_at) : ""}</div>${c.unread ? `<b class="wun">${c.unread}</b>` : ''}</div></div>`).join('') : `<div class="empty">${WAF.f === 'action' ? 'Nobody is waiting for your reply.' : 'Nothing here.'}</div>`;
+    $('#wl').innerHTML = g.list.length ? g.list.slice(0, WALIM).map((c) => `<div class="item" data-jid="${esc(c.jid)}" data-name="${esc(c.name)}" style="cursor:pointer"><span class="ficon mono">${esc((c.name || '?').replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase() || '#')}</span><div class="grow" style="min-width:0"><div class="t">${esc(c.name)}${c.is_group ? ' <span class="soon">Group</span>' : ''}</div><div class="s">${c.last_from_me ? 'You: ' : ''}${esc(c.last_text || '')}</div>${!c.is_group && (!c.last_from_me || WAF.f === 'follow') ? sugBar(c) : ''}</div><div style="text-align:right;flex:none"><div class="when">${c.last_at ? ago(c.last_at) : ""}</div>${c.unread ? `<b class="wun">${c.unread}</b>` : ''}</div></div>`).join('') : `<div class="empty">${WAF.f === 'action' ? 'Nobody is waiting for your reply.' : 'Nothing here.'}</div>`;
     if (g.list.length > WALIM) $('#wl').insertAdjacentHTML('beforeend', `<button class="btn" id="wmore" style="width:100%;margin-top:8px">Show more chats (${g.list.length - WALIM} more)</button>`);
-    sugLoad(g.list.slice(0, 40).filter((c) => !c.last_from_me && !c.is_group));
+    sugLoad(g.list.slice(0, 40).filter((c) => !c.is_group && (!c.last_from_me || WAF.f === 'follow')));
   };
   let D = null;
-  const load = async () => { D = await api('GET', '/api/wa/overview?since=' + midnight.getTime()).catch(() => ({ chats: [], sentToday: 0 })); draw(D); };
+  const load = async () => { D = WAD = await api('GET', '/api/wa/overview?since=' + midnight.getTime()).catch(() => ({ chats: [], sentToday: 0 })); draw(D); };
   WAREF = () => { if (cur() === 'wa' && !waOpen) load(); };
   await load();
   $('#wtab').addEventListener('click', (e) => { const b = e.target.closest('[data-t]'); if (!b) return; WAF.tab = b.dataset.t; WAF.f = WAF.tab === 'other' ? 'all' : 'action'; $('#wtab').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); D && draw(D); });
