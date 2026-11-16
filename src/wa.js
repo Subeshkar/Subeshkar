@@ -36,6 +36,23 @@ const textOf = (m) => {
     || (inner.imageMessage && '📷 Photo') || (inner.videoMessage && '🎥 Video') || (inner.audioMessage && '🎤 Voice message') || (inner.documentMessage && `📄 ${inner.documentMessage.fileName || 'Document'}`) || (inner.stickerMessage && 'Sticker') || (inner.locationMessage && '📍 Location') || '';
 };
 const skip = (jid) => !jid || jid === 'status@broadcast' || jid.endsWith('@newsletter') || jid.endsWith('@broadcast');
+// A contact can arrive under its phone jid and its private (lid) jid; keep the name under both so every chat finds it.
+function saveContact(uid, c) {
+  const nm = c && (c.name || c.notify || c.verifiedName); if (!nm) return;
+  const ids = [c.id, c.lid, c.phoneNumber, c.jid].filter((x) => typeof x === 'string' && x.includes('@'));
+  for (const j of new Set(ids)) run('INSERT INTO wa_contacts (user_id, jid, name) VALUES (?, ?, ?) ON CONFLICT(user_id, jid) DO UPDATE SET name = excluded.name', uid, j, nm);
+}
+// Search everyone: saved contacts, chat names, people who wrote in groups, and (for 3+ letters) message text.
+export function search(uid, q) {
+  q = String(q || '').trim().toLowerCase().slice(0, 60); if (!q) return [];
+  const like = '%' + q + '%', dig = q.replace(/\D/g, ''), out = new Map();
+  const add = (jid, name, why) => { if (!jid || out.has(jid) || /@(broadcast|newsletter)/.test(jid)) return; out.set(jid, { jid, name: name || jid.split('@')[0], why }); };
+  all(`SELECT jid, name FROM wa_contacts WHERE user_id = ? AND (LOWER(name) LIKE ?${dig.length >= 4 ? ' OR jid LIKE ?' : ''}) LIMIT 60`, uid, like, ...(dig.length >= 4 ? ['%' + dig + '%'] : [])).forEach((r) => add(r.jid, r.name, 'contact'));
+  all('SELECT jid, name FROM wa_chats WHERE user_id = ? AND LOWER(name) LIKE ? LIMIT 60', uid, like).forEach((r) => add(r.jid, r.name, 'chat'));
+  all('SELECT participant jid, MAX(sender_name) name, MAX(jid) g FROM wa_messages WHERE user_id = ? AND from_me = 0 AND participant IS NOT NULL AND LOWER(sender_name) LIKE ? GROUP BY participant LIMIT 40', uid, like).forEach((r) => add(r.jid, r.name, 'group'));
+  if (q.length >= 3) all('SELECT jid, MAX(at) at FROM wa_messages WHERE user_id = ? AND LOWER(text) LIKE ? GROUP BY jid ORDER BY at DESC LIMIT 30', uid, like).forEach((r) => add(r.jid, nameFor(uid, r.jid) || one('SELECT name FROM wa_chats WHERE user_id = ? AND jid = ?', uid, r.jid)?.name, 'message'));
+  return [...out.values()].slice(0, 80);
+}
 const nameFor = (uid, jid) => one('SELECT name FROM wa_contacts WHERE user_id = ? AND jid = ?', uid, jid)?.name || null;
 
 function saveChat(uid, c) {
@@ -87,11 +104,12 @@ export async function start(uid) {
       }
     });
     sock.ev.on('messaging-history.set', ({ chats = [], contacts = [], messages = [] }) => {
-      contacts.forEach((c) => c.id && (c.name || c.notify) && run('INSERT INTO wa_contacts (user_id, jid, name) VALUES (?, ?, ?) ON CONFLICT(user_id, jid) DO UPDATE SET name = excluded.name', uid, c.id, c.name || c.notify));
+      contacts.forEach((c) => saveContact(uid, c));
       chats.forEach((c) => saveChat(uid, c));
       messages.forEach((m) => saveMessage(uid, m, false));
     });
-    sock.ev.on('contacts.upsert', (cs) => cs.forEach((c) => c.id && (c.name || c.notify) && run('INSERT INTO wa_contacts (user_id, jid, name) VALUES (?, ?, ?) ON CONFLICT(user_id, jid) DO UPDATE SET name = excluded.name', uid, c.id, c.name || c.notify)));
+    sock.ev.on('contacts.upsert', (cs) => cs.forEach((c) => saveContact(uid, c)));
+    sock.ev.on('contacts.update', (cs) => cs.forEach((c) => saveContact(uid, c)));
     sock.ev.on('chats.upsert', (cs) => cs.forEach((c) => saveChat(uid, c)));
     sock.ev.on('chats.update', (cs) => cs.forEach((c) => c.id && c.unreadCount !== undefined && run('UPDATE wa_chats SET unread = ? WHERE user_id = ? AND jid = ?', c.unreadCount, uid, c.id)));
     sock.ev.on('groups.upsert', (gs) => gs.forEach((g) => saveChat(uid, { id: g.id, subject: g.subject })));

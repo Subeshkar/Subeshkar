@@ -1873,8 +1873,25 @@ function waGroups(d) {
   const counts = Object.fromEntries(Object.keys(F).map((k) => [k, inTab.filter(F[k]).length]));
   const q = WAF.q.trim().toLowerCase();
   const pool = ['dunread', 'gunread', 'sent', 'all', 'groups'].includes(WAF.f) ? C : inTab;
-  const list = pool.filter(F[WAF.f] || F.all).filter((c) => !q || (c.name + ' ' + c.jid).toLowerCase().includes(q));
+  // Searching looks through every chat (all tabs, all filters), not just the list you are on.
+  const dq = q.replace(/\D/g, '');
+  const list = q ? C.filter((c) => (c.name + ' ' + (c.last_text || '')).toLowerCase().includes(q) || (dq.length >= 4 && c.jid.includes(dq))) : pool.filter(F[WAF.f] || F.all);
   return { stats, counts, list, other: C.filter((c) => tabOf(c) === 'other').length };
+}
+// Also ask Dioma's saved contacts, group members and message text, so a name finds the person even without a recent chat.
+let WSQ = 0;
+function waSearchMore(shown) {
+  const q = WAF.q.trim(), n = ++WSQ; if (!q) return;
+  setTimeout(async () => {
+    if (n !== WSQ) return;
+    const r = await api('GET', '/api/wa/search?q=' + encodeURIComponent(q)).catch(() => ({ people: [] }));
+    if (n !== WSQ || !$('#wl') || WAF.q.trim() !== q) return;
+    const have = new Set(shown.map((c) => c.jid)), extra = (r.people || []).filter((p) => !have.has(p.jid));
+    const why = { contact: 'Saved contact', chat: 'Chat', group: 'Writes in your groups', message: 'Mentioned in messages' };
+    if (!extra.length) { if (!shown.length) $('#wl').innerHTML = '<div class="empty">Nobody found for "' + esc(q) + '". Try part of the name or the phone number.</div>'; return; }
+    if (!shown.length) $('#wl').innerHTML = '';
+    $('#wl').insertAdjacentHTML('beforeend', `<div class="note" style="margin:10px 0 2px">More people matching "${esc(q)}"</div>` + extra.map((p) => `<div class="item" data-jid="${esc(p.jid)}" data-name="${esc(p.name)}" style="cursor:pointer"><span class="ficon mono">${esc((p.name || '?').replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase() || '#')}</span><div class="grow" style="min-width:0"><div class="t">${esc(p.name)}${/@g\.us$/.test(p.jid) ? ' <span class="soon">Group</span>' : ''}</div><div class="s">${why[p.why] || ''}${/@s\.whatsapp\.net$/.test(p.jid) ? ' · +' + esc(p.jid.split('@')[0]) : ''}</div></div></div>`).join(''));
+  }, 250);
 }
 // Tap a chat: it opens right here in the list (last messages + reply box). "Full chat" opens the whole conversation.
 let WEXP = null;
@@ -2011,9 +2028,10 @@ async function viewWa() {
     if (false) $('#wfl').innerHTML = FL.map(([k, l]) => `<button data-f="${k}" class="${WAF.f === k ? 'on' : ''}">${l}${g.counts[k] && ['action', 'priority', 'noise', 'follow'].includes(k) ? ' ' + g.counts[k] : ''}</button>`).join('');
     if ((document.activeElement && document.activeElement.closest && document.activeElement.closest('#wl .wsug')) || (WEXP && document.querySelector('.wexp')) || [...document.querySelectorAll('#wl audio')].some((x) => !x.paused)) return; // you are typing a reply: do not redraw
     if (WAF.tab === 'business') { $('#wl').innerHTML = '<div class="empty">Business WhatsApp (your company number) is coming soon. Your personal chats are in Personal.</div>'; return; }
-    $('#wl').innerHTML = g.list.length ? g.list.slice(0, WALIM).map((c) => `<div class="item" data-jid="${esc(c.jid)}" data-name="${esc(c.name)}" style="cursor:pointer"><span class="ficon mono">${esc((c.name || '?').replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase() || '#')}</span><div class="grow" style="min-width:0"><div class="t">${esc(c.name)}${c.is_group ? ' <span class="soon">Group</span>' : ''}</div><div class="s">${c.last_from_me ? 'You: ' : ''}${esc(c.last_text || '')}</div>${c.voice_id ? `<div class="wvl">${vnote(c.jid, { id: c.voice_id })}</div>` : ''}${!c.is_group && (!c.last_from_me || WAF.f === 'follow') ? sugBar(c) : ''}</div><div style="text-align:right;flex:none"><div class="when">${c.last_at ? ago(c.last_at) : ""}</div>${c.unread ? `<b class="wun">${c.unread}</b>` : ''}</div></div>`).join('') : `<div class="empty">${WAF.f === 'action' ? 'Nobody is waiting for your reply.' : 'Nothing here.'}</div>`;
+    $('#wl').innerHTML = g.list.length ? g.list.slice(0, WALIM).map((c) => `<div class="item" data-jid="${esc(c.jid)}" data-name="${esc(c.name)}" style="cursor:pointer"><span class="ficon mono">${esc((c.name || '?').replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase() || '#')}</span><div class="grow" style="min-width:0"><div class="t">${esc(c.name)}${c.is_group ? ' <span class="soon">Group</span>' : ''}</div><div class="s">${c.last_from_me ? 'You: ' : ''}${esc(c.last_text || '')}</div>${c.voice_id ? `<div class="wvl">${vnote(c.jid, { id: c.voice_id })}</div>` : ''}${!c.is_group && (!c.last_from_me || WAF.f === 'follow') ? sugBar(c) : ''}</div><div style="text-align:right;flex:none"><div class="when">${c.last_at ? ago(c.last_at) : ""}</div>${c.unread ? `<b class="wun">${c.unread}</b>` : ''}</div></div>`).join('') : `<div class="empty">${WAF.q.trim() ? 'Searching all your contacts…' : WAF.f === 'action' ? 'Nobody is waiting for your reply.' : 'Nothing here.'}</div>`;
     if (g.list.length > WALIM) $('#wl').insertAdjacentHTML('beforeend', `<button class="btn" id="wmore" style="width:100%;margin-top:8px">Show more chats (${g.list.length - WALIM} more)</button>`);
     sugLoad(g.list.slice(0, 40).filter((c) => !c.is_group && (!c.last_from_me || WAF.f === 'follow')));
+    if (WAF.q.trim()) waSearchMore(g.list);
   };
   let D = null;
   const load = async () => { D = WAD = await api('GET', '/api/wa/overview?since=' + midnight.getTime()).catch(() => ({ chats: [], sentToday: 0 })); draw(D); };

@@ -752,6 +752,7 @@ on('POST', '/api/owner/db', ownerOnly(async (req, res) => { const b = await json
 on('POST', '/api/wa/start', async (req, res, u) => send(res, 200, await W.start(u.id)));
 on('GET', '/api/wa/status', (req, res, u) => send(res, 200, W.status(u.id)));
 on('GET', '/api/wa/overview', (req, res, u) => send(res, 200, W.overview(u.id, new URL(req.url, 'http://x').searchParams.get('since'))));
+on('GET', '/api/wa/search', (req, res, u) => send(res, 200, { people: W.search(u.id, new URL(req.url, 'http://x').searchParams.get('q') || '') }));
 on('GET', '/api/wa/chats', (req, res, u) => send(res, 200, { chats: W.chats(u.id, new URL(req.url, 'http://x').searchParams.get('q') || '') }));
 on('GET', '/api/wa/messages', (req, res, u) => { const jid = new URL(req.url, 'http://x').searchParams.get('jid') || ''; W.markRead(u.id, jid); send(res, 200, { messages: W.messages(u.id, jid) }); });
 // Mail by email + password (any provider)
