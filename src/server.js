@@ -23,6 +23,7 @@ import * as BZ from './biz.js';
 import * as PF from './payfollow.js';
 import * as AIC from './aichat.js';
 import * as MP from './maps.js';
+import * as SW from './socialweb.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT || 8080);
@@ -648,6 +649,21 @@ Reply with only JSON: {"people": [{"name": string, "title": string, "company": s
   let d = null; try { d = JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1)); } catch {}
   fin(d ? clean(d) : { people: [], approach: '', message: '', note: t.replace(/[{}"]/g, '').slice(0, 600) || 'Dioma could not find that. Try naming the company and the role.' });
 });
+
+// Real LinkedIn through the Dioma browser (after the person signs in once and taps Keep me signed in).
+const swq = (req) => new URL(req.url, 'http://x').searchParams;
+const swLim = (u, req) => { if (req && swq(req).get('fresh') === '1') SW.drop(u.id); if (limited('sw:' + u.id, 90, 3600e3)) throw Object.assign(new Error('That is a lot of LinkedIn for one hour. Take a short break so LinkedIn stays happy.'), { status: 429 }); };
+on('GET', '/api/social/web/status', (req, res, u) => send(res, 200, SW.status(u.id, swq(req).get('site') || 'linkedin')));
+on('POST', '/api/social/web/save', async (req, res, u) => { const b = await json(req); send(res, 200, await SW.save(u.id, String(b.site || 'linkedin'))); });
+on('POST', '/api/social/web/forget', async (req, res, u) => { const b = await json(req); SW.forget(u.id, String(b.site || 'linkedin')); send(res, 200, { ok: true }); });
+on('GET', '/api/social/web/li/feed', async (req, res, u) => { swLim(u, req); send(res, 200, await SW.liFeed(u.id, (swq(req).get('q') || '').slice(0, 80))); });
+on('GET', '/api/social/web/li/mine', async (req, res, u) => { swLim(u, req); send(res, 200, await SW.liMine(u.id)); });
+on('GET', '/api/social/web/li/post', async (req, res, u) => { swLim(u); send(res, 200, await SW.liPost(u.id, swq(req).get('urn') || '')); });
+on('GET', '/api/social/web/li/inbox', async (req, res, u) => { swLim(u, req); send(res, 200, await SW.liInbox(u.id)); });
+on('GET', '/api/social/web/li/thread', async (req, res, u) => { swLim(u); send(res, 200, await SW.liThread(u.id, swq(req).get('id') || '')); });
+on('POST', '/api/social/web/li/send', async (req, res, u) => { swLim(u); const b = await json(req); send(res, 200, await SW.liSend(u.id, String(b.id || ''), b.text)); });
+on('POST', '/api/social/web/li/like', async (req, res, u) => { swLim(u); const b = await json(req); send(res, 200, await SW.liLike(u.id, String(b.urn || ''))); });
+on('POST', '/api/social/web/li/comment', async (req, res, u) => { swLim(u); const b = await json(req); send(res, 200, await SW.liComment(u.id, String(b.urn || ''), b.text)); });
 
 // Business
 on('POST', '/api/biz/payfollow', async (req, res, u) => { if (limited('pf:' + u.id, 10, 3600e3)) return fail(res, 429, 'Try again in a little while.'); send(res, 200, await PF.plan(u)); });

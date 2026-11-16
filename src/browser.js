@@ -78,6 +78,19 @@ export async function pageText(uid) {
 }
 export function takeDownload(uid, i) { const s = S.get(uid); return s && s.downloads[i] ? s.downloads[i] : null; }
 
+// The cookies of the browser you are using now (only used when you tap "Keep me signed in" for a social network).
+export async function sessionState(uid) { const s = await sess(uid, false); return s.ctx.storageState(); }
+// Run fn(page) in a separate, invisible browser that starts with saved cookies; returns fn's result and the refreshed cookies.
+const LOCK = new Map();
+export async function withState(key, state, fn) {
+  while (LOCK.get(key)) await LOCK.get(key).catch(() => {});
+  let done; const p = new Promise((r) => { done = r; }); LOCK.set(key, p);
+  const ctx = await (await getBrowser()).newContext({ viewport: { width: W, height: H }, locale: 'en-GB', timezoneId: 'Asia/Dubai', storageState: state,
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36' });
+  try { const page = await ctx.newPage(); page.setDefaultTimeout(20e3); const r = await fn(page); return { r, st: await ctx.storageState().catch(() => null) }; }
+  finally { await ctx.close().catch(() => {}); LOCK.delete(key); done(); }
+}
+
 export async function close(uid) {
   const s = S.get(uid); S.delete(uid); if (!s) return;
   clearTimeout(s.timer); await s.ctx.close().catch(() => {}); // cookies, logins and history are gone

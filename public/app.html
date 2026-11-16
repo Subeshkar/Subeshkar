@@ -426,9 +426,7 @@ async function viewTodo(fresh) {
   const d = await api('GET', '/api/todos' + (scan ? '?scan=1' : '')).catch(() => ({ open: [], done: [] }));
   if (cur() !== 'todo') return;
   const auto = d.open.filter((t) => SRC[t.source] && t.source !== 'ask').length;
-  main.innerHTML = `<div class="row" style="justify-content:flex-end"><button class="btn sm" id="tscan">Check now</button></div>
-    <p class="note" style="margin-top:6px">Dioma adds to-dos by itself from your WhatsApp, mail and calendar${auto ? ` (${auto} open now)` : ''}. Add your own below. Delete one and it never comes back.</p>
-    <form id="add" style="margin-top:18px;display:grid;grid-template-columns:1fr auto;gap:8px"><input class="field" id="tt" placeholder="Add a to-do" maxlength="300" style="grid-column:1/-1"><input class="field" id="td" type="date" aria-label="Due date (optional)" style="min-width:0"><button class="btn pri" style="height:48px">Add</button></form>
+  main.innerHTML = `<form id="add" style="display:grid;grid-template-columns:1fr auto auto;gap:8px"><input class="field" id="tt" placeholder="Add a to-do" maxlength="300" style="grid-column:1/-1"><input class="field" id="td" type="date" aria-label="Due date (optional)" style="min-width:0"><button class="btn pri" style="height:48px">Add</button><button type="button" class="btn" id="tscan" style="height:48px" title="Check WhatsApp, mail and calendar for new to-dos">↻</button></form>
     <section class="sec"><h2>Open · ${d.open.length}</h2><div class="list" id="op">${todoRows(d.open) || '<div class="empty">All clear.</div>'}</div></section>
     ${d.done.length ? `<section class="sec"><h2>Done this week</h2><div class="list" id="dn">${todoRows(d.done, true)}</div></section>` : ''}`;
   $('#add').addEventListener('submit', async (e) => { e.preventDefault(); const text = $('#tt').value.trim(); if (!text) return; await api('POST', '/api/todos', { text, due: $('#td').value || null }).catch((x) => toast(x.message)); viewTodo(); });
@@ -773,7 +771,7 @@ async function viewBrowser() {
 }
 function drawBr(w) {
   const accs = w.accounts || [];
-  $('#brv').innerHTML = `<div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:8px"><button class="btn sm" data-a="back">← Back</button><button class="btn sm" data-a="reload">Reload</button><button class="btn sm" data-home>🔍 Google</button><span class="note grow" id="brt" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(BRS.title || BRS.url || '')}</span><button class="btn sm bad" id="brx">Close and wipe</button></div>
+  $('#brv').innerHTML = `<div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:8px"><button class="btn sm" data-a="back">← Back</button><button class="btn sm" data-a="reload">Reload</button><button class="btn sm" data-home>🔍 Google</button><button class="btn sm pri" id="brli" hidden>✓ Signed in, use LinkedIn in Dioma</button><span class="note grow" id="brt" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(BRS.title || BRS.url || '')}</span><button class="btn sm bad" id="brx">Close and wipe</button></div>
     <div style="position:relative;border:1px solid var(--line2);border-radius:12px;overflow:hidden;background:#fff"><img id="bri" alt="Your private browser" style="display:block;width:100%;cursor:pointer"></div>
     <form class="row" id="brk" style="gap:6px;margin-top:8px"><input class="field grow" id="brin" type="password" autocomplete="off" placeholder="Tap a box on the page, then type here"><button type="button" class="btn sm" id="brey" title="Show or hide">Show</button><button class="btn pri" style="height:48px">Type</button></form>
     <div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap"><button class="btn sm" data-k="Enter">Enter</button><button class="btn sm" data-k="Tab">Tab</button><button class="btn sm" data-k="Backspace">Delete</button><button class="btn sm" data-s="-600">Scroll up</button><button class="btn sm" data-s="600">Scroll down</button></div>
@@ -783,7 +781,9 @@ function drawBr(w) {
   const refresh = () => { if (cur() !== 'browser' || !$('#bri')) return brStop(); img.src = '/api/browser/shot?t=' + Date.now(); };
   img.onerror = () => { brStop(); if ($('#brv')) $('#brv').innerHTML = '<div class="empty">The browser was closed (it closes itself after 10 quiet minutes). Pick your bank again.</div>'; };
   refresh(); brStop(); BRT = setInterval(refresh, 900);
-  const act = async (a) => { try { BRS = await api('POST', '/api/browser/act', a); if ($('#brt')) $('#brt').textContent = BRS.title || BRS.url || ''; drawDl(); refresh(); } catch (x) { toast(x.message); } };
+  const liBtn = () => { const b = $('#brli'); if (b) b.hidden = !/linkedin\.com/.test((BRS && BRS.url) || ''); };
+  liBtn(); $('#brli').onclick = (e) => busyB(e.target, 'Checking…', async () => { await api('POST', '/api/social/web/save', { site: 'linkedin' }); toast('LinkedIn is on in Dioma'); SONET = 'linkedin'; SOT = 'messages'; location.hash = '#social'; });
+  const act = async (a) => { try { BRS = await api('POST', '/api/browser/act', a); liBtn(); if ($('#brt')) $('#brt').textContent = BRS.title || BRS.url || ''; drawDl(); refresh(); } catch (x) { toast(x.message); } };
   img.onclick = (e) => { const r = img.getBoundingClientRect(); act({ type: 'click', x: ((e.clientX - r.left) / r.width) * BRS.width, y: ((e.clientY - r.top) / r.height) * BRS.height }); };
   $('#brv').querySelectorAll('[data-a]').forEach((b) => (b.onclick = () => act({ type: b.dataset.a })));
   $('#brv').querySelector('[data-home]').onclick = async () => { try { BRS = await api('POST', '/api/browser/open', { url: 'https://www.google.com/?hl=en', mobile: window.innerWidth < 700 }); if ($('#brt')) $('#brt').textContent = BRS.title || ''; refresh(); } catch (x) { toast(x.message); } };
@@ -919,8 +919,88 @@ async function viewSocial() {
   if (SOT === 'comments' || SOT === 'posts') SOD = await api('GET', '/api/social/feed').catch((x) => ({ posts: [], errors: [x.message] }));
   drawSo(on);
 }
+// ---------- Real LinkedIn (through the Dioma browser) ----------
+let LIQ = '';
+const LITAGS = ['logistics', 'uaebusiness', 'coldchain', 'supplychain', 'leadership', 'startups', 'ai'];
+async function drawLiWeb(v, fresh) {
+  v.onclick = null; v.innerHTML = '<div class="empty">Opening LinkedIn…</div>';
+  const st = await api('GET', '/api/social/web/status?site=linkedin').catch(() => ({ signedIn: false, login: 'https://www.linkedin.com/login' }));
+  if (SONET !== 'linkedin' || !$('#sov')) return;
+  if (!st.signedIn) return liSignIn(v, st);
+  if (SOT === 'messages') return liInboxView(v, fresh);
+  return liFeedView(v, SOT === 'trending' ? LIQ : null, fresh);
+}
+function liSignIn(v, st, msg) {
+  v.innerHTML = `<div class="card stack"><b style="font-weight:600">See your real LinkedIn here</b>${msg ? `<p class="err">${esc(msg)}</p>` : ''}
+    <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn pri" data-lsi>1 · Sign in to LinkedIn</button><button class="btn" data-lsv>2 · I'm signed in</button></div>
+    <p class="note">You type your own password. Dioma keeps only the LinkedIn sign-in, and reads it only when you open this tab.</p></div>`;
+  v.onclick = async (e) => {
+    if (e.target.closest('[data-lsi]')) { BRPEND = st.login || 'https://www.linkedin.com/login'; location.hash = '#browser'; return; }
+    const b = e.target.closest('[data-lsv]'); if (!b) return;
+    busyB(b, 'Checking…', async () => { try { await api('POST', '/api/social/web/save', { site: 'linkedin' }); toast('LinkedIn is on'); drawLiWeb(v); } catch (x) { liSignIn(v, st, x.message); } });
+  };
+}
+const liErr = (v, x) => { if (/sign in/i.test(x.message)) return liSignIn(v, { login: 'https://www.linkedin.com/login' }, x.message); v.innerHTML = `<p class="err">${esc(x.message)}</p><button class="btn sm" data-lre>↻ Try again</button>`; v.onclick = (e) => { if (e.target.closest('[data-lre]')) drawLiWeb(v, true); }; };
+const liUrl = (urn) => 'https://www.linkedin.com/feed/update/' + encodeURIComponent(urn) + '/';
+async function liFeedView(v, q, fresh) {
+  const mine = q === null;
+  const head = mine ? `<div class="row" style="justify-content:space-between;margin-bottom:8px"><b style="font-weight:600">Your posts</b><button class="btn sm" data-lrf>↻</button></div>`
+    : `<div class="row" style="gap:6px;flex-wrap:nowrap;overflow-x:auto;margin-bottom:10px;padding-bottom:4px"><button class="btn sm ${!q ? 'pri' : ''}" style="flex:none" data-lq="">My feed</button>${LITAGS.map((t) => `<button class="btn sm ${q === t ? 'pri' : ''}" style="flex:none" data-lq="${t}">#${t}</button>`).join('')}<button class="btn sm" style="flex:none" data-lrf>↻</button></div>`;
+  v.innerHTML = head + '<div class="empty">Reading your LinkedIn… (about 15 seconds)</div>';
+  bindLi(v, []);
+  let d; try { d = await api('GET', `/api/social/web/li/${mine ? 'mine' : 'feed'}?q=${encodeURIComponent(q || '')}${fresh ? '&fresh=1' : ''}`); } catch (x) { if ($('#sov') === v) liErr(v, x); return; }
+  if (!$('#sov') || SONET !== 'linkedin') return;
+  const P = d.posts || [];
+  v.innerHTML = head + (P.length ? `<div class="list">${P.map((p, i) => `<div class="item" style="flex-direction:column;align-items:stretch;gap:8px" data-pi="${i}">
+    <div style="min-width:0"><b style="font-weight:600">${esc(p.author || 'LinkedIn')}</b><div class="s" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc([p.headline, p.when].filter(Boolean).join(' · '))}</div></div>
+    ${p.text ? `<div class="litx" data-lx style="white-space:pre-wrap;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer">${esc(p.text)}</div>` : ''}
+    ${p.image ? `<img src="${esc(p.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" style="width:100%;max-height:360px;object-fit:cover;border-radius:12px">` : ''}
+    ${p.likes || p.comments ? `<div class="note">${p.likes ? '👍 ' + esc(p.likes) : ''}${p.likes && p.comments ? ' · ' : ''}${p.comments ? '💬 ' + esc(p.comments) : ''}</div>` : ''}
+    <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm ${p.liked ? 'pri' : ''}" data-lk>${p.liked ? '👍 Liked' : '👍 Like'}</button><button class="btn sm" data-lc>Comment</button><button class="btn sm" data-lv>Comments</button><a class="btn sm" href="${liUrl(p.urn)}" target="_blank" rel="noopener">Open ↗</a></div><div class="lic"></div></div>`).join('')}</div>` : '<div class="empty">No posts found.</div>');
+  bindLi(v, P);
+}
+function bindLi(v, P) {
+  v.onclick = async (e) => {
+    const lq = e.target.closest('[data-lq]'); if (lq) { LIQ = lq.dataset.lq; return liFeedView(v, LIQ); }
+    if (e.target.closest('[data-lrf]')) return drawLiWeb(v, true);
+    const it = e.target.closest('[data-pi]'); if (!it) return; const p = P[+it.dataset.pi], box = it.querySelector('.lic');
+    if (e.target.closest('[data-lx]')) { const x = e.target.closest('[data-lx]'); x.style.webkitLineClamp = x.style.webkitLineClamp === 'unset' ? '5' : 'unset'; return; }
+    const lk = e.target.closest('[data-lk]'); if (lk) { if (p.liked) return; await busyB(lk, 'Liking…', async () => { await api('POST', '/api/social/web/li/like', { urn: p.urn }); p.liked = true; lk.classList.add('pri'); toast('Liked on LinkedIn'); }); if (p.liked) lk.textContent = '👍 Liked'; return; }
+    const lc = e.target.closest('[data-lc]'), lv = e.target.closest('[data-lv]');
+    if (lc || lv) {
+      if (box.dataset.open === (lc ? 'c' : 'v')) { box.innerHTML = ''; box.dataset.open = ''; return; } box.dataset.open = lc ? 'c' : 'v';
+      box.innerHTML = (lv ? '<div class="lcl note">Loading comments…</div>' : '') + '<div class="lcc card"></div>';
+      composer(box.querySelector('.lcc'), { aiLabel: 'comment', sendLabel: 'Post comment', placeholder: 'Your comment…', ctx: `A LinkedIn post by ${p.author} (${p.headline || ''}):\n"${String(p.text || '').slice(0, 2500)}"`, ai: 'Write a thoughtful LinkedIn comment from me (1-3 sentences): add my angle from my work, no hashtags, sound human.',
+        send: async (t) => { await api('POST', '/api/social/web/li/comment', { urn: p.urn, text: t }); toast('Comment posted on LinkedIn'); } });
+      if (lv) { try { const d = await api('GET', '/api/social/web/li/post?urn=' + encodeURIComponent(p.urn)); const l = box.querySelector('.lcl'); if (l) l.outerHTML = d.comments.length ? `<div class="stack" style="gap:6px;margin-bottom:8px">${d.comments.map((c) => `<div class="card" style="padding:10px${c.reply ? ';margin-left:18px' : ''}"><b style="font-weight:600">${esc(c.who)}</b> <span class="note">${esc(c.when)}</span><div style="white-space:pre-wrap;margin-top:4px">${esc(c.text)}</div></div>`).join('')}</div>` : '<div class="note" style="margin-bottom:8px">No comments yet.</div>'; } catch (x) { const l = box.querySelector('.lcl'); if (l) l.textContent = x.message; } }
+    }
+  };
+}
+async function liInboxView(v, fresh) {
+  const head = `<div class="row" style="justify-content:space-between;margin-bottom:8px"><b style="font-weight:600">LinkedIn messages</b><button class="btn sm" data-lrf>↻</button></div>`;
+  v.innerHTML = head + '<div class="empty">Reading your LinkedIn messages… (about 15 seconds)</div>';
+  v.onclick = (e) => { if (e.target.closest('[data-lrf]')) drawLiWeb(v, true); };
+  let d; try { d = await api('GET', '/api/social/web/li/inbox' + (fresh ? '?fresh=1' : '')); } catch (x) { if ($('#sov') === v) liErr(v, x); return; }
+  if (!$('#sov') || SONET !== 'linkedin' || SOT !== 'messages') return;
+  const T = d.threads || [];
+  v.innerHTML = head + `<div class="list" id="lil">${T.map((t, i) => `<div class="item" data-ti2="${i}" style="cursor:pointer"><span class="ficon mono">${esc((t.name || '?').replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase() || '#')}</span><div class="grow" style="min-width:0"><div class="t" style="${t.unread ? 'font-weight:700' : ''}">${esc(t.name)}</div><div class="s" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.snippet)}</div></div><div style="text-align:right;flex:none"><div class="when">${esc(t.when)}</div>${t.unread ? '<b class="wun">•</b>' : ''}</div></div><div class="mexp card stack" id="lix${i}" hidden></div>`).join('') || '<div class="empty">No messages.</div>'}</div>`;
+  v.onclick = async (e) => {
+    if (e.target.closest('[data-lrf]')) return drawLiWeb(v, true);
+    const r = e.target.closest('[data-ti2]'); if (!r) return; const i = +r.dataset.ti2, t = T[i], box = $('#lix' + i);
+    if (!box.hidden) { box.hidden = true; return; } v.querySelectorAll('[id^=lix]').forEach((x) => { x.hidden = true; }); box.hidden = false;
+    box.innerHTML = '<div class="note">Opening the chat…</div>';
+    const load = async () => { const m = await api('GET', '/api/social/web/li/thread?id=' + encodeURIComponent(t.id)); return m.messages || []; };
+    let M; try { M = await load(); } catch (x) { box.innerHTML = `<p class="err">${esc(x.message)}</p>`; return; }
+    const bubbles = (M) => M.map((m) => `<div class="wb ${m.me ? 'me' : 'them'}" data-spkbox><div class="wn">${m.me ? 'You' : esc(m.from || t.name)}</div><span class="spkt" style="white-space:pre-wrap">${esc(m.text)}</span><div class="wt">${SPK}${esc(m.when || '')}</div></div>`).join('') || '<div class="note">No messages yet.</div>';
+    box.innerHTML = `<div class="wexm wmsgs">${bubbles(M)}</div><div class="lmc"></div><a class="btn sm" href="https://www.linkedin.com/messaging/thread/${encodeURIComponent(t.id)}/" target="_blank" rel="noopener" style="align-self:flex-start">Open on LinkedIn ↗</a>`;
+    const ml = box.querySelector('.wexm'); ml.scrollTop = ml.scrollHeight;
+    const lta = composer(box.querySelector('.lmc'), { placeholder: 'Your reply…', ctx: `LinkedIn chat with ${t.name}. Last messages:\n${M.slice(-8).map((m) => (m.me ? 'Me' : m.from || t.name) + ': ' + m.text).join('\n')}`, ai: 'Write my short, natural reply to the last message.',
+      send: async (txt) => { await api('POST', '/api/social/web/li/send', { id: t.id, text: txt }); M.push({ me: true, text: txt, when: 'now' }); ml.innerHTML = bubbles(M); ml.scrollTop = ml.scrollHeight; setTimeout(() => { lta.value = ''; const sb = box.querySelector('[data-cx=send]'); if (sb) { sb.disabled = false; sb.dataset.sure = ''; sb.textContent = 'Send'; } }, 1200); } });
+  };
+}
 async function drawSo(on) {
   const v = $('#sov'); if (!v) return;
+  if (SONET === 'linkedin' && ['trending', 'messages', 'comments', 'posts'].includes(SOT)) return drawLiWeb(v);
   if (SOT === 'trending') return drawTrend();
   if (SOT === 'search') return drawSearch();
   if (SONET !== 'all' && SOT !== 'weekly' && SOT !== 'create' && !appOn(SONET)) { v.innerHTML = SONET === 'snapchat' ? '<div class="empty">Snapchat has no connection for apps. Dioma writes your posts (Write this week\'s posts) and you post them from the Snapchat app.</div>' : `<p class="note">${esc(NETN[SONET] || SONET)} is not connected yet.</p>${appList('social', 'social', ((APPS && APPS.catalog.social) || []).map(([k]) => k).filter((k) => k !== SONET))}`; return; }
@@ -1149,7 +1229,7 @@ document.addEventListener('click', (e) => { const b = e.target.closest('[data-co
 // ---------- One composer for every reply box (like WhatsApp): reply box, Tell AI what to say + Write, AI reply, Fix, 😊, Send ----------
 // opt: { ctx: 'what this reply is about', ai: 'instruction for AI reply', send: async (text) => {}, sendLabel, copyOnly }
 function composer(box, opt) {
-  box.classList.add('composer');
+  box.classList.add('cmpz');
   box.innerHTML = `<textarea class="field" rows="3" placeholder="${esc(opt.placeholder || 'Write here…')}"></textarea>
     <div class="row" style="gap:6px;margin-top:6px"><input class="field grow" data-cins placeholder="✍️ Tell AI what to say" style="min-height:40px"><button type="button" class="btn sm" data-cx="write">Write</button></div>
     <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px"><button type="button" class="btn sm" data-cx="ai">AI ${esc(opt.aiLabel || 'reply')}</button><button type="button" class="btn sm" data-cx="fix">✨ Fix</button><button type="button" class="btn sm" data-emo>😊</button>${opt.copyOnly ? '' : `<button type="button" class="btn sm pri" data-cx="send">${esc(opt.sendLabel || 'Send')}</button>`}<button type="button" class="btn sm" data-cx="copy">Copy</button>${opt.extra || ''}</div>`;
