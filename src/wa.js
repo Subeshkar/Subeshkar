@@ -224,6 +224,11 @@ function selfCheck(uid, sock, m) {
     SELF(uid, jid, text);
   } catch {}
 }
+// A note from Dioma into your own "Message yourself" chat (alerts, reminders).
+export async function sendToMe(uid, text) {
+  const st = S.get(uid); if (!st || st.status !== 'open' || !st.sock?.user?.id) return false;
+  await sendSelf(uid, bare(st.sock.user.id), text); return true;
+}
 // Reply into your own chat (marked so Dioma never answers itself).
 export async function sendSelf(uid, jid, text) {
   const st = S.get(uid); if (!st || st.status !== 'open') return;
