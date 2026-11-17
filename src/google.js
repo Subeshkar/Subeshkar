@@ -102,6 +102,7 @@ export async function snapshot(uid, tz) {
   const events = (cal?.items || []).filter((e) => e.status !== 'cancelled').map((e) => ({
     id: e.id, title: e.summary || '(no title)', start: e.start?.dateTime || e.start?.date, end: e.end?.dateTime || e.end?.date,
     allDay: !e.start?.dateTime, where: e.location || '', link: e.hangoutLink || e.conferenceData?.entryPoints?.find((p) => p.entryPointType === 'video')?.uri || '',
+    who: (e.attendees || []).filter((a) => !a.self).map((a) => a.displayName || a.email).filter(Boolean).slice(0, 6).join(', '), emails: (e.attendees || []).filter((a) => !a.self && a.email).map((a) => a.email).slice(0, 20),
   }));
   const ids = (list?.messages || []).map((m) => m.id);
   const mail = (await Promise.all(ids.map((id) => gget(uid, `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`).catch(() => null))))

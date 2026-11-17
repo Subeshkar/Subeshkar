@@ -141,7 +141,7 @@ export async function events(uid) {
           const where = typeof e.location === 'string' ? e.location : e.location?.displayName || e.location?.address?.street || '';
           const link = e.hangoutLink || e.conferenceData?.entryPoints?.find?.((p) => p.entryPointType === 'video')?.uri || e.onlineMeeting?.joinUrl || '';
           const who = (e.attendees || []).filter((a) => !a.self).map((a) => a.displayName || a.email || a.emailAddress?.name).filter(Boolean).slice(0, 6).join(', ');
-          if (st && inWin(st)) ev.push({ id: String(e.id || e.iCalUId || st), title: e.summary || e.subject || '(no title)', start: st, allDay: !!e.start?.date && !e.start?.dateTime || !!e.isAllDay, where, link, who, src: slug === 'outlook' || (e.attendees || []).length > 1 ? 'business' : 'personal' });
+          if (st && inWin(st)) ev.push({ id: String(e.id || e.iCalUId || st), title: e.summary || e.subject || '(no title)', start: st, allDay: !!e.start?.date && !e.start?.dateTime || !!e.isAllDay, where, link, who, emails: (e.attendees || []).filter((a) => !a.self).map((a) => a.email || a.emailAddress?.address).filter((x) => /@/.test(x || '')).slice(0, 20), src: slug === 'outlook' || (e.attendees || []).length > 1 ? 'business' : 'personal' });
         }
         ERR.delete(uid + slug);
       } catch (x) { ERR.set(uid + slug, x.message); console.error('events ' + slug, x.message); }

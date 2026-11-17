@@ -2039,12 +2039,12 @@ function drawSheet() {
 }
 // ---------- Meetings: prepare, record, notes ----------
 function meetPanel(x, e) {
-  x.innerHTML = `${e.custom ? '<input class="field" data-mt placeholder="Meeting name, e.g. Neo with Abhishek">' : ''}<div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm" data-mp><svg viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px;margin-right:6px"><path d="M9 4h6v3H9zM7 5H5v16h14V5h-2M8 12h8M8 16h5"/></svg>Prepare me</button><button class="btn sm pri" data-mr><svg viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px;margin-right:6px"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>Record this meeting</button></div><div class="mpb"></div>`;
+  x.innerHTML = `${e.custom ? '<input class="field" data-mt placeholder="Meeting name, e.g. Neo with Abhishek">' : ''}<div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm" data-mp><svg viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px;margin-right:6px"><path d="M9 4h6v3H9zM7 5H5v16h14V5h-2M8 12h8M8 16h5"/></svg>Prepare me</button>${e.link ? '<button class="btn sm pri" data-mr data-on="1"><svg viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px;margin-right:6px"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>Record online call</button><button class="btn sm" data-mr><svg viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px;margin-right:6px"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>Record in person</button>' : '<button class="btn sm pri" data-mr><svg viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px;margin-right:6px"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>Record in person</button><button class="btn sm" data-mr data-on="1"><svg viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px;margin-right:6px"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>Record online call</button>'}</div><div class="mpb"></div>`;
   x.onclick = async (ev) => {
     ev.stopPropagation();
     const title = () => (e.custom ? x.querySelector('[data-mt]').value.trim() : e.title) || '';
     const pb = ev.target.closest('[data-mp]'); if (pb) { if (!title()) return toast('Name the meeting first.'); const o = x.querySelector('.mpb'); o.innerHTML = '<div class="note">Dioma is reading your mail, WhatsApp and Zoho for this meeting…</div>'; try { const r = await api('POST', '/api/meet/prep', { title: title(), start: e.start || '', where: e.where || '', who: e.who || '' }); o.innerHTML = `<div class="card" data-spkbox style="margin-top:8px"><div class="md spkt">${md(r.brief)}</div><div style="margin-top:6px">${SPK}</div></div>`; } catch (y) { o.innerHTML = `<p class="err">${esc(y.message)}</p>`; } return; }
-    if (ev.target.closest('[data-mr]')) { if (!title()) return toast('Name the meeting first.'); meetRecord(title()); }
+    const mr = ev.target.closest('[data-mr]'); if (mr) { if (!title()) return toast('Name the meeting first.'); meetRecord(title(), { online: !!mr.dataset.on, people: e.emails || [], link: e.link || '' }); }
   };
 }
 let MREC = null;
@@ -2053,15 +2053,31 @@ function recBar() {
   if (!b) { document.body.insertAdjacentHTML('beforeend', '<div id="recbar" style="position:fixed;left:0;right:0;top:0;z-index:60;background:#c0392b;color:#fff;padding:calc(8px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px));display:flex;gap:10px;align-items:center"><span id="rect" class="grow" style="min-width:0;font-weight:600"></span><button class="btn sm" id="recstop" style="background:#fff;color:#000;border-color:#fff">Stop & write notes</button></div>'); b = $('#recbar');
     $('#recstop').onclick = () => { if (!MREC || MREC.stop) return; if ($('#recstop').dataset.sure !== '1') { $('#recstop').dataset.sure = '1'; $('#recstop').textContent = 'Tap again to stop'; setTimeout(() => { const s = $('#recstop'); if (s) { s.dataset.sure = ''; s.textContent = 'Stop & write notes'; } }, 4000); return; } MREC.stop = true; $('#recstop').textContent = 'Finishing…'; $('#recstop').disabled = true; clearTimeout(MREC.cut); try { MREC.mr.state === 'recording' ? MREC.mr.stop() : meetFinish(); } catch { meetFinish(); } }; }
   const t = Math.floor((Date.now() - MREC.t0) / 1000);
-  $('#rect').textContent = `● ${MREC.title} · ${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')} · ${MREC.up} saved${MREC.fail ? ' · ' + MREC.fail + ' retrying' : ''}`;
+  $('#rect').textContent = `● ${MREC.title} · ${MREC.how || ''} · ${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')} · ${MREC.up} saved${MREC.fail ? ' · ' + MREC.fail + ' retrying' : ''}`;
 }
-async function meetRecord(title) {
+// Online calls: on a computer Dioma records the call's sound (share the meeting tab with "Share tab audio") plus your mic.
+// On a phone, browsers cannot hear other apps, so Dioma records through the mic: put the call on speaker.
+async function meetRecord(title, opt = {}) {
   if (MREC) return toast('Already recording.');
   if (!window.MediaRecorder || !navigator.mediaDevices?.getUserMedia) return toast('This browser cannot record. Use Safari or Chrome.');
-  let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); } catch { return toast('Allow the microphone for Dioma, then try again.'); }
-  let id; try { id = (await api('POST', '/api/meet/start', { title })).id; } catch (x) { stream.getTracks().forEach((t) => t.stop()); return toast(x.message); }
+  let mic; try { mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: !opt.online, noiseSuppression: true, autoGainControl: true } }); } catch { return toast('Allow the microphone for Dioma, then try again.'); }
+  let stream = mic, extra = [], how = opt.online ? 'Online' : 'In person';
+  const phone = matchMedia('(pointer:coarse)').matches || !navigator.mediaDevices.getDisplayMedia;
+  if (opt.online && !phone) {
+    toast('Pick the meeting tab or window and turn on "Share tab audio".');
+    try {
+      const scr = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: { echoCancellation: false, noiseSuppression: false }, systemAudio: 'include' });
+      extra = scr.getTracks();
+      if (scr.getAudioTracks().length) {
+        const ac = new (window.AudioContext || window.webkitAudioContext)(), dst = ac.createMediaStreamDestination();
+        ac.createMediaStreamSource(mic).connect(dst); ac.createMediaStreamSource(new MediaStream(scr.getAudioTracks())).connect(dst);
+        stream = dst.stream; extra.push({ stop: () => ac.close() }); how = 'Online call + mic';
+      } else { toast('No call sound was shared, so Dioma records your mic. Put the call on speaker.'); how = 'Online (mic)'; }
+    } catch { how = 'Online (mic)'; toast('Recording through the mic. Put the call on speaker.'); }
+  } else if (opt.online) toast('On a phone, put the call on speaker. Dioma records through the mic.');
+  let id; try { id = (await api('POST', '/api/meet/start', { title, people: opt.people || [], online: !!opt.online })).id; } catch (x) { mic.getTracks().forEach((t) => t.stop()); extra.forEach((t) => t.stop()); return toast(x.message); }
   const mime = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm', 'audio/aac'].find((t) => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) || '';
-  MREC = { id, title, stream, n: 0, up: 0, fail: 0, t0: Date.now(), q: Promise.resolve(), stop: false, wl: null };
+  MREC = { id, title, stream, mic, extra, how, n: 0, up: 0, fail: 0, t0: Date.now(), q: Promise.resolve(), stop: false, wl: null };
   try { MREC.wl = await navigator.wakeLock.request('screen'); } catch {}
   MREC.tick = setInterval(recBar, 1000); recBar();
   toast('Recording. Keep Dioma open and the screen on.');
@@ -2078,24 +2094,26 @@ async function meetRecord(title) {
 }
 async function meetFinish() {
   const R = MREC; if (!R || R.done) return; R.done = true;
-  await R.q; R.stream.getTracks().forEach((t) => t.stop()); try { R.wl && R.wl.release(); } catch {} clearInterval(R.tick);
+  await R.q; R.stream.getTracks().forEach((t) => t.stop()); (R.mic ? R.mic.getTracks() : []).forEach((t) => t.stop()); (R.extra || []).forEach((t) => { try { t.stop(); } catch {} }); try { R.wl && R.wl.release(); } catch {} clearInterval(R.tick);
   $('#rect') && ($('#rect').textContent = '● Writing your notes…');
-  try { const r = await api('POST', '/api/meet/finish', { id: R.id }); MREC = null; recBar(); toast('Meeting notes ready'); location.hash = '#cal'; setTimeout(() => meetShow(r.id, r.title, r.notes), 400); }
+  try { const r = await api('POST', '/api/meet/finish', { id: R.id }); MREC = null; recBar(); toast('Meeting notes ready'); location.hash = '#cal'; setTimeout(() => meetShow(r.id, r.title, r.notes, '', r.people), 400); }
   catch (x) { MREC = null; recBar(); toast(x.message); }
 }
 async function meetList() {
   const l = $('#mtl'); if (!l) return;
   const d = await api('GET', '/api/meet/list').catch(() => ({ meetings: [] })); if (!$('#mtl')) return;
   l.innerHTML = d.meetings.length ? d.meetings.map((m) => `<div class="item" data-mid2="${m.id}" style="cursor:pointer"><span class="when">${ago(m.started)}</span><div class="grow"><div class="t">${esc(m.title)}</div></div><span class="soon">${m.done ? 'Notes' : 'No notes'}</span></div>`).join('') : '<div class="empty">Record a meeting and its notes and to-dos show here.</div>';
-  l.onclick = async (e) => { const r = e.target.closest('[data-mid2]'); if (!r) return; const m = await api('GET', '/api/meet?id=' + r.dataset.mid2).catch((x) => (toast(x.message), null)); if (m) meetShow(m.id, m.title, m.notes, m.transcript); };
+  l.onclick = async (e) => { const r = e.target.closest('[data-mid2]'); if (!r) return; const m = await api('GET', '/api/meet?id=' + r.dataset.mid2).catch((x) => (toast(x.message), null)); if (m) meetShow(m.id, m.title, m.notes, m.transcript, m.people); };
 }
-function meetShow(id, title, n, transcript) {
+function meetShow(id, title, n, transcript, people = []) {
   const v = $('#mtv'); if (!v) return; if (!n) { v.innerHTML = '<p class="note" style="margin-top:8px">This meeting has no notes (nothing was heard).</p>'; return; }
   const li = (a) => (a || []).length ? '<ul>' + a.map((x) => `<li>${esc(typeof x === 'string' ? x : x.text + (x.owner && !/^me$/i.test(x.owner) ? ' (' + x.owner + ')' : '') + (x.due ? ', by ' + x.due : ''))}</li>`).join('') + '</ul>' : '<p class="note">None.</p>';
-  v.innerHTML = `<div class="card stack" style="margin-top:10px" data-spkbox><div class="row" style="justify-content:space-between"><b style="font-weight:600">${esc(title)}</b>${SPK}</div><div class="spkt"><p>${esc(n.summary || '')}</p><b>Decisions</b>${li(n.decisions)}<b>Action items</b>${li(n.actions)}${(n.numbers || []).length ? '<b>Numbers and dates</b>' + li(n.numbers) : ''}</div>${n.added ? `<p class="note">Added ${n.added} to-do${n.added > 1 ? 's' : ''} for you.</p>` : ''}<div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm" data-fe><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v12H3zM3 7l9 6 9-6"/></svg>Follow-up email</button>${transcript ? '<button class="btn sm" data-tr>Transcript</button>' : ''}<button class="btn sm" data-cp>Copy notes</button></div><div class="mfe"></div><div class="mtr" hidden style="white-space:pre-wrap;max-height:300px;overflow:auto" class="note"></div></div>`;
+  v.innerHTML = `<div class="card stack" style="margin-top:10px" data-spkbox><div class="row" style="justify-content:space-between"><b style="font-weight:600">${esc(title)}</b>${SPK}</div><div class="spkt"><p>${esc(n.summary || '')}</p><b>Decisions</b>${li(n.decisions)}<b>Action items</b>${li(n.actions)}${(n.numbers || []).length ? '<b>Numbers and dates</b>' + li(n.numbers) : ''}</div>${n.added ? `<p class="note">Added ${n.added} to-do${n.added > 1 ? 's' : ''} for you.</p>` : ''}<div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm pri" data-fe><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v12H3zM3 7l9 6 9-6"/></svg>${people.length ? 'Send notes to ' + people.length + ' attendee' + (people.length > 1 ? 's' : '') : 'Email the notes'}</button>${transcript ? '<button class="btn sm" data-tr>Transcript</button>' : ''}<button class="btn sm" data-cp>Copy notes</button></div><div class="mfe"></div><div class="mtr" hidden style="white-space:pre-wrap;max-height:300px;overflow:auto" class="note"></div></div>`;
   v.scrollIntoView({ behavior: 'smooth', block: 'start' });
   v.onclick = (e) => {
-    if (e.target.closest('[data-fe]')) { const f = n.followup_email || {}; sendCard(v.querySelector('.mfe'), { card: 'email', acct: '', to: '', cc: '', subject: f.subject || 'Follow-up: ' + title, body: f.body || '' }); }
+    if (e.target.closest('[data-fe]')) { const f = n.followup_email || {}, L = (h, a) => (a || []).length ? '\n\n' + h + '\n' + a.map((x) => '- ' + (typeof x === 'string' ? x : x.text + (x.owner ? ' (' + x.owner + ')' : '') + (x.due ? ', by ' + x.due : ''))).join('\n') : '';
+      const body = (f.body || 'Thanks for your time today. Here are the notes from our meeting.') + L('Decisions', n.decisions) + L('Action items', n.actions);
+      sendCard(v.querySelector('.mfe'), { card: 'email', acct: '', to: people.join(', '), cc: '', subject: f.subject || 'Notes: ' + title, body }); }
     if (e.target.closest('[data-tr]')) { const t = v.querySelector('.mtr'); t.hidden = !t.hidden; t.textContent = transcript; }
     if (e.target.closest('[data-cp]')) copyT(v.querySelector('.spkt').innerText);
   };
@@ -2123,11 +2141,11 @@ async function viewCal() {
     const draw = () => {
       const f = (l) => l.filter((e) => CALF === 'all' || e.src === CALF);
       $('#cst').innerHTML = [[today.length, 'Today', 'all'], [today.filter((e) => e.src === 'business').length, 'Business', 'business'], [today.filter((e) => e.src === 'personal').length, 'Personal', 'personal'], [nxt ? hm(nxt.start) : '—', 'Next meeting', 'next'], [tomo.length, 'Tomorrow', 'tomo'], [(t.open || []).length, 'Promises', 'todo']].map(([n, l, k]) => `<button type="button" class="wst ${CALF === k ? 'hi' : ''}" data-st="${k}"><b>${n}</b><span>${l}</span></button>`).join('');
-      const EVL = []; const row = (e) => `<div class="item" data-ei="${EVL.push(e) - 1}" style="cursor:pointer;border-left:4px solid ${e.src === 'business' ? 'var(--acc)' : '#7FD8C4'};padding-left:10px"><span class="when">${hm(e.start, e.allDay)}</span><div class="grow"><div class="t">${esc(e.title)}</div>${e.where ? `<div class="s">${esc(e.where)}</div>` : ''}</div><span class="srcb" style="font-size:10px;${e.src === 'business' ? '' : 'color:#7FD8C4;border-color:#7FD8C4'}">${e.src === 'business' ? 'BUSINESS' : 'PERSONAL'}</span>${e.link ? `<a class="pill" href="${esc(e.link)}" target="_blank" rel="noopener">Join</a>` : ''}</div><div class="mexp card stack" data-ex="${EVL.length - 1}" hidden></div>`;
+      const EVL = []; const row = (e) => `<div class="item" data-ei="${EVL.push(e) - 1}" style="cursor:pointer;border-left:4px solid ${e.src === 'business' ? 'var(--acc)' : '#7FD8C4'};padding-left:10px"><span class="when">${hm(e.start, e.allDay)}</span><div class="grow"><div class="t">${esc(e.title)}</div>${e.where ? `<div class="s">${esc(e.where)}</div>` : ''}</div><span class="srcb" style="font-size:10px;${e.src === 'business' ? '' : 'color:#7FD8C4;border-color:#7FD8C4'}">${e.src === 'business' ? 'BUSINESS' : 'PERSONAL'}</span>${e.link ? `<a class="pill" href="${esc(e.link)}" target="_blank" rel="noopener">Join</a>` : ''}${e.allDay ? '' : `<button type="button" class="pill" data-qr="${EVL.length - 1}" title="Record this meeting" aria-label="Record this meeting" style="color:#ff6b57;border-color:#ff6b57;background:transparent;opacity:1"><svg viewBox="0 0 24 24" aria-hidden="true" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;vertical-align:-2px"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg> Rec</button>`}</div><div class="mexp card stack" data-ex="${EVL.length - 1}" hidden></div>`;
       const T = f(today), M = f(tomo);
       $('#cl').innerHTML = `${(a.errors || []).length ? `<p class="err" style="margin-bottom:8px">Could not read: ${esc(a.errors.join(' · '))}</p>` : ''}<b style="font-weight:600">Today</b><div class="list" style="margin-top:6px">${T.length ? T.map(row).join('') : '<div class="empty">Nothing.</div>'}</div><b style="font-weight:600;display:block;margin-top:16px">Tomorrow</b><div class="list" style="margin-top:6px">${M.length ? M.map(row).join('') : '<div class="empty">Nothing.</div>'}</div><b style="font-weight:600;display:block;margin-top:16px">Meeting notes</b><div class="list" id="mtl" style="margin-top:6px"></div><div id="mtv"></div>`;
       meetList();
-      $('#cl').onclick = (ev) => { const r = ev.target.closest('[data-ei]'); if (!r || ev.target.closest('a')) return; const e = EVL[+r.dataset.ei], x = $('#cl').querySelector(`[data-ex="${r.dataset.ei}"]`); if (!x.hidden) { x.hidden = true; return; } x.hidden = false; meetPanel(x, e); };
+      $('#cl').onclick = (ev) => { const q = ev.target.closest('[data-qr]'); if (q) { ev.stopPropagation(); const e = EVL[+q.dataset.qr]; return meetRecord(e.title, { online: !!e.link, people: e.emails || [], link: e.link || '' }); } const r = ev.target.closest('[data-ei]'); if (!r || ev.target.closest('a')) return; const e = EVL[+r.dataset.ei], x = $('#cl').querySelector(`[data-ex="${r.dataset.ei}"]`); if (!x.hidden) { x.hidden = true; return; } x.hidden = false; meetPanel(x, e); };
     };
     draw();
     $('#cst').onclick = (e) => { const b = e.target.closest('[data-st]'); if (!b) return; const k = b.dataset.st; if (k === 'todo') { location.hash = '#todo'; return; } if (k === 'tomo' || k === 'next') { $('#cl').lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; } CALF = k; $('#cseg').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x.dataset.t === CALF)); draw(); };
