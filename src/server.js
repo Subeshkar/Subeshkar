@@ -624,6 +624,7 @@ async function mailBody(u, key, id) {
   const raw = String(id).replace(/^(gm|zm|im):/, '');
   try {
     if (key === 'gmail') { const t = await A.findTool('gmail', /FETCH_MESSAGE_BY_MESSAGE_ID|GET_MESSAGE$/); if (t) { const d = await A.runFill(u.id, t, { 'message_id|id': raw, 'format': 'full' }); const r = d?.data || d || {}; return strip(r.messageText || r.message_text || r.body || r.snippet || JSON.stringify(r.payload || '').slice(0, 2000)); } }
+    if (key === 'zoho_mail') { const z = await A.zohoMessage(u.id, raw).catch(() => null); if (z && strip(z.html)) return strip(z.html); }
     if (key === 'zoho_mail') { const acc = await A.zohoAccount(u.id); const t = await A.findTool('zoho_mail', /CONTENT|GET.*MESSAGE.*(DETAIL|BODY)|MESSAGES_GET/); if (t) { const d = await A.runFill(u.id, t, { 'account_id|accountId': acc.id, 'message_id|messageId': raw, 'folder_id|folderId': '' }); const r = d?.data || d || {}; return strip(r.content || r.body || r.summary || ''); } }
   } catch (e) { return ''; }
   return '';
@@ -654,6 +655,10 @@ async function mailFull(u, key, id) {
   }
   if (key === 'zoho_mail') {
     try {
+      const z = await A.zohoMessage(u.id, raw);
+      if (z) { out.html = cleanHtml(z.html, {}); out.text = strip(z.html); out.atts = z.atts.map((a) => ({ ...a, mime: '', url: `/api/mail/att?acct=zoho_mail&id=${encodeURIComponent(raw)}&att=${encodeURIComponent(a.id)}&name=${encodeURIComponent(a.name)}` })); if (out.text || out.atts.length) return out; }
+    } catch (e) { console.error('mailfull zoho rest', e.message); }
+    try {
       const acc = await A.zohoAccount(u.id), t = await A.findTool('zoho_mail', /CONTENT|GET.*MESSAGE.*(DETAIL|BODY)|MESSAGES_GET/);
       if (t) { const d = await A.runFill(u.id, t, { 'account_id|accountId': acc.id, 'message_id|messageId': raw, 'folder_id|folderId': '' }); const r = d?.data || d || {}; out.html = cleanHtml(r.content || r.body || '', {}); out.text = strip(r.content || r.body || r.summary || ''); }
       const ti = await A.findTool('zoho_mail', /ATTACHMENT.*(INFO|LIST|DETAIL)/);
@@ -677,6 +682,10 @@ async function mailAtt(u, acct, id, att, name, mimeIn) {
     let buf = null;
     if (acct === 'gmail') { const d = await A.proxy(u.id, 'gmail', { endpoint: `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(id)}/attachments/${encodeURIComponent(att)}` }); buf = b64u(d.data); }
     else if (acct === 'zoho_mail') {
+      const z = await A.zohoMessage(u.id, id).catch(() => null);
+      if (z) { try { const r = await A.proxy(u.id, 'zoho_mail', { endpoint: `${z.base}/api/accounts/${z.acc}/folders/${z.fid}/messages/${id}/attachments/${att}` }); if (typeof r === 'string') buf = Buffer.from(r, 'binary'); else if (r?.data && typeof r.data === 'string') buf = Buffer.from(r.data, /^[A-Za-z0-9+/=\s]+$/.test(r.data.slice(0, 200)) ? 'base64' : 'binary'); else if (r?.type === 'Buffer') buf = Buffer.from(r.data); } catch {} }
+    }
+    if (!buf && acct === 'zoho_mail') {
       const acc = await A.zohoAccount(u.id), t = await A.findTool('zoho_mail', /ATTACHMENT.*(DOWNLOAD|CONTENT|GET)|DOWNLOAD.*ATTACHMENT/); if (!t) throw Object.assign(new Error('This attachment can only be opened in Zoho Mail for now.'), { status: 404 });
       const d = await A.runFill(u.id, t, { 'account_id|accountId': acc.id, 'message_id|messageId': id, 'attachment_id|attachmentId': att, 'folder_id|folderId': '' }); const r = d?.data || d || {};
       const url = r.s3url || r.url || r.file?.s3url || r.downloadUrl; const data = r.content || r.data || r.file?.content;

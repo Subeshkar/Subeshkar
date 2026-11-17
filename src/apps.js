@@ -151,7 +151,7 @@ export async function events(uid) {
 }
 
 // Zoho Mail needs the account id and folder ids first; parameter names are read from the tool's own schema.
-const SCHEMA = new Map(), ZACC = new Map();
+const SCHEMA = new Map(), ZACC = new Map(), ZMF = new Map(); // ZMF: Zoho message id -> its folder id (Zoho needs both to open an email)
 async function params(tool) { if (SCHEMA.has(tool)) return SCHEMA.get(tool); let p = {}; try { const r = await call('GET', `/tools/${tool}`); p = r.input_parameters?.properties || r.parameters?.properties || {}; } catch {} SCHEMA.set(tool, p); return p; }
 const keyLike = (props, re) => Object.keys(props).find((k) => re.test(k));
 export async function zohoAccount(uid) {
@@ -161,7 +161,7 @@ export async function zohoAccount(uid) {
   const v = { id: String(a.accountId || a.account_id || a.id || ''), email: String(a.primaryEmailAddress || a.mailboxAddress || a.emailAddress?.[0]?.mailId || a.incomingUserName || ''), folders: null, at: Date.now() };
   ZACC.set(uid, v); return v;
 }
-async function zohoFolders(uid, acc) {
+export async function zohoFolders(uid, acc) {
   if (acc.folders) return acc.folders;
   const props = await params('ZOHO_MAIL_FOLDERS_LIST_FOLDERS'), k = keyLike(props, /account/i) || 'account_id';
   const data = await exec(uid, 'ZOHO_MAIL_FOLDERS_LIST_FOLDERS', { [k]: acc.id });
@@ -183,6 +183,7 @@ async function zohoMailbox(uid, folder, q) {
     data = await exec(uid, 'ZOHO_MAIL_MESSAGES_LIST_EMAILS', args);
   }
   return (firstArray(data) || []).map((m) => {
+    if ((m.messageId || m.id) && m.folderId) ZMF.set(uid + ':' + (m.messageId || m.id), String(m.folderId));
     const at = Number(m.receivedTime || m.sentDateInGMT || m.date) || +new Date(m.receivedTime || 0) || 0;
     const unread = m.status === '0' || m.status === 0 || m.isRead === false || String(m.status2 || '') === '0';
     const from = String(m.sender || m.fromAddress || ''), to = String(m.toAddress || '').replace(/&lt;|&gt;/g, '');
@@ -231,3 +232,25 @@ export async function proxy(uid, slug, { endpoint, method = 'GET', body, headers
   const st = r.status ?? r.status_code; if (st && st >= 400) throw Object.assign(new Error(typeof r.data === 'object' ? r.data?.message || JSON.stringify(r.data).slice(0, 200) : String(r.data || 'The app refused.')), { status: 502 });
   return r.data ?? r;
 }
+
+// Open one Zoho email: its text and its attachment list. Zoho needs the folder, so we use the one seen in the list, or try Inbox, Sent and the rest.
+export async function zohoMessage(uid, mid) {
+  const acc = await zohoAccount(uid); if (!acc.id) return null;
+  const known = ZMF.get(uid + ':' + mid), fl = await zohoFolders(uid, acc).catch(() => []);
+  const order = [known, ...fl.filter((f) => /inbox/.test(f.type)).map((f) => f.id), ...fl.filter((f) => /sent/.test(f.type)).map((f) => f.id), ...fl.map((f) => f.id)].filter(Boolean);
+  const tries = [...new Set(order)].slice(0, 8);
+  for (const base of ZBASE.get(uid) ? [ZBASE.get(uid)] : ['https://mail.zoho.com', 'https://mail.zoho.eu', 'https://mail.zoho.in', 'https://mail.zoho.com.au']) {
+    for (const fid of tries) {
+      try {
+        const r = await proxy(uid, 'zoho_mail', { endpoint: `${base}/api/accounts/${acc.id}/folders/${fid}/messages/${mid}/content?includeBlockContent=true` });
+        const c = r?.data?.content ?? r?.content; if (c == null) continue;
+        ZBASE.set(uid, base); ZMF.set(uid + ':' + mid, fid);
+        let atts = [];
+        try { const a = await proxy(uid, 'zoho_mail', { endpoint: `${base}/api/accounts/${acc.id}/folders/${fid}/messages/${mid}/attachmentinfo` }); atts = (a?.data?.attachments || a?.attachments || []).map((x) => ({ id: String(x.attachmentId), name: x.attachmentName || 'file', size: x.attachmentSize || 0 })); } catch {}
+        return { html: String(c), atts, fid, base, acc: acc.id };
+      } catch (e) { if (/invalid|not found|404|URL_RULE|does not exist/i.test(e.message)) continue; }
+    }
+  }
+  return null;
+}
+const ZBASE = new Map();
