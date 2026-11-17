@@ -404,11 +404,28 @@ async function viewHome(refresh) {
   $('#rf')?.addEventListener('click', (e) => { e.target.disabled = true; e.target.textContent = 'Updating…'; viewHome(true); });
   $('#lis')?.addEventListener('click', (e) => { e.target.textContent = 'Speaking…'; say(`${hello}${name ? ', ' + name.split(' ')[0] : ''}. ${d.brief}`).finally(() => { if ($('#lis')) $('#lis').textContent = 'Listen'; }); });
   wireTodos($('#ht'), () => viewHome());
+  homeTrend();
+}
+// Trending in your field on LinkedIn, ranked by engagement; tap to open it in Social and like or comment.
+const myTopic = () => { const a = String(S.me.about || '').toLowerCase(); return /logist|freight|cold ?chain|transport|supply/.test(a) ? 'logistics' : /tech|software|\bai\b|data/.test(a) ? 'ai' : /student|universit/.test(a) ? 'careers' : /real estate|property/.test(a) ? 'realestate' : 'uaebusiness'; };
+async function homeTrend() {
+  const main = $('#main'); if (!main || cur() !== 'home') return;
+  const topic = myTopic(), key = 'ht:' + topic; let d = null;
+  try { const c = JSON.parse(sessionStorage.getItem(key) || 'null'); if (c && Date.now() - c.at < 30 * 60e3) d = c.d; } catch {}
+  if (!d) {
+    const st = await api('GET', '/api/social/web/status?site=linkedin').catch(() => null); if (!st || !st.signedIn) return;
+    d = await api('GET', '/api/social/web/li/feed?q=' + encodeURIComponent(topic)).catch(() => null); if (!d || !d.posts) return;
+    try { sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), d })); } catch {}
+  }
+  if (cur() !== 'home' || !d.posts.length || $('#htrend')) return;
+  const P = d.posts.slice(0, 3);
+  $('#main').insertAdjacentHTML('beforeend', `<section class="sec" id="htrend"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Trending in #${esc(topic)}</h2><button class="pill" data-htall>All</button></div><div class="list">${P.map((p, i) => `<div class="item" data-hti="${i}" style="cursor:pointer"><span class="srcb" style="background:var(--acc);color:var(--accink);border-color:var(--acc);flex:none">#${i + 1}</span><div class="grow" style="min-width:0"><div class="t" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(String(p.text || '').split('\n')[0] || p.author)}</div><div class="s">${esc(p.author)}${p.likes ? ' · 👍 ' + esc(p.likes) : ''}${p.comments ? ' · 💬 ' + esc(p.comments) : ''}</div></div></div>`).join('')}</div></section>`);
+  $('#htrend').onclick = (e) => { if (!e.target.closest('[data-hti],[data-htall]')) return; SONET = 'linkedin'; SOT = 'trending'; LIQ = topic; location.hash = '#social'; };
 }
 
 // ---------- To-do ----------
 const dueTxt = (d) => { if (!d) return ''; const t = new Intl.DateTimeFormat('en-CA', { timeZone: S.me.tz }).format(new Date()); if (d === t) return 'Today'; if (d < t) return 'Overdue · ' + d; return new Date(d + 'T12:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }); };
-const SRC = { whatsapp: 'From WhatsApp', mail: 'From mail', calendar: 'From calendar', ask: 'Added by Dioma' };
+const SRC = { whatsapp: 'From WhatsApp', mail: 'From mail', calendar: 'From calendar', ask: 'Added by Dioma', meeting: 'From a meeting', 'zoho books': 'From Zoho Books', 'zoho crm': 'From Zoho CRM' };
 const todoRows = (ts, done) => ts.map((t) => `<div class="item ${done ? 'done' : ''}" data-id="${t.id}"><button class="chk ${done ? 'on' : ''}" aria-label="${done ? 'Mark not done' : 'Mark done'}"></button><div class="grow"><div class="t">${esc(t.text)}</div>${SRC[t.source] ? `<span class="srcb">${SRC[t.source]}</span>` : ''}${t.due ? `<div class="s" style="${!done && dueTxt(t.due).startsWith('Overdue') ? 'color:var(--bad)' : ''}">${esc(dueTxt(t.due))}</div>` : ''}</div><button class="x" aria-label="Delete">×</button></div>`).join('');
 function wireTodos(el, after) {
   el.addEventListener('click', async (e) => {

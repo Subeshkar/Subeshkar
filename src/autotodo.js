@@ -80,7 +80,7 @@ Reply with only JSON: [{"ref": string, "text": string, "due": string|null}]`,
   let added = 0;
   for (const x of items) run('INSERT OR IGNORE INTO todo_refs (user_id, ref, at) VALUES (?, ?, ?)', u.id, x.ref, Date.now()); // looked at once, never re-suggested
   for (const p of picks.slice(0, 15)) {
-    const src = p.ref.startsWith('wa') ? 'whatsapp' : p.ref.startsWith('ev') ? 'calendar' : 'mail';
+    const src = p.ref.startsWith('wa') ? 'whatsapp' : p.ref.startsWith('ev') ? 'calendar' : /^(inv|bill):/.test(p.ref) ? 'zoho books' : /^(deal|lead):/.test(p.ref) ? 'zoho crm' : 'mail';
     run('INSERT INTO todos (user_id, text, due, source, ref, created) VALUES (?, ?, ?, ?, ?, ?)', u.id, String(p.text).slice(0, 300), /^\d{4}-\d{2}-\d{2}$/.test(p.due || '') ? p.due : null, src, p.ref, Date.now());
     added++;
   }
