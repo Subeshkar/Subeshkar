@@ -1912,6 +1912,18 @@ async function viewAi() {
   $('#aimic').onclick = (e) => micToggle(e.currentTarget, (t) => { q.value = (q.value ? q.value + ' ' : '') + t; q.oninput(); });
   $('#aifile').onchange = async (e) => { for (const f of [...e.target.files]) { if (f.size > 10 * 1048576) { toast(f.name + ' is over 10 MB'); continue; } const data = await new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.readAsDataURL(f); }); AIFILES.push({ name: f.name, type: f.type || 'text/plain', data }); } e.target.value = ''; $('#aifl').innerHTML = AIFILES.map((f, i) => `<span class="srcb" style="margin-right:4px">📎 ${esc(f.name)} <a href="#" data-afx="${i}" style="color:inherit">✕</a></span>`).join(''); };
   $('#aifl').onclick = (e) => { const x = e.target.closest('[data-afx]'); if (!x) return; e.preventDefault(); AIFILES.splice(+x.dataset.afx, 1); $('#aifile').dispatchEvent(new Event('change')); };
+  // Paste like Claude: long text becomes a "Pasted" attachment, pasted screenshots and files are attached too.
+  const chips = () => { $('#aifl').innerHTML = AIFILES.map((f, i) => `<span class="srcb" style="margin-right:4px;display:inline-block;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom">${f.pasted ? '📄 Pasted: ' : '📎 '}${esc(f.name)} <a href="#" data-afx="${i}" style="color:inherit">✕</a></span>`).join(''); };
+  const addFile = (f) => new Promise((ok) => { if (f.size > 10 * 1048576) { toast(f.name + ' is over 10 MB'); return ok(); } const r = new FileReader(); r.onload = () => { AIFILES.push({ name: f.name || 'pasted-image.png', type: f.type || 'text/plain', data: String(r.result).split(',')[1] }); ok(); }; r.readAsDataURL(f); });
+  $('#aiq').addEventListener('paste', async (e) => {
+    const cd = e.clipboardData; if (!cd) return;
+    const fl = [...(cd.files || [])].filter((f) => /^(image\/|application\/pdf|text\/)/.test(f.type));
+    if (fl.length) { e.preventDefault(); for (const f of fl) await addFile(f); chips(); return; }
+    const t = cd.getData('text/plain') || '';
+    if (t.length > 1200) { e.preventDefault(); const first = t.trim().split('\n')[0].slice(0, 60); AIFILES.push({ name: first || 'Pasted text', type: 'text/plain', pasted: 1, data: btoa(unescape(encodeURIComponent(t))) }); chips(); toast('Added as an attachment'); }
+  });
+  const bar = $('#aif'); bar.addEventListener('dragover', (e) => e.preventDefault());
+  bar.addEventListener('drop', async (e) => { e.preventDefault(); for (const f of [...(e.dataTransfer?.files || [])]) await addFile(f); chips(); });
   $('#aif').onsubmit = (e) => { e.preventDefault(); if (AIBUSY) { AIBUSY.abort(); return; } const t = q.value.trim(); if (!t && !AIFILES.length) return; q.value = ''; q.oninput(); aiSend(t); };
   if (AIT) { const m = await api('GET', '/api/ai/thread?id=' + AIT).catch(() => ({ messages: [] })); drawAi(m.messages); } else drawAi([]);
 }
