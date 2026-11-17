@@ -37,10 +37,39 @@ const textOf = (m) => {
 };
 const skip = (jid) => !jid || jid === 'status@broadcast' || jid.endsWith('@newsletter') || jid.endsWith('@broadcast');
 // A contact can arrive under its phone jid and its private (lid) jid; keep the name under both so every chat finds it.
+// Names: the name saved in your phone (book = 1) always wins over the name people give themselves on WhatsApp.
+try { db.exec('ALTER TABLE wa_contacts ADD COLUMN book INTEGER DEFAULT 0'); } catch {}
+db.exec('CREATE TABLE IF NOT EXISTS wa_lid (user_id INTEGER NOT NULL, lid TEXT NOT NULL, pn TEXT NOT NULL, PRIMARY KEY (user_id, lid))');
+const bare = (j) => (typeof j === 'string' && j.includes('@') ? j.replace(/:\d+(?=@)/, '') : '');
+function putName(uid, jid, nm, book) {
+  if (!jid || !nm) return;
+  if (book) run('INSERT INTO wa_contacts (user_id, jid, name, book) VALUES (?, ?, ?, 1) ON CONFLICT(user_id, jid) DO UPDATE SET name = excluded.name, book = 1', uid, jid, nm);
+  else run('INSERT INTO wa_contacts (user_id, jid, name, book) VALUES (?, ?, ?, 0) ON CONFLICT(user_id, jid) DO UPDATE SET name = excluded.name WHERE COALESCE(wa_contacts.book, 0) = 0', uid, jid, nm);
+}
 function saveContact(uid, c) {
-  const nm = c && (c.name || c.notify || c.verifiedName); if (!nm) return;
-  const ids = [c.id, c.lid, c.phoneNumber, c.jid].filter((x) => typeof x === 'string' && x.includes('@'));
-  for (const j of new Set(ids)) run('INSERT INTO wa_contacts (user_id, jid, name) VALUES (?, ?, ?) ON CONFLICT(user_id, jid) DO UPDATE SET name = excluded.name', uid, j, nm);
+  if (!c) return;
+  const ids = [...new Set([c.id, c.lid, c.phoneNumber, c.jid].map(bare).filter(Boolean))];
+  const lid = ids.find((j) => j.endsWith('@lid')), pn = ids.find((j) => j.endsWith('@s.whatsapp.net'));
+  if (lid && pn) mapLid(uid, lid, pn);
+  if (c.name) ids.forEach((j) => putName(uid, j, c.name, 1));
+  else if (c.notify || c.verifiedName) ids.forEach((j) => putName(uid, j, c.notify || c.verifiedName, 0));
+}
+// WhatsApp now hides numbers behind private ids (@lid). Remember which id is which number, and share the saved name between them.
+function mapLid(uid, lid, pn) {
+  lid = bare(lid); pn = bare(pn); if (!lid.endsWith('@lid') || !pn.endsWith('@s.whatsapp.net')) return;
+  run('INSERT INTO wa_lid (user_id, lid, pn) VALUES (?, ?, ?) ON CONFLICT(user_id, lid) DO UPDATE SET pn = excluded.pn', uid, lid, pn);
+  const a = one('SELECT name, book FROM wa_contacts WHERE user_id = ? AND jid = ?', uid, pn), b = one('SELECT name, book FROM wa_contacts WHERE user_id = ? AND jid = ?', uid, lid);
+  const best = [a, b].filter((x) => x && x.name).sort((x, y) => (y.book || 0) - (x.book || 0))[0];
+  if (best) { putName(uid, pn, best.name, best.book); putName(uid, lid, best.name, best.book); }
+}
+// After connecting: look up the number behind every private-id chat that still has no saved name.
+async function fillLids(uid, sock) {
+  const rows = all(`SELECT c.jid FROM wa_chats c LEFT JOIN wa_lid l ON l.user_id = c.user_id AND l.lid = c.jid WHERE c.user_id = ? AND c.jid LIKE '%@lid' AND l.pn IS NULL LIMIT 3000`, uid);
+  for (const r of rows) {
+    try { const pn = await sock.signalRepository?.lidMapping?.getPNForLID(r.jid); if (pn) mapLid(uid, r.jid, pn); } catch {}
+  }
+  // and copy names for mappings we already know
+  for (const m of all('SELECT lid, pn FROM wa_lid WHERE user_id = ?', uid)) mapLid(uid, m.lid, m.pn);
 }
 // Search everyone: saved contacts, chat names, people who wrote in groups, and (for 3+ letters) message text.
 export function search(uid, q) {
@@ -49,9 +78,15 @@ export function search(uid, q) {
   const add = (jid, name, why) => { if (!jid || out.has(jid) || /@(broadcast|newsletter)/.test(jid)) return; out.set(jid, { jid, name: name || jid.split('@')[0], why }); };
   all(`SELECT jid, name FROM wa_contacts WHERE user_id = ? AND (LOWER(name) LIKE ?${dig.length >= 4 ? ' OR jid LIKE ?' : ''}) LIMIT 60`, uid, like, ...(dig.length >= 4 ? ['%' + dig + '%'] : [])).forEach((r) => add(r.jid, r.name, 'contact'));
   all('SELECT jid, name FROM wa_chats WHERE user_id = ? AND LOWER(name) LIKE ? LIMIT 60', uid, like).forEach((r) => add(r.jid, r.name, 'chat'));
+  if (dig.length >= 4) all('SELECT l.lid, l.pn, ct.name FROM wa_lid l LEFT JOIN wa_contacts ct ON ct.user_id = l.user_id AND ct.jid = l.lid WHERE l.user_id = ? AND l.pn LIKE ? LIMIT 30', uid, '%' + dig + '%').forEach((r) => add(r.lid, r.name || '+' + r.pn.split('@')[0], 'contact'));
   all('SELECT participant jid, MAX(sender_name) name, MAX(jid) g FROM wa_messages WHERE user_id = ? AND from_me = 0 AND participant IS NOT NULL AND LOWER(sender_name) LIKE ? GROUP BY participant LIMIT 40', uid, like).forEach((r) => add(r.jid, r.name, 'group'));
   if (q.length >= 3) all('SELECT jid, MAX(at) at FROM wa_messages WHERE user_id = ? AND LOWER(text) LIKE ? GROUP BY jid ORDER BY at DESC LIMIT 30', uid, like).forEach((r) => add(r.jid, nameFor(uid, r.jid) || one('SELECT name FROM wa_chats WHERE user_id = ? AND jid = ?', uid, r.jid)?.name, 'message'));
-  return [...out.values()].slice(0, 80);
+  // One row per person: a private id and its phone number are the same person; keep the one that has the chat.
+  const keyOf = (j) => (j.endsWith('@lid') && one('SELECT pn FROM wa_lid WHERE user_id = ? AND lid = ?', uid, j)?.pn) || j;
+  const hasChat = (j) => !!one('SELECT 1 FROM wa_chats WHERE user_id = ? AND jid = ? AND last_at > 0', uid, j);
+  const best = new Map();
+  for (const p of out.values()) { const k = keyOf(p.jid), b = best.get(k); if (!b || (!hasChat(b.jid) && hasChat(p.jid))) best.set(k, b ? { ...p, why: b.why } : p); }
+  return [...best.values()].slice(0, 80);
 }
 const nameFor = (uid, jid) => one('SELECT name FROM wa_contacts WHERE user_id = ? AND jid = ?', uid, jid)?.name || null;
 
@@ -66,7 +101,9 @@ function saveMessage(uid, m, live) {
   const text = textOf(m); if (!text) return;
   const at = Number(m.messageTimestamp || 0) * 1000 || Date.now();
   const fromMe = m.key.fromMe ? 1 : 0;
-  if (!fromMe && m.pushName && !isJidGroup(jid)) run('INSERT INTO wa_contacts (user_id, jid, name) VALUES (?, ?, ?) ON CONFLICT(user_id, jid) DO NOTHING', uid, jid, m.pushName);
+  if (m.key.remoteJidAlt) mapLid(uid, jid.endsWith('@lid') ? jid : m.key.remoteJidAlt, jid.endsWith('@lid') ? m.key.remoteJidAlt : jid);
+  if (m.key.participant && m.key.participantAlt) mapLid(uid, m.key.participant.endsWith('@lid') ? m.key.participant : m.key.participantAlt, m.key.participant.endsWith('@lid') ? m.key.participantAlt : m.key.participant);
+  if (!fromMe && m.pushName && !isJidGroup(jid) && !one('SELECT 1 FROM wa_contacts WHERE user_id = ? AND jid = ?', uid, jid)) putName(uid, jid, m.pushName, 0);
   const inner = m.message?.ephemeralMessage?.message || m.message?.viewOnceMessage?.message || m.message || {};
   // Voice notes: keep what is needed to download them later (only when the customer taps play).
   const media = m.media || (inner.audioMessage && inner.audioMessage.mediaKey ? JSON.stringify({ key: m.key, message: { audioMessage: inner.audioMessage } }, BufferJSON.replacer) : null);
@@ -95,7 +132,14 @@ export async function start(uid) {
     sock.ev.on('connection.update', async (u) => {
       if (S.get(uid) !== st) return;
       if (u.qr) { st.status = 'qr'; st.qr = await QRCode.toDataURL(u.qr, { margin: 1, width: 320 }); }
-      if (u.connection === 'open') { st.status = 'open'; st.qr = null; st.tries = 0; st.me = sock.user?.id?.split(':')[0] || null; }
+      if (u.connection === 'open') { st.status = 'open'; st.qr = null; st.tries = 0; st.me = sock.user?.id?.split(':')[0] || null; setTimeout(async () => {
+          // Once: fetch your phone's contact names again, so names saved in your phone replace WhatsApp profile names.
+          const flag = path.join(authDir(uid), '.names-v2');
+          if (!fs.existsSync(flag) && sock.resyncAppState) {
+            try { await auth.keys.set({ 'app-state-sync-version': { critical_unblock_low: null } }); await sock.resyncAppState(['critical_unblock_low'], true); fs.writeFileSync(flag, String(Date.now())); } catch (e) { log.warn?.({ e: String(e) }, 'names resync'); }
+          }
+          fillLids(uid, sock).catch(() => {});
+        }, 8000); }
       if (u.connection === 'close') {
         const code = u.lastDisconnect?.error?.output?.statusCode;
         if (code === DisconnectReason.loggedOut) { await forget(uid); return; }
@@ -110,6 +154,7 @@ export async function start(uid) {
     });
     sock.ev.on('contacts.upsert', (cs) => cs.forEach((c) => saveContact(uid, c)));
     sock.ev.on('contacts.update', (cs) => cs.forEach((c) => saveContact(uid, c)));
+    sock.ev.on('lid-mapping.update', (m) => [].concat(m || []).forEach((x) => x && mapLid(uid, x.lid, x.pn)));
     sock.ev.on('chats.upsert', (cs) => cs.forEach((c) => saveChat(uid, c)));
     sock.ev.on('chats.update', (cs) => cs.forEach((c) => c.id && c.unreadCount !== undefined && run('UPDATE wa_chats SET unread = ? WHERE user_id = ? AND jid = ?', c.unreadCount, uid, c.id)));
     sock.ev.on('groups.upsert', (gs) => gs.forEach((g) => saveChat(uid, { id: g.id, subject: g.subject })));
