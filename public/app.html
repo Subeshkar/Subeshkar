@@ -1901,8 +1901,8 @@ async function mailOpen(i) {
       try { await api('POST', '/api/mail/reply', { acct: MACC, id: m.id, thread: m.thread || '', to: box.querySelector('[data-mto]').value.trim(), subject: m.subject, body: t, files }); draftClear(ta); toast('Sent'); MOPEN = -1; box.remove(); row.style.opacity = '0'; setTimeout(() => row.remove(), 300); setTimeout(() => MREF && MREF(), 900); } catch (x) { toast(x.message); b.disabled = false; b.dataset.sure = ''; b.textContent = 'Send'; } return; }
     if (k === 'fix' && !ta.value.trim()) return toast('Write something first.');
     const ins = box.querySelector('[data-mins]').value.trim(); if (k === 'write' && !ins) return toast('Tell Dioma what to say first.');
-    b.disabled = true; const l = b.textContent; b.textContent = 'Writing…';
-    try { const r = await api('POST', '/api/mail/aireply', { mode: k, from: m.from, subject: m.subject, body: box.querySelector('.mbody').textContent, text: k === 'write' ? ins : ta.value }); dealBox(ta, r.summary); setVal(ta, r.text); } catch (x) { toast(x.message); }
+    b.disabled = true; const l = b.textContent; b.textContent = 'Reading the emails…';
+    try { const r = await api('POST', '/api/mail/aireply', { mode: k, acct: MACC, id: m.id, addr: (m.fromAddr && !/^(me|you)$/i.test(m.from) && !(S.me && S.me.email && m.fromAddr === S.me.email.toLowerCase()) ? m.fromAddr : m.toAddr) || '', from: m.from, subject: m.subject, body: box.querySelector('.mbody').textContent, text: k === 'write' ? ins : ta.value }); dealBox(ta, r.summary); setVal(ta, r.text); } catch (x) { toast(x.message); }
     b.disabled = false; b.textContent = l;
   };
 }
@@ -2243,7 +2243,7 @@ async function expClick(e) {
   if (k === 'full') { WEXP = null; waOpen = { jid, name: box.dataset.name }; return waChat(waOpen); }
   if (k === 'send') { const t = ta.value.trim(); if (!t) return toast('Write a message first.'); b.disabled = true; try { await api('POST', '/api/wa/send', { jid, text: t }); draftClear(ta); toast('Sent'); ta.value = ''; waDone(jid); } catch (x) { toast(x.message); } b.disabled = false; return; }
   if (k === 'fix' && !ta.value.trim()) return toast('Write something first.');
-  b.disabled = true; const l = b.textContent; b.textContent = 'Writing…';
+  b.disabled = true; const l = b.textContent; b.textContent = 'Reading the emails…';
   try { const r = await api('POST', '/api/wa/draft', { jid, mode: k, text: ta.value }); setVal(ta, r.text); } catch (x) { toast(x.message); }
   b.disabled = false; b.textContent = l;
 }
