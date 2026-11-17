@@ -5,6 +5,7 @@ import { claude } from './ai.js';
 import * as G from './google.js';
 import * as A from './apps.js';
 import * as M from './imap.js';
+import * as BZ from './biz.js';
 
 db.exec(`CREATE TABLE IF NOT EXISTS todo_refs (user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, ref TEXT NOT NULL, at INTEGER, PRIMARY KEY (user_id, ref))`);
 try { db.exec('ALTER TABLE todos ADD COLUMN ref TEXT'); } catch { /* already there */ }
@@ -35,6 +36,14 @@ async function gather(u) {
     const on = A.enabled() ? (await A.connected(u.id)).map((x) => x.slug) : [];
     for (const slug of ['gmail', 'outlook', 'zoho_mail'].filter((s) => on.includes(s))) for (const m of (await A.inbox(u.id, slug).catch(() => [])).slice(0, 12)) items.push({ ref: `mx:${slug}:${m.at}:${m.subject}`.slice(0, 200), kind: 'mail', who: m.from, subject: m.subject, when: m.at ? new Date(m.at).toISOString() : '' });
     if (M.account(u.id)) for (const m of ((await M.inbox(u.id, 15).catch(() => [])) || []).filter((x) => x.unread)) items.push({ ref: `im:${m.id}`, kind: 'mail', who: m.from, subject: m.subject, when: new Date(m.at).toISOString() });
+  } catch {}
+  // Zoho Books and Zoho CRM: money to chase, bills to pay, deals about to close
+  try {
+    const b = await BZ.overview(u.id); const today = new Date().toISOString().slice(0, 10), soon = new Date(now + 3 * DAY).toISOString().slice(0, 10), wk = new Date(now + 7 * DAY).toISOString().slice(0, 10);
+    for (const x of b.invoices.filter((i) => i.overdue).slice(0, 15)) items.push({ ref: `inv:${x.id}:${x.due}`, kind: 'zoho books', who: x.who, what: `Invoice ${x.no}, ${x.cur} ${x.balance} unpaid, ${x.days} days late`, need: 'chase payment' });
+    for (const x of b.bills.filter((i) => i.balance > 0 && i.due && i.due <= soon)) items.push({ ref: `bill:${x.id}:${x.due}`, kind: 'zoho books', who: x.who, what: `Bill ${x.no || ''}, ${x.cur} ${x.balance}, due ${x.due}`, need: x.due < today ? 'pay (late)' : 'pay' });
+    for (const x of b.deals.filter((d) => !/closed/i.test(d.stage) && d.close && d.close <= wk)) items.push({ ref: `deal:${x.id}:${x.close}`, kind: 'zoho crm', who: x.who, what: `Deal ${x.name} (${x.stage}), closing ${x.close}`, need: 'push to close' });
+    for (const x of b.leads.filter((l) => /not contacted|new/i.test(l.status || 'new') && l.at > now - 7 * DAY).slice(0, 8)) items.push({ ref: `lead:${x.id}`, kind: 'zoho crm', who: x.who + (x.company ? ', ' + x.company : ''), what: 'New lead', need: 'first contact' });
   } catch {}
   return items;
 }
