@@ -944,7 +944,7 @@ const SSEARCH = { instagram: 'https://www.instagram.com/explore/search/keyword/?
 const SINBOX = { instagram: 'https://www.instagram.com/direct/inbox/', facebook: 'https://business.facebook.com/latest/inbox/all', linkedin: 'https://www.linkedin.com/messaging/', twitter: 'https://x.com/messages', tiktok: 'https://www.tiktok.com/messages' };
 const NETN = { instagram: 'Instagram', facebook: 'Facebook', linkedin: 'LinkedIn', twitter: 'X', youtube: 'YouTube', tiktok: 'TikTok' };
 // The decision summary (line items, one-time vs monthly, totals) shown just above a price email draft.
-function dealBox(ta, sum) { if (!ta) return; let d = ta.previousElementSibling; if (!d || !d.classList.contains('dsum')) { d = document.createElement('div'); d.className = 'dsum card md'; d.style.cssText = 'margin:6px 0;padding:10px 12px;font-size:14px;overflow-x:auto'; ta.before(d); } d.hidden = !sum; d.innerHTML = sum ? '<div class="note" style="margin-bottom:4px">Decision summary</div>' + md(sum) : ''; }
+function dealBox(ta, sum) { if (!ta) return; let d = ta.previousElementSibling; if (!d || !d.classList.contains('dsum')) { d = document.createElement('div'); d.className = 'dsum card md'; d.style.cssText = 'margin:6px 0;padding:10px 12px;font-size:14px;overflow-x:auto'; ta.before(d); } d.hidden = !sum; d.innerHTML = sum ? '<div class="note" style="margin-bottom:4px">Decision summary</div>' + md(String(sum).replace(/^\s*#*\s*\**decision summary\**:?\s*\n/i, '')) : ''; }
 const aiw = (kind, input) => api('POST', '/api/ai/write', { kind, input });
 async function viewSocial() {
   const main = $('#main');
