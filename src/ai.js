@@ -16,7 +16,7 @@ export async function claude({ system, messages, tools, max_tokens = 1200 }) {
 }
 
 // Runs a short tool loop. `handlers` maps tool name -> async (input) => result.
-export async function converse({ system, messages, tools, handlers, maxTurns = 4 }) {
+export async function converse({ system, messages, tools, handlers, maxTurns = 6 }) {
   const msgs = [...messages];
   const actions = [];
   for (let i = 0; i < maxTurns; i++) {

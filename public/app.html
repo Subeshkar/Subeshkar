@@ -1915,14 +1915,15 @@ async function aiSend(text) {
   try {
     const r = await fetch('/api/ai/ask', { method: 'POST', headers: { 'content-type': 'application/json', 'x-dioma': '1' }, body: JSON.stringify({ thread: AIT, text, files }), signal: ctl.signal });
     if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'Dioma could not answer.'); }
-    const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+    const rd = r.body.getReader(), dec = new TextDecoder(); let buf = ''; var cards = [];
     for (;;) { const { value, done } = await rd.read(); if (done) break; buf += dec.decode(value, { stream: true }); let i;
       while ((i = buf.indexOf('\n')) >= 0) { const ln = buf.slice(0, i); buf = buf.slice(i + 1); if (!ln) continue; let d; try { d = JSON.parse(ln); } catch { continue; }
-        if (d.thread) AIT = d.thread; if (d.s && !full) out.innerHTML = `<span class="note">${esc(d.s)}</span>`; if (d.error) throw new Error(d.error);
+        if (d.cards) cards = d.cards; if (d.thread) AIT = d.thread; if (d.s && !full) out.innerHTML = `<span class="note">${esc(d.s)}</span>`; if (d.error) throw new Error(d.error);
         if (d.t) { full += d.t; if (Date.now() - lastDraw > 60) { out.innerHTML = md(full); lastDraw = Date.now(); const nearBottom = innerHeight + scrollY > document.body.scrollHeight - 220; if (nearBottom) window.scrollTo({ top: document.body.scrollHeight }); } } } }
     out.innerHTML = md(full || '(no answer)');
   } catch (x) { out.innerHTML = full ? md(full) + '<p class="note">Stopped.</p>' : `<p class="err">${esc(x.name === 'AbortError' ? 'Stopped.' : x.message)}</p>`; }
   live.classList.remove('live'); live.insertAdjacentHTML('beforeend', '<div class="row" style="gap:4px;margin-top:6px"><button type="button" class="btn sm" data-aicp>Copy</button><button type="button" class="btn sm" data-spk title="Read aloud">🔊</button><button type="button" class="btn sm" data-aimail>✉ Email it</button><button type="button" class="btn sm" data-aiwa>💬 WhatsApp it</button></div><div class="aicard"></div>');
+  if (typeof cards !== 'undefined' && cards.length) { const slot = live.querySelector('.aicard'); if (slot) { slot.innerHTML = cards.map((_, i) => `<div data-cx2="${i}"></div>`).join(''); cards.forEach((c, i) => sendCard(slot.querySelector(`[data-cx2="${i}"]`), c)); } }
   AIBUSY = null; if ($('#aisend')) $('#aisend').textContent = '↑';
 }
 let CALF = 'all';

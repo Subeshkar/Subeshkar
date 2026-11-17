@@ -158,7 +158,7 @@ export async function start(uid) {
     sock.ev.on('chats.upsert', (cs) => cs.forEach((c) => saveChat(uid, c)));
     sock.ev.on('chats.update', (cs) => cs.forEach((c) => c.id && c.unreadCount !== undefined && run('UPDATE wa_chats SET unread = ? WHERE user_id = ? AND jid = ?', c.unreadCount, uid, c.id)));
     sock.ev.on('groups.upsert', (gs) => gs.forEach((g) => saveChat(uid, { id: g.id, subject: g.subject })));
-    sock.ev.on('messages.upsert', ({ messages, type }) => messages.forEach((m) => saveMessage(uid, m, type === 'notify')));
+    sock.ev.on('messages.upsert', ({ messages, type }) => messages.forEach((m) => { saveMessage(uid, m, type === 'notify'); selfCheck(uid, sock, m); }));
   } catch (e) { st.status = 'off'; st.error = e.message; }
   return status(uid);
 }
@@ -186,6 +186,27 @@ export async function react(uid, jid, id, emoji) {
   run('UPDATE wa_messages SET my_react = ? WHERE user_id = ? AND jid = ? AND id = ?', emoji || null, uid, jid, id);
   return { ok: true };
 }
+// Dioma inside WhatsApp: whatever you write in your own "Message yourself" chat goes to your assistant, and its answer comes back there.
+let SELF = null; const OURS = new Set();
+export const onSelfMessage = (fn) => { SELF = fn; };
+export const DIOMA_TAG = '🤖 Dioma';
+function selfCheck(uid, sock, m) {
+  try {
+    if (!SELF || !m.key?.fromMe || !m.key.id || OURS.has(m.key.id)) return;
+    const jid = bare(m.key.remoteJid), me = bare(sock.user?.id), meLid = bare(sock.user?.lid);
+    if (!jid || (jid !== me && jid !== meLid)) return;
+    const at = Number(m.messageTimestamp || 0) * 1000; if (!at || Date.now() - at > 120e3) return;
+    const text = textOf(m); if (!text || text.startsWith(DIOMA_TAG)) return;
+    SELF(uid, jid, text);
+  } catch {}
+}
+// Reply into your own chat (marked so Dioma never answers itself).
+export async function sendSelf(uid, jid, text) {
+  const st = S.get(uid); if (!st || st.status !== 'open') return;
+  const r = await st.sock.sendMessage(jid, { text: (DIOMA_TAG + '\n' + String(text)).slice(0, 4000) });
+  if (r?.key?.id) OURS.add(r.key.id);
+}
+
 export async function send(uid, jid, text) {
   const st = S.get(uid);
   if (!st || st.status !== 'open') throw Object.assign(new Error('WhatsApp is not connected right now.'), { status: 409 });

@@ -20,6 +20,14 @@ When asked to send an email or a WhatsApp, never say you cannot send: write the 
 If asked what powers you: Dioma is built on Claude by Anthropic.`;
 
 // Stream an answer. write(text) gets each new piece. Returns the full answer.
+// Save a question and an answer made elsewhere (the assistant with mail, WhatsApp and Zoho) into a Dioma AI chat.
+export function save(u, tid, text, reply, write) {
+  let t = tid && one('SELECT id FROM ai_threads WHERE id = ? AND user_id = ?', tid, u.id);
+  if (!t) { const r = run('INSERT INTO ai_threads (user_id, title, at) VALUES (?, ?, ?)', u.id, text.slice(0, 60) || 'New chat', Date.now()); t = { id: Number(r.lastInsertRowid) }; write({ thread: t.id }); }
+  run('INSERT INTO ai_msgs (thread_id, role, text, at) VALUES (?, ?, ?, ?)', t.id, 'user', text, Date.now());
+  run('INSERT INTO ai_msgs (thread_id, role, text, at) VALUES (?, ?, ?, ?)', t.id, 'assistant', reply, Date.now());
+  run('UPDATE ai_threads SET at = ? WHERE id = ?', Date.now(), t.id);
+}
 export async function answer(u, tid, text, files, write) {
   let t = tid && one('SELECT id FROM ai_threads WHERE id = ? AND user_id = ?', tid, u.id);
   if (!t) { const r = run('INSERT INTO ai_threads (user_id, title, at) VALUES (?, ?, ?)', u.id, text.slice(0, 60) || 'New chat', Date.now()); t = { id: Number(r.lastInsertRowid) }; }
