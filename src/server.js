@@ -574,6 +574,65 @@ async function mailBody(u, key, id) {
   } catch (e) { return ''; }
   return '';
 }
+// The whole email as it looks (pictures included) plus its attachments. Gmail through its own API; Zoho through its tools.
+const b64u = (x) => Buffer.from(String(x || '').replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+const cleanHtml = (h, cid) => String(h || '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<(iframe|object|embed|form|meta|link|base)[^>]*>/gi, '').replace(/<\/(iframe|object|embed|form)>/gi, '')
+  .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '').replace(/(href|src)\s*=\s*(["'])\s*javascript:[^"']*\2/gi, '$1=$2#$2')
+  .replace(/src\s*=\s*(["'])cid:([^"']+)\1/gi, (m, q, c) => cid[c.replace(/[<>]/g, '')] ? `src=${q}${cid[c.replace(/[<>]/g, '')]}${q}` : m);
+async function mailFull(u, key, id) {
+  const raw = String(id).replace(/^(gm|zm|im):/, ''), out = { html: '', text: '', atts: [] };
+  if (key === 'gmail') {
+    try {
+      const d = await A.proxy(u.id, 'gmail', { endpoint: `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(raw)}?format=full` });
+      const cid = {}; let html = '', text = '';
+      const walk = (p) => { if (!p) return; const mt = p.mimeType || '', fn = p.filename || '', h = Object.fromEntries((p.headers || []).map((x) => [String(x.name).toLowerCase(), x.value]));
+        if (p.body?.attachmentId) { const a = { id: p.body.attachmentId, name: fn || 'file', mime: mt, size: p.body.size || 0 }; const c = (h['content-id'] || '').replace(/[<>]/g, ''); const url = `/api/mail/att?acct=gmail&id=${encodeURIComponent(raw)}&att=${encodeURIComponent(a.id)}&mime=${encodeURIComponent(mt)}&name=${encodeURIComponent(a.name)}`; if (c) cid[c] = url; if (fn || !c) out.atts.push({ ...a, url }); }
+        else if (mt === 'text/html' && p.body?.data) html += b64u(p.body.data).toString('utf8');
+        else if (mt === 'text/plain' && p.body?.data) text += b64u(p.body.data).toString('utf8');
+        (p.parts || []).forEach(walk); };
+      walk(d.payload);
+      // Pictures inside the email (cid:) become embedded images, so they show without another sign-in.
+      let budget = 4e6; const inl = {};
+      for (const [c, url] of Object.entries(cid)) { if (!html.includes('cid:' + c)) continue; try { const q = new URL(url, 'http://x').searchParams; const a = await A.proxy(u.id, 'gmail', { endpoint: `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(raw)}/attachments/${encodeURIComponent(q.get('att'))}` }); const buf = b64u(a.data); if (buf.length < budget && /^image\//.test(q.get('mime') || '')) { budget -= buf.length; inl[c] = `data:${q.get('mime')};base64,${buf.toString('base64')}`; } } catch {} }
+      out.html = cleanHtml(html, inl); out.text = text || strip(html);
+      return out;
+    } catch (e) { console.error('mailfull gmail', e.message); }
+  }
+  if (key === 'zoho_mail') {
+    try {
+      const acc = await A.zohoAccount(u.id), t = await A.findTool('zoho_mail', /CONTENT|GET.*MESSAGE.*(DETAIL|BODY)|MESSAGES_GET/);
+      if (t) { const d = await A.runFill(u.id, t, { 'account_id|accountId': acc.id, 'message_id|messageId': raw, 'folder_id|folderId': '' }); const r = d?.data || d || {}; out.html = cleanHtml(r.content || r.body || '', {}); out.text = strip(r.content || r.body || r.summary || ''); }
+      const ti = await A.findTool('zoho_mail', /ATTACHMENT.*(INFO|LIST|DETAIL)/);
+      if (ti) { const d = await A.runFill(u.id, ti, { 'account_id|accountId': acc.id, 'message_id|messageId': raw, 'folder_id|folderId': '' }).catch(() => null); const list = A.arrayIn(d?.data?.attachments ? d.data.attachments : d) || [];
+        for (const a of list) { const aid = a.attachmentId || a.attachment_id || a.id; if (!aid) continue; const name = a.attachmentName || a.fileName || a.name || 'file'; out.atts.push({ id: String(aid), name, mime: a.contentType || '', size: a.attachmentSize || a.size || 0, url: `/api/mail/att?acct=zoho_mail&id=${encodeURIComponent(raw)}&att=${encodeURIComponent(aid)}&name=${encodeURIComponent(name)}` }); } }
+      return out;
+    } catch (e) { console.error('mailfull zoho', e.message); }
+  }
+  out.text = await mailBody(u, key, id); return out;
+}
+on('GET', '/api/mail/full', async (req, res, u) => { const q = new URL(req.url, 'http://x').searchParams; const r = await mailFull(u, q.get('acct') || '', q.get('id') || ''); send(res, 200, { html: r.html.slice(0, 400000), text: r.text.slice(0, 20000), atts: r.atts.slice(0, 30) }); });
+const MATT = path.join(process.env.DATA_DIR || './data', 'mail-att');
+on('GET', '/api/mail/att', async (req, res, u) => {
+  const q = new URL(req.url, 'http://x').searchParams, acct = q.get('acct') || '', id = q.get('id') || '', att = q.get('att') || '', name = (q.get('name') || 'file').slice(0, 150);
+  const dir = path.join(MATT, String(u.id)); fs.mkdirSync(dir, { recursive: true });
+  const f = path.join(dir, sha(acct + '|' + id + '|' + att).replace(/[^a-z0-9]/gi, '').slice(0, 40));
+  const extMime = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', mp4: 'video/mp4' }[(/\.([a-z0-9]+)$/i.exec(name)?.[1] || '').toLowerCase()];
+  const mime = (q.get('mime') || extMime || 'application/octet-stream').split(';')[0];
+  if (!fs.existsSync(f)) {
+    if (limited('matt:' + u.id, 300, DAY)) return fail(res, 429, 'Too many files today.');
+    let buf = null;
+    if (acct === 'gmail') { const d = await A.proxy(u.id, 'gmail', { endpoint: `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(id)}/attachments/${encodeURIComponent(att)}` }); buf = b64u(d.data); }
+    else if (acct === 'zoho_mail') {
+      const acc = await A.zohoAccount(u.id), t = await A.findTool('zoho_mail', /ATTACHMENT.*(DOWNLOAD|CONTENT|GET)|DOWNLOAD.*ATTACHMENT/); if (!t) return fail(res, 404, 'This attachment can only be opened in Zoho Mail for now.');
+      const d = await A.runFill(u.id, t, { 'account_id|accountId': acc.id, 'message_id|messageId': id, 'attachment_id|attachmentId': att, 'folder_id|folderId': '' }); const r = d?.data || d || {};
+      const url = r.s3url || r.url || r.file?.s3url || r.downloadUrl; const data = r.content || r.data || r.file?.content;
+      if (url) { const x = await fetch(url); buf = Buffer.from(await x.arrayBuffer()); } else if (data) buf = Buffer.from(String(data), 'base64');
+    }
+    if (!buf || !buf.length) return fail(res, 404, 'Could not open this attachment.');
+    fs.writeFileSync(f, buf);
+  }
+  sendFile(req, res, f, mime, name);
+});
 on('GET', '/api/mail/read', async (req, res, u) => { const q = new URL(req.url, 'http://x').searchParams; send(res, 200, { body: (await mailBody(u, q.get('acct') || '', q.get('id') || '')).slice(0, 20000) }); });
 on('POST', '/api/mail/aireply', async (req, res, u) => {
   const b = await json(req); if (limited('mailai:' + u.id, 60, 3600e3)) return fail(res, 429, 'That is a lot for one hour. Try again soon.');
@@ -1064,6 +1123,17 @@ on('GET', '/api/wa/voice', async (req, res, u) => {
     res.writeHead(206, { 'content-type': v.type, 'content-length': end - start + 1, 'content-range': `bytes ${start}-${end}/${size}`, 'accept-ranges': 'bytes', 'cache-control': 'private, max-age=86400' }); return fs.createReadStream(v.file, { start, end }).pipe(res); }
   res.writeHead(200, { 'content-type': v.type, 'content-length': size, 'accept-ranges': 'bytes', 'cache-control': 'private, max-age=86400' }); fs.createReadStream(v.file).pipe(res);
 });
+// Any file with Range support (iPhone needs it for video and audio); images and PDFs open in place, others download.
+function sendFile(req, res, file, type, name) {
+  const size = fs.statSync(file).size, inline = /^(image\/(jpeg|png|webp|gif)|video\/mp4|audio\/|application\/pdf)/.test(type);
+  const base = { 'content-type': inline ? type : 'application/octet-stream', 'accept-ranges': 'bytes', 'cache-control': 'private, max-age=86400', 'x-content-type-options': 'nosniff', 'content-disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(name || 'file')}` };
+  const m = /bytes=(\d*)-(\d*)/.exec(req.headers.range || '');
+  if (m) { const start = m[1] ? +m[1] : Math.max(0, size - +m[2]), end = m[1] && m[2] ? Math.min(+m[2], size - 1) : size - 1;
+    if (start >= size || start > end) { res.writeHead(416, { 'content-range': `bytes */${size}` }); return res.end(); }
+    res.writeHead(206, { ...base, 'content-length': end - start + 1, 'content-range': `bytes ${start}-${end}/${size}` }); return fs.createReadStream(file, { start, end }).pipe(res); }
+  res.writeHead(200, { ...base, 'content-length': size }); fs.createReadStream(file).pipe(res);
+}
+on('GET', '/api/wa/media', async (req, res, u) => { const q = new URL(req.url, 'http://x').searchParams; const f = await W.media(u.id, q.get('jid') || '', q.get('id') || ''); sendFile(req, res, f.file, f.type, f.name); });
 on('POST', '/api/wa/voicetext', async (req, res, u) => { const b = await json(req); const v = await W.voice(u.id, String(b.jid || ''), String(b.id || '')); send(res, 200, { text: await V.listen(fs.readFileSync(v.file), v.type) }); });
 on('POST', '/api/wa/sendvoice', async (req, res, u) => { const q = new URL(req.url, 'http://x').searchParams; const buf = await readBody(req, 16 * 1024 * 1024); if (buf.length < 800) return fail(res, 400, 'The recording is empty. Hold a little longer.'); send(res, 200, await W.sendVoice(u.id, q.get('jid') || '', buf, String(req.headers['content-type'] || ''))); }, { raw: true });
 on('POST', '/api/wa/sendfile', async (req, res, u) => {
@@ -1082,7 +1152,7 @@ const STATIC = { '/': 'app.html', '/privacy': 'privacy.html', '/terms': 'terms.h
 const MIME = { '.js': 'text/javascript; charset=utf-8', '.html': 'text/html; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json' };
 const SEC = {
   'x-content-type-options': 'nosniff', 'referrer-policy': 'strict-origin-when-cross-origin', 'x-frame-options': 'DENY',
-  'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self'; frame-src https://www.linkedin.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+  'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self'; frame-src 'self' blob: https://www.linkedin.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
 };
 if (secure()) SEC['strict-transport-security'] = 'max-age=31536000';
 

@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS wa_contacts (user_id INTEGER NOT NULL, jid TEXT NOT N
 `);
 
 try { db.exec('ALTER TABLE wa_messages ADD COLUMN media TEXT'); } catch { /* already there */ }
+db.exec('CREATE TABLE IF NOT EXISTS wa_mmeta (user_id INTEGER NOT NULL, jid TEXT NOT NULL, id TEXT NOT NULL, mtype TEXT, mname TEXT, mmime TEXT, PRIMARY KEY (user_id, jid, id))');
 for (const c of ['participant TEXT', 'my_react TEXT']) { try { db.exec('ALTER TABLE wa_messages ADD COLUMN ' + c); } catch { /* already there */ } }
 const MEDIA = path.join(DIR, 'wa-media'); fs.mkdirSync(MEDIA, { recursive: true });
 db.exec(`CREATE TABLE IF NOT EXISTS wa_flags (user_id INTEGER NOT NULL, jid TEXT NOT NULL, ignored_at INTEGER, noise INTEGER DEFAULT 0, PRIMARY KEY (user_id, jid));`);
@@ -106,7 +107,12 @@ function saveMessage(uid, m, live) {
   if (!fromMe && m.pushName && !isJidGroup(jid) && !one('SELECT 1 FROM wa_contacts WHERE user_id = ? AND jid = ?', uid, jid)) putName(uid, jid, m.pushName, 0);
   const inner = m.message?.ephemeralMessage?.message || m.message?.viewOnceMessage?.message || m.message || {};
   // Voice notes: keep what is needed to download them later (only when the customer taps play).
-  const media = m.media || (inner.audioMessage && inner.audioMessage.mediaKey ? JSON.stringify({ key: m.key, message: { audioMessage: inner.audioMessage } }, BufferJSON.replacer) : null);
+  const mk = ['audioMessage', 'imageMessage', 'videoMessage', 'documentMessage', 'stickerMessage', 'documentWithCaptionMessage'].find((k) => inner[k]);
+  let mobj = mk && inner[mk]; if (mk === 'documentWithCaptionMessage') mobj = inner[mk]?.message?.documentMessage;
+  const mkey = mk === 'documentWithCaptionMessage' ? 'documentMessage' : mk;
+  const media = m.media || (mobj && mobj.mediaKey ? JSON.stringify({ key: m.key, message: { [mkey]: mobj } }, BufferJSON.replacer) : null);
+  const mtype = { audioMessage: 'audio', imageMessage: 'image', videoMessage: 'video', documentMessage: 'doc', stickerMessage: 'sticker' }[mkey] || null;
+  if (mtype) try { run('INSERT INTO wa_mmeta (user_id, jid, id, mtype, mname, mmime) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, jid, id) DO NOTHING', uid, jid, m.key.id, mtype, mobj?.fileName || null, mobj?.mimetype || null); } catch {}
   run('INSERT INTO wa_messages (user_id, jid, id, from_me, sender_name, text, at, media, participant) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, jid, id) DO UPDATE SET media = COALESCE(wa_messages.media, excluded.media), participant = COALESCE(wa_messages.participant, excluded.participant)', uid, jid, m.key.id, fromMe, fromMe ? 'You' : m.pushName || null, text.slice(0, 4000), at, media, m.key.participant || null);
   run(`INSERT INTO wa_chats (user_id, jid, name, is_group, last_text, last_from_me, last_at, unread) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(user_id, jid) DO UPDATE SET last_text = CASE WHEN excluded.last_at >= wa_chats.last_at THEN excluded.last_text ELSE wa_chats.last_text END,
@@ -173,7 +179,9 @@ export const chats = (uid, q = '') => all(`SELECT c.jid, COALESCE(c.name, ct.nam
   FROM wa_chats c LEFT JOIN wa_contacts ct ON ct.user_id = c.user_id AND ct.jid = c.jid
   WHERE c.user_id = ? AND c.last_at > 0 ${q ? 'AND (c.name LIKE ? OR ct.name LIKE ? OR c.jid LIKE ?)' : ''} ORDER BY c.last_at DESC LIMIT 80`, ...(q ? [uid, `%${q}%`, `%${q}%`, `%${q}%`] : [uid]));
 export const twins = (uid, jid) => { const o = jid.endsWith('@lid') ? one('SELECT pn x FROM wa_lid WHERE user_id = ? AND lid = ?', uid, jid) : one('SELECT lid x FROM wa_lid WHERE user_id = ? AND pn = ?', uid, jid); return o ? [jid, o.x] : [jid]; };
-export const messages = (uid, jid) => { const j = twins(uid, jid); return all(`SELECT id, from_me, sender_name, text, at, (media IS NOT NULL OR text = ?) audio, my_react FROM wa_messages WHERE user_id = ? AND jid IN (${j.map(() => '?').join(',')}) ORDER BY at DESC LIMIT 60`, '🎤 Voice message', uid, ...j).reverse(); };
+export const messages = (uid, jid) => { const j = twins(uid, jid); return all(`SELECT m.jid, m.id, m.from_me, m.sender_name, m.text, m.at, ((m.media IS NOT NULL AND COALESCE(t.mtype, 'audio') = 'audio') OR m.text = ?) audio, m.my_react,
+    COALESCE(t.mtype, CASE WHEN m.text LIKE '📷 %' THEN 'image' WHEN m.text LIKE '🎥 %' THEN 'video' WHEN m.text LIKE '📄 %' THEN 'doc' WHEN m.text = 'Sticker' THEN 'sticker' END) mtype, t.mname
+  FROM wa_messages m LEFT JOIN wa_mmeta t ON t.user_id = m.user_id AND t.jid = m.jid AND t.id = m.id WHERE m.user_id = ? AND m.jid IN (${j.map(() => '?').join(',')}) ORDER BY m.at DESC LIMIT 60`, '🎤 Voice message', uid, ...j).reverse(); };
 // Find the private id behind a phone number (asks WhatsApp when Dioma does not know it yet).
 export async function lidFor(uid, pn) {
   const k = one('SELECT lid FROM wa_lid WHERE user_id = ? AND pn = ?', uid, pn); if (k) return k.lid;
@@ -236,6 +244,34 @@ export async function sendFile(uid, jid, name, mime, buf, caption) {
 }
 
 // Play a voice note: download it from WhatsApp once, keep it, and give the browser a format it plays (m4a for iPhone).
+// Photos, videos, documents and stickers: download once from WhatsApp, keep a copy, serve it to Dioma.
+const EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'video/mp4': 'mp4', 'application/pdf': 'pdf' };
+export async function media(uid, jid, id) {
+  let row = one('SELECT media, at FROM wa_messages WHERE user_id = ? AND jid = ? AND id = ?', uid, jid, id);
+  if (!row) throw Object.assign(new Error('Not found.'), { status: 404 });
+  const meta = one('SELECT mtype, mname, mmime FROM wa_mmeta WHERE user_id = ? AND jid = ? AND id = ?', uid, jid, id) || {};
+  const dir = path.join(MEDIA, String(uid)); fs.mkdirSync(dir, { recursive: true });
+  const safe = crypto.createHash('sha1').update('m|' + jid + '|' + id).digest('hex');
+  const hit = fs.readdirSync(dir).find((f) => f.startsWith(safe + '.'));
+  const typeOf = (f) => meta.mmime || Object.keys(EXT).find((k) => f.endsWith('.' + EXT[k])) || 'application/octet-stream';
+  if (hit) return { file: path.join(dir, hit), type: typeOf(hit).split(';')[0], name: meta.mname || hit };
+  if (!row.media) {
+    const st = S.get(uid); const next = one('SELECT id, from_me, at FROM wa_messages WHERE user_id = ? AND jid = ? AND at > ? ORDER BY at ASC LIMIT 1', uid, jid, row.at);
+    if (st?.sock && st.status === 'open' && next) {
+      try { await st.sock.fetchMessageHistory(30, { remoteJid: jid, id: next.id, fromMe: !!next.from_me }, next.at); } catch {}
+      for (let i = 0; i < 16 && !row.media; i++) { await new Promise((r) => setTimeout(r, 750)); row = one('SELECT media, at FROM wa_messages WHERE user_id = ? AND jid = ? AND id = ?', uid, jid, id); }
+    }
+    if (!row.media) throw Object.assign(new Error('This older file cannot be loaded here. Open it on your phone.'), { status: 404 });
+  }
+  if (row.media.startsWith('file:')) { const f = path.join(dir, row.media.slice(5)); return { file: f, type: typeOf(f), name: meta.mname || path.basename(f) }; }
+  const st = S.get(uid), msg = JSON.parse(row.media, BufferJSON.reviver), inner = Object.values(msg.message || {})[0] || {};
+  const raw = await downloadMediaMessage(msg, 'buffer', {}, st?.sock ? { reuploadRequest: st.sock.updateMediaMessage, logger: log } : undefined);
+  const mime = String(inner.mimetype || meta.mmime || 'application/octet-stream').split(';')[0];
+  const ext = EXT[mime] || (meta.mname && /\.([a-z0-9]{1,5})$/i.exec(meta.mname)?.[1]) || 'bin';
+  const f = path.join(dir, safe + '.' + ext); fs.writeFileSync(f, raw);
+  return { file: f, type: mime, name: meta.mname || inner.fileName || ('whatsapp.' + ext) };
+}
+
 export async function voice(uid, jid, id) {
   let row = one('SELECT media, at FROM wa_messages WHERE user_id = ? AND jid = ? AND id = ?', uid, jid, id);
   if (!row) throw Object.assign(new Error('No voice note here.'), { status: 404 });
