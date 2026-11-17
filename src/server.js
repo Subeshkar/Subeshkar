@@ -1128,6 +1128,8 @@ on('GET', '/api/wa/voice', async (req, res, u) => {
 });
 // Any file with Range support (iPhone needs it for video and audio); images and PDFs open in place, others download.
 function sendFile(req, res, file, type, name) {
+  // Let Dioma's own viewer show this file (PDFs open inside Dioma); no other site may frame it.
+  res.setHeader('x-frame-options', 'SAMEORIGIN'); res.setHeader('content-security-policy', /pdf/.test(type) ? "frame-ancestors 'self'" : "default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'self'");
   const size = fs.statSync(file).size, inline = /^(image\/(jpeg|png|webp|gif)|video\/mp4|audio\/|application\/pdf)/.test(type);
   const base = { 'content-type': inline ? type : 'application/octet-stream', 'accept-ranges': 'bytes', 'cache-control': 'private, max-age=86400', 'x-content-type-options': 'nosniff', 'content-disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(name || 'file')}` };
   const m = /bytes=(\d*)-(\d*)/.exec(req.headers.range || '');
