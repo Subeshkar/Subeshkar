@@ -1015,7 +1015,15 @@ on('POST', '/api/owner/db', ownerOnly(async (req, res) => { const b = await json
 on('POST', '/api/wa/start', async (req, res, u) => send(res, 200, await W.start(u.id)));
 on('GET', '/api/wa/status', (req, res, u) => send(res, 200, W.status(u.id)));
 on('GET', '/api/wa/overview', (req, res, u) => send(res, 200, W.overview(u.id, new URL(req.url, 'http://x').searchParams.get('since'))));
-on('GET', '/api/wa/search', (req, res, u) => send(res, 200, { people: W.search(u.id, new URL(req.url, 'http://x').searchParams.get('q') || '') }));
+on('GET', '/api/wa/search', async (req, res, u) => {
+  const people = W.search(u.id, new URL(req.url, 'http://x').searchParams.get('q') || '');
+  // A saved contact points at the phone number, but the chat may live under WhatsApp's private id: open that chat instead.
+  for (const p of people.slice(0, 20)) if (p.jid.endsWith('@s.whatsapp.net') && !one('SELECT 1 FROM wa_chats WHERE user_id = ? AND jid = ? AND last_at > 0', u.id, p.jid)) {
+    const l = await W.lidFor(u.id, p.jid).catch(() => ''); const c = l && one('SELECT last_text, last_at FROM wa_chats WHERE user_id = ? AND jid = ?', u.id, l);
+    if (c) { p.jid = l; p.why = 'chat'; p.last = c.last_text; p.at = c.last_at; }
+  }
+  const seen = new Set(); send(res, 200, { people: people.filter((p) => !seen.has(p.jid) && seen.add(p.jid)) });
+});
 on('GET', '/api/wa/chats', (req, res, u) => send(res, 200, { chats: W.chats(u.id, new URL(req.url, 'http://x').searchParams.get('q') || '') }));
 on('GET', '/api/wa/messages', (req, res, u) => { const jid = new URL(req.url, 'http://x').searchParams.get('jid') || ''; W.markRead(u.id, jid); send(res, 200, { messages: W.messages(u.id, jid) }); });
 // Mail by email + password (any provider)

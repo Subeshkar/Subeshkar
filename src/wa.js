@@ -172,7 +172,15 @@ export function status(uid) {
 export const chats = (uid, q = '') => all(`SELECT c.jid, COALESCE(c.name, ct.name, substr(c.jid, 1, instr(c.jid, '@') - 1)) name, c.is_group, c.unread, c.last_text, c.last_from_me, c.last_at
   FROM wa_chats c LEFT JOIN wa_contacts ct ON ct.user_id = c.user_id AND ct.jid = c.jid
   WHERE c.user_id = ? AND c.last_at > 0 ${q ? 'AND (c.name LIKE ? OR ct.name LIKE ? OR c.jid LIKE ?)' : ''} ORDER BY c.last_at DESC LIMIT 80`, ...(q ? [uid, `%${q}%`, `%${q}%`, `%${q}%`] : [uid]));
-export const messages = (uid, jid) => all('SELECT id, from_me, sender_name, text, at, (media IS NOT NULL OR text = ?) audio, my_react FROM wa_messages WHERE user_id = ? AND jid = ? ORDER BY at DESC LIMIT 60', '🎤 Voice message', uid, jid).reverse();
+export const twins = (uid, jid) => { const o = jid.endsWith('@lid') ? one('SELECT pn x FROM wa_lid WHERE user_id = ? AND lid = ?', uid, jid) : one('SELECT lid x FROM wa_lid WHERE user_id = ? AND pn = ?', uid, jid); return o ? [jid, o.x] : [jid]; };
+export const messages = (uid, jid) => { const j = twins(uid, jid); return all(`SELECT id, from_me, sender_name, text, at, (media IS NOT NULL OR text = ?) audio, my_react FROM wa_messages WHERE user_id = ? AND jid IN (${j.map(() => '?').join(',')}) ORDER BY at DESC LIMIT 60`, '🎤 Voice message', uid, ...j).reverse(); };
+// Find the private id behind a phone number (asks WhatsApp when Dioma does not know it yet).
+export async function lidFor(uid, pn) {
+  const k = one('SELECT lid FROM wa_lid WHERE user_id = ? AND pn = ?', uid, pn); if (k) return k.lid;
+  const st = S.get(uid); if (!st || !st.sock) return '';
+  try { const l = await st.sock.signalRepository?.lidMapping?.getLIDForPN(pn); if (l) { mapLid(uid, l, pn); return bare(l); } } catch {}
+  return '';
+}
 export const markRead = (uid, jid) => run('UPDATE wa_chats SET unread = 0 WHERE user_id = ? AND jid = ?', uid, jid);
 
 // React to a message with an emoji (empty emoji removes your reaction), like long-press in WhatsApp.
@@ -293,10 +301,11 @@ export function snapshot(uid) {
 
 // Everything the WhatsApp screen needs to sort chats (who is waiting, follow-ups, groups, unknown numbers).
 export function overview(uid, since) {
-  const chats = all(`SELECT c.jid, COALESCE(c.name, ct.name) nm, c.is_group, c.unread, c.last_text, c.last_from_me, c.last_at,
+  const chats = all(`SELECT c.jid, COALESCE(CASE WHEN ct.book = 1 THEN ct.name END, CASE WHEN cp.book = 1 THEN cp.name END, CASE WHEN c.jid LIKE '%@g.us' THEN c.name END, ct.name, cp.name, c.name) nm, c.is_group, c.unread, c.last_text, c.last_from_me, c.last_at,
       (SELECT MAX(at) FROM wa_messages m WHERE m.user_id = c.user_id AND m.jid = c.jid AND m.from_me = 1) my_at, f.ignored_at, f.noise,
       CASE WHEN c.last_text = '🎤 Voice message' THEN (SELECT id FROM wa_messages v WHERE v.user_id = c.user_id AND v.jid = c.jid AND v.text = c.last_text ORDER BY v.at DESC LIMIT 1) END voice_id
     FROM wa_chats c LEFT JOIN wa_contacts ct ON ct.user_id = c.user_id AND ct.jid = c.jid LEFT JOIN wa_flags f ON f.user_id = c.user_id AND f.jid = c.jid
+      LEFT JOIN wa_lid l ON l.user_id = c.user_id AND l.lid = c.jid LEFT JOIN wa_contacts cp ON cp.user_id = c.user_id AND cp.jid = l.pn
     WHERE c.user_id = ? ORDER BY c.last_at DESC LIMIT 3000`, uid);
   const sent = one('SELECT COUNT(*) n FROM wa_messages WHERE user_id = ? AND from_me = 1 AND at >= ?', uid, Number(since) || 0)?.n || 0;
   return { chats: chats.map((c) => ({ ...c, name: c.nm || c.jid.split('@')[0], named: !!c.nm })), sentToday: sent };
