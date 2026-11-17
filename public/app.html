@@ -545,7 +545,7 @@ async function sendCard(box, c) {
     <input class="field" data-k="to" placeholder="To (email)" value="${esc(c.to)}"><input class="field" data-k="cc" placeholder="Cc (optional)" value="${esc(c.cc || '')}"><input class="field" data-k="subject" placeholder="Subject" value="${esc(c.subject)}"><textarea class="field" data-k="body" rows="9">${esc(c.body)}</textarea>
     <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm pri" data-go ${c.sent || !A2.length ? 'disabled' : ''}>${c.sent ? 'Sent ✓' : 'Send email'}</button><button class="btn sm" data-fix>Fix</button><button class="btn sm" data-emo title="Emoji" aria-label="Emoji"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M8.5 14.5s1.3 1.8 3.5 1.8 3.5-1.8 3.5-1.8M9 9.5h.01M15 9.5h.01"/></svg></button></div></div>`;
   box.querySelectorAll('[data-k]').forEach((el) => { el.oninput = el.onchange = () => { c[el.dataset.k] = el.value; }; });
-  box.querySelector('[data-fix]').onclick = (e) => busyB(e.target, 'Fixing…', async () => { const r = await api('POST', '/api/mail/aireply', { mode: 'fix', text: c.body, subject: c.subject }); if (r.text) { c.body = r.text; setVal(box.querySelector('[data-k=body]'), r.text); } });
+  box.querySelector('[data-fix]').onclick = (e) => busyB(e.target, 'Fixing…', async () => { const r = await api('POST', '/api/mail/aireply', { mode: 'fix', text: c.body, subject: c.subject }); if (r.text) { c.body = r.text; dealBox(box.querySelector('[data-k=body]') || box.firstElementChild, r.summary); setVal(box.querySelector('[data-k=body]'), r.text); } });
   if (!c.sent && A2.length) twoTap(box.querySelector('[data-go]'), 'Send email', async () => { if (!c.acct) c.acct = box.querySelector('[data-k=acct]').value; await api('POST', '/api/mail/compose', { acct: c.acct, to: c.to, cc: c.cc, subject: c.subject, body: c.body, id: c.reply_id, thread: c.thread }); c.sent = 1; box.querySelector('[data-go]').textContent = 'Sent ✓'; toast('Email sent'); });
 }
 // Turn any AI text into a send card (Dioma AI answers): pulls "Subject:" out and keeps the rest as the body.
@@ -943,6 +943,8 @@ const SACTS = [['trending', 'Trending', '<path d="M3 17l6-6 4 4 8-8"/><path d="M
 const SSEARCH = { instagram: 'https://www.instagram.com/explore/search/keyword/?q=', facebook: 'https://www.facebook.com/search/top/?q=', linkedin: 'https://www.linkedin.com/search/results/content/?keywords=', twitter: 'https://x.com/search?q=', youtube: 'https://www.youtube.com/results?search_query=', tiktok: 'https://www.tiktok.com/search?q=', snapchat: 'https://www.snapchat.com/explore/' };
 const SINBOX = { instagram: 'https://www.instagram.com/direct/inbox/', facebook: 'https://business.facebook.com/latest/inbox/all', linkedin: 'https://www.linkedin.com/messaging/', twitter: 'https://x.com/messages', tiktok: 'https://www.tiktok.com/messages' };
 const NETN = { instagram: 'Instagram', facebook: 'Facebook', linkedin: 'LinkedIn', twitter: 'X', youtube: 'YouTube', tiktok: 'TikTok' };
+// The decision summary (line items, one-time vs monthly, totals) shown just above a price email draft.
+function dealBox(ta, sum) { if (!ta) return; let d = ta.previousElementSibling; if (!d || !d.classList.contains('dsum')) { d = document.createElement('div'); d.className = 'dsum card md'; d.style.cssText = 'margin:6px 0;padding:10px 12px;font-size:14px;overflow-x:auto'; ta.before(d); } d.hidden = !sum; d.innerHTML = sum ? '<div class="note" style="margin-bottom:4px">Decision summary</div>' + md(sum) : ''; }
 const aiw = (kind, input) => api('POST', '/api/ai/write', { kind, input });
 async function viewSocial() {
   const main = $('#main');
@@ -1900,7 +1902,7 @@ async function mailOpen(i) {
     if (k === 'fix' && !ta.value.trim()) return toast('Write something first.');
     const ins = box.querySelector('[data-mins]').value.trim(); if (k === 'write' && !ins) return toast('Tell Dioma what to say first.');
     b.disabled = true; const l = b.textContent; b.textContent = 'Writing…';
-    try { const r = await api('POST', '/api/mail/aireply', { mode: k, from: m.from, subject: m.subject, body: box.querySelector('.mbody').textContent, text: k === 'write' ? ins : ta.value }); setVal(ta, r.text); } catch (x) { toast(x.message); }
+    try { const r = await api('POST', '/api/mail/aireply', { mode: k, from: m.from, subject: m.subject, body: box.querySelector('.mbody').textContent, text: k === 'write' ? ins : ta.value }); dealBox(ta, r.summary); setVal(ta, r.text); } catch (x) { toast(x.message); }
     b.disabled = false; b.textContent = l;
   };
 }
