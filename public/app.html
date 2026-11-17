@@ -513,6 +513,18 @@ const MIC = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke=
 // Send card: an email or WhatsApp that Dioma prepared. You check it, change anything, tap Send twice.
 let MACCTS = null;
 async function sendCard(box, c) {
+  if (c.card === 'post') {
+    await loadApps().catch(() => {});
+    const NETS = [['linkedin', 'LinkedIn'], ['facebook', 'Facebook'], ['instagram', 'Instagram'], ['twitter', 'X']], on = NETS.filter(([k]) => appOn(k));
+    box.innerHTML = `<div class="card stack" style="margin-top:8px"><b style="font-weight:600">Post on social media</b><textarea class="field" data-k="text" rows="7">${esc(c.text)}</textarea>
+      <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm" data-fix>Fix</button><button class="btn sm" data-copy>Copy</button>${on.map(([k, l]) => `<button class="btn sm pri" data-net="${k}" ${c.sent && c.sent[k] ? 'disabled' : ''}>${c.sent && c.sent[k] ? 'Posted ✓' : 'Post on ' + l}</button>`).join('')}</div>
+      ${on.length ? (on.some(([k]) => k === 'instagram') ? '<p class="note">Instagram needs a photo: post it from Social → New post.</p>' : '') : '<p class="note">Connect LinkedIn, Facebook or X in Social to post from here. You can copy it for now.</p>'}</div>`;
+    const ta = box.querySelector('[data-k=text]'); ta.oninput = () => { c.text = ta.value; };
+    box.querySelector('[data-copy]').onclick = () => copyT(ta.value);
+    box.querySelector('[data-fix]').onclick = (e) => busyB(e.target, 'Fixing…', async () => { const r = await api('POST', '/api/ai/write', { kind: 'post', input: 'Polish this post, keep it the same length and meaning:\n' + ta.value }); if (r.text) { setVal(ta, r.text); c.text = r.text; } });
+    box.querySelectorAll('[data-net]').forEach((b) => { if (b.disabled || b.dataset.net === 'instagram') { if (b.dataset.net === 'instagram') b.onclick = () => { location.hash = '#social'; }; return; } const lbl = b.textContent; twoTap(b, lbl, async () => { await api('POST', '/api/social/post', { net: b.dataset.net, text: ta.value }); (c.sent = c.sent || {})[b.dataset.net] = 1; b.textContent = 'Posted ✓'; toast('Posted on ' + lbl.replace('Post on ', '')); }); });
+    return;
+  }
   if (c.card === 'whatsapp') {
     box.innerHTML = `<div class="card stack" style="margin-top:8px"><div class="row" style="justify-content:space-between"><b style="font-weight:600">WhatsApp to ${esc(c.name || 'contact')}</b>${c.sent ? '<span class="note">Sent ✓</span>' : ''}</div>${c.jid || !c.name ? '' : '<p class="err">Dioma could not find this contact. Type their name or number.</p>'}<input class="field" data-k="num" placeholder="To: name or number, e.g. Ibrahim or 971501234567" ${c.jid ? 'hidden' : ''}><textarea class="field" data-k="text" rows="4">${esc(c.text)}</textarea><div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm pri" data-go ${c.sent ? 'disabled' : ''}>${c.sent ? 'Sent ✓' : 'Send on WhatsApp'}</button><button class="btn sm" data-emo title="Emoji" aria-label="Emoji"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M8.5 14.5s1.3 1.8 3.5 1.8 3.5-1.8 3.5-1.8M9 9.5h.01M15 9.5h.01"/></svg></button></div></div>`;
     box.querySelector('[data-k=text]').oninput = (e) => { c.text = e.target.value; };
@@ -539,6 +551,7 @@ async function sendCard(box, c) {
 // Turn any AI text into a send card (Dioma AI answers): pulls "Subject:" out and keeps the rest as the body.
 function cardFromText(t, kind) {
   t = String(t || '').replace(/\*\*/g, '').trim();
+  if (kind === 'post') return { card: 'post', text: t.replace(/^(here is|here's)[^\n]*\n+/i, '').replace(/^\s*Subject:.*\n+/im, '').trim() };
   if (kind === 'whatsapp') return { card: 'whatsapp', jid: '', name: '', text: t.replace(/^(here is|here's)[^\n]*\n+/i, '').replace(/^\s*Subject:.*\n+/im, '').trim() };
   const m = t.match(/^\s*Subject:\s*(.+)$/im); let body = t;
   if (m) body = t.slice(t.indexOf(m[0]) + m[0].length).trim();
@@ -1944,11 +1957,11 @@ async function viewAi() {
 function drawAi(list) {
   const box = $('#aimsgs'); if (!box) return;
   box.innerHTML = list.length ? list.map((m) => aiBubble(m.role, m.text, m.files)).join('') : `<div class="aihello"><div style="font-size:24px;font-weight:600">Let's start${S.me && S.me.name ? ', ' + esc(S.me.name.split(' ')[0]) : ''}.</div></div>`;
-  box.onclick = (e) => { const s2 = e.target.closest('[data-aisug]'); if (s2) aiSend(s2.dataset.aisug); const c = e.target.closest('[data-aicp]'); if (c) copyT(c.closest('.aimsg').querySelector('.aitxt').innerText); const em = e.target.closest('[data-aimail],[data-aiwa]'); if (em) { const msg = em.closest('.aimsg'), slot = msg.querySelector('.aicard'); if (slot.innerHTML) { slot.innerHTML = ''; return; } sendCard(slot, cardFromText(msg.querySelector('.aitxt').innerText, em.hasAttribute('data-aiwa') ? 'whatsapp' : 'email')); }  };
+  box.onclick = (e) => { const s2 = e.target.closest('[data-aisug]'); if (s2) aiSend(s2.dataset.aisug); const c = e.target.closest('[data-aicp]'); if (c) copyT(c.closest('.aimsg').querySelector('.aitxt').innerText); const em = e.target.closest('[data-aimail],[data-aiwa],[data-aipost]'); if (em) { const msg = em.closest('.aimsg'), slot = msg.querySelector('.aicard'); if (slot.innerHTML) { slot.innerHTML = ''; return; } sendCard(slot, cardFromText(msg.querySelector('.aitxt').innerText, em.hasAttribute('data-aiwa') ? 'whatsapp' : em.hasAttribute('data-aipost') ? 'post' : 'email')); }  };
   if (list.length) setTimeout(() => window.scrollTo({ top: document.body.scrollHeight }), 30); else window.scrollTo({ top: 0 });
 }
 // One clean row of answer actions: the same outline icons, side by side.
-const AIACT = '<button type="button" class="btn sm aia" data-aicp title="Copy"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h10v12H9zM5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg><span>Copy</span></button><button type="button" class="btn sm aia" data-spk title="Read aloud"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg><span>Listen</span></button><button type="button" class="btn sm aia" data-aimail title="Email it"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v12H3zM3 7l9 6 9-6"/></svg><span>Email it</span></button><button type="button" class="btn sm aia" data-aiwa title="WhatsApp it"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8.5 8.5 0 0 1-12.6 7.4L3 21l1.6-5.2A8.5 8.5 0 1 1 21 12z"/></svg><span>WhatsApp it</span></button>';
+const AIACT = '<button type="button" class="btn sm aia" data-aicp title="Copy"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h10v12H9zM5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg><span>Copy</span></button><button type="button" class="btn sm aia" data-spk title="Read aloud"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg><span>Listen</span></button><button type="button" class="btn sm aia" data-aimail title="Email it"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v12H3zM3 7l9 6 9-6"/></svg><span>Email it</span></button><button type="button" class="btn sm aia" data-aiwa title="WhatsApp it"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8.5 8.5 0 0 1-12.6 7.4L3 21l1.6-5.2A8.5 8.5 0 1 1 21 12z"/></svg><span>WhatsApp it</span></button><button type="button" class="btn sm aia" data-aipost title="Post it on social media"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6M6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg><span>Post it</span></button>';
 const aiBubble = (role, text, files) => role === 'user' ? `<div class="aimsg me">${(files || []).map((f) => `<div class="note"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7.1-7.1l8.6-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/></svg>${esc(f.name)}</div>`).join('')}<div class="aitxt">${esc(text).replace(/\n/g, '<br>')}</div></div>` : `<div class="aimsg ai" data-spkbox><div class="aitxt md spkt">${md(text)}</div><div class="row" style="gap:4px;margin-top:6px;flex-wrap:wrap">${AIACT}</div><div class="aicard"></div></div>`;
 async function aiSend(text) {
   const box = $('#aimsgs'); if (!box) return; if (box.querySelector('.aihello')) box.innerHTML = '';
@@ -2017,7 +2030,7 @@ function drawSheet() {
   m.onclick = (e) => {
     if (e.target.closest('#ashnew')) { SHEETMSG = []; $('#aisheet').remove(); aiSheet(); return; }
     const c = e.target.closest('[data-aicp]'); if (c) return copyT(c.closest('.aimsg').querySelector('.aitxt').innerText);
-    const em = e.target.closest('[data-aimail],[data-aiwa]'); if (em) { const msg = em.closest('.aimsg'), slot = msg.querySelector('.aicard'); const card = document.createElement('div'); slot.appendChild(card); sendCard(card, cardFromText(msg.querySelector('.aitxt').innerText, em.hasAttribute('data-aiwa') ? 'whatsapp' : 'email')); }
+    const em = e.target.closest('[data-aimail],[data-aiwa],[data-aipost]'); if (em) { const msg = em.closest('.aimsg'), slot = msg.querySelector('.aicard'); const card = document.createElement('div'); slot.appendChild(card); sendCard(card, cardFromText(msg.querySelector('.aitxt').innerText, em.hasAttribute('data-aiwa') ? 'whatsapp' : em.hasAttribute('data-aipost') ? 'post' : 'email')); }
     const h = e.target.closest('[data-ash]'); if (h) { $('#ashq').value = h.dataset.ash; $('#ashf').requestSubmit(); }
   };
   m.scrollTop = m.scrollHeight;
