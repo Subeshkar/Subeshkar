@@ -21,7 +21,7 @@ export async function claude({ system, messages, tools, max_tokens = 1200, model
 // The best writer for messages people will read (WhatsApp, email, posts).
 export const WRITER = () => process.env.DIOMA_WRITE_MODEL || 'claude-opus-5-5';
 
-export async function converse({ system, messages, tools, handlers, maxTurns = 6 }) {
+export async function converse({ system, messages, tools, handlers, maxTurns = 8 }) {
   const msgs = [...messages];
   const actions = [];
   for (let i = 0; i < maxTurns; i++) {
@@ -29,7 +29,9 @@ export async function converse({ system, messages, tools, handlers, maxTurns = 6
     msgs.push({ role: 'assistant', content: res.content });
     const uses = (res.content || []).filter((b) => b.type === 'tool_use');
     if (res.stop_reason !== 'tool_use' || !uses.length) {
-      return { text: (res.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim(), actions };
+      const text = (res.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
+      if (text) return { text, actions };
+      break; // no words: ask for the answer below
     }
     const results = [];
     for (const u of uses) {
@@ -41,7 +43,15 @@ export async function converse({ system, messages, tools, handlers, maxTurns = 6
     }
     msgs.push({ role: 'user', content: results });
   }
-  return { text: 'Done.', actions };
+  // Never answer with an empty "Done.": one last turn, no tools, to give the real answer from what was found.
+  try {
+    const last = msgs[msgs.length - 1];
+    const tail = last && last.role === 'assistant' ? [...msgs, { role: 'user', content: 'Now answer my question directly and clearly from what you found.' }] : msgs;
+    const fin = await claude({ system, messages: tail.map((m) => (Array.isArray(m.content) ? { role: m.role, content: m.content.map((b) => (b.type === 'tool_use' ? { type: 'text', text: `[used ${b.name}]` } : b.type === 'tool_result' ? { type: 'text', text: 'Result: ' + String(b.content).slice(0, 5000) } : b)) } : m)) });
+    const text = (fin.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
+    if (text) return { text, actions };
+  } catch {}
+  return { text: actions.length ? 'I checked, but could not put an answer together. Please ask again in a moment.' : 'Sorry, I could not answer that. Please try again.', actions };
 }
 
 // ---- local stand-in (no key) ----
