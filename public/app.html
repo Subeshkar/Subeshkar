@@ -560,12 +560,12 @@ async function viewAsk() {
   };
   draw();
   const c = document.createElement('div'); c.className = 'composer';
-  c.innerHTML = `<form class="wrap row" id="cf"><button type="button" class="btn mic" id="mic" aria-label="Talk to Dioma">${MIC}</button><textarea class="field grow" id="q" rows="1" placeholder="Ask Dioma, or tap the mic and talk…" maxlength="4000"></textarea><button class="btn pri" aria-label="Send">Send</button></form>`;
+  c.innerHTML = `<form class="wrap row" id="cf"><button type="button" class="btn mic" id="mic" aria-label="Talk to Dioma">${MIC}</button><textarea class="field grow" id="q" rows="1" placeholder="Ask Dioma, or tap the mic and talk…" maxlength="4000" data-draft="ask"></textarea><button class="btn pri" aria-label="Send">Send</button></form>`;
   document.body.appendChild(c);
   const q = $('#q');
   q.addEventListener('input', () => { q.style.height = 'auto'; q.style.height = Math.min(q.scrollHeight, 140) + 'px'; });
   q.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 600) { e.preventDefault(); $('#cf').requestSubmit(); } });
-  $('#cf').addEventListener('submit', (e) => { e.preventDefault(); const v = q.value; q.value = ''; q.style.height = 'auto'; ask(v); });
+  $('#cf').addEventListener('submit', (e) => { e.preventDefault(); const v = q.value; draftClear(q); q.value = ''; q.style.height = 'auto'; ask(v); });
   $('#mic').addEventListener('click', (e) => { if (!S.me.voice) return toast('Voice is being switched on.'); micToggle(e.currentTarget, (t) => ask(t)); });
   main.style.paddingBottom = '190px';
 }
@@ -1247,7 +1247,7 @@ document.addEventListener('click', (e) => { const b = e.target.closest('[data-co
 // opt: { ctx: 'what this reply is about', ai: 'instruction for AI reply', send: async (text) => {}, sendLabel, copyOnly }
 function composer(box, opt) {
   box.classList.add('cmpz');
-  box.innerHTML = `<textarea class="field" rows="3" placeholder="${esc(opt.placeholder || 'Write here…')}"></textarea>
+  box.innerHTML = `<textarea class="field" rows="3" placeholder="${esc(opt.placeholder || 'Write here…')}" data-draft="cmp:${hashK((opt.ctx || '') + (opt.sendLabel || '') + (opt.placeholder || ''))}"></textarea>
     <div class="row" style="gap:6px;margin-top:6px"><input class="field grow" data-cins placeholder="✍️ Tell AI what to say" style="min-height:40px"><button type="button" class="btn sm" data-cx="write">Write</button></div>
     <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px"><button type="button" class="btn sm" data-cx="ai">AI ${esc(opt.aiLabel || 'reply')}</button><button type="button" class="btn sm" data-cx="fix">✨ Fix</button><button type="button" class="btn sm" data-emo>😊</button>${opt.copyOnly ? '' : `<button type="button" class="btn sm pri" data-cx="send">${esc(opt.sendLabel || 'Send')}</button>`}<button type="button" class="btn sm" data-cx="copy">Copy</button>${opt.extra || ''}</div>`;
   const ta = box.querySelector('textarea');
@@ -1255,7 +1255,7 @@ function composer(box, opt) {
   box.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-cx]'); if (!b || !box.contains(b)) return; e.stopPropagation(); const k = b.dataset.cx;
     if (k === 'copy') return copyT(ta.value);
-    if (k === 'send') { const t = ta.value.trim(); if (!t) return toast('Write something first.'); if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = 'Tap again to send'; return; } b.disabled = true; b.textContent = 'Sending…'; try { await opt.send(t); b.textContent = 'Sent ✓'; toast('Sent'); opt.done && opt.done(); } catch (x) { toast(x.message); b.disabled = false; b.dataset.sure = ''; b.textContent = opt.sendLabel || 'Send'; } return; }
+    if (k === 'send') { const t = ta.value.trim(); if (!t) return toast('Write something first.'); if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = 'Tap again to send'; return; } b.disabled = true; b.textContent = 'Sending…'; try { await opt.send(t); draftClear(ta); b.textContent = 'Sent ✓'; toast('Sent'); opt.done && opt.done(); } catch (x) { toast(x.message); b.disabled = false; b.dataset.sure = ''; b.textContent = opt.sendLabel || 'Send'; } return; }
     const ins = box.querySelector('[data-cins]').value.trim();
     if (k === 'write' && !ins) return toast('Tell Dioma what to say first.'); if (k === 'fix' && !ta.value.trim()) return toast('Write something first.');
     const l = b.textContent; b.disabled = true; b.textContent = 'Writing…';
@@ -1855,7 +1855,7 @@ async function mailOpen(i) {
   const box = document.createElement('div'); box.className = 'mexp card stack'; row.after(box);
   box.innerHTML = `<div class="row" style="justify-content:space-between;gap:8px"><div class="note">${esc(m.subject)}</div><span data-spkbox>${SPK.replace('data-spk', 'data-spk=".mexp .mbody"')}</span></div><div class="mbody" style="white-space:pre-wrap;line-height:1.5;max-height:340px;overflow:auto;font-size:14.5px">${esc(m.snippet || '')}<div class="note">Loading the full email…</div></div>
     <input class="field" data-mto value="${esc(to)}" placeholder="To">
-    <textarea class="field" rows="5" placeholder="Your reply…"></textarea>
+    <textarea class="field" rows="5" placeholder="Your reply…" data-draft="mail:${esc(m.id)}"></textarea>
     <div class="row" style="gap:6px"><input class="field grow" data-mins placeholder="✍️ Tell AI what to say, e.g. yes, freezer confirmed for 8am" style="min-height:40px"><button class="btn sm" data-mx="write">Write</button></div>
     <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm" data-mx="reply">AI reply</button><button class="btn sm" data-mx="fix">✨ Fix</button><button class="btn sm" data-emo>😊</button><label class="btn sm" style="cursor:pointer">📎 Attach<input type="file" data-mfile multiple hidden></label><button class="btn sm pri" data-mx="send">Send</button><button class="btn sm" data-mx="done">✓ Done</button>${MACC === 'gmail' && m.thread ? `<a class="btn sm" href="https://mail.google.com/mail/u/0/#all/${esc(m.thread)}" target="_blank" rel="noopener">Open in Gmail ↗</a>` : ''}</div>
     <div class="note" data-mfiles></div>${canSend ? '' : '<p class="note">Sending from this mailbox is not available yet. AI can still write the reply for you to copy.</p>'}`;
@@ -1873,7 +1873,7 @@ async function mailOpen(i) {
     const b = e.target.closest('[data-mx]'); if (!b) return; const k = b.dataset.mx;
     if (k === 'done') return mailDone(i);
     if (k === 'send') { const t = ta.value.trim(); if (!t) return toast('Write your reply first.'); if (!canSend) return toast('Sending from this mailbox is not available yet.'); if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = 'Tap again to send'; return; } b.disabled = true; b.textContent = 'Sending…';
-      try { await api('POST', '/api/mail/reply', { acct: MACC, id: m.id, thread: m.thread || '', to: box.querySelector('[data-mto]').value.trim(), subject: m.subject, body: t, files }); toast('Sent'); MOPEN = -1; box.remove(); row.style.opacity = '0'; setTimeout(() => row.remove(), 300); setTimeout(() => MREF && MREF(), 900); } catch (x) { toast(x.message); b.disabled = false; b.dataset.sure = ''; b.textContent = 'Send'; } return; }
+      try { await api('POST', '/api/mail/reply', { acct: MACC, id: m.id, thread: m.thread || '', to: box.querySelector('[data-mto]').value.trim(), subject: m.subject, body: t, files }); draftClear(ta); toast('Sent'); MOPEN = -1; box.remove(); row.style.opacity = '0'; setTimeout(() => row.remove(), 300); setTimeout(() => MREF && MREF(), 900); } catch (x) { toast(x.message); b.disabled = false; b.dataset.sure = ''; b.textContent = 'Send'; } return; }
     if (k === 'fix' && !ta.value.trim()) return toast('Write something first.');
     const ins = box.querySelector('[data-mins]').value.trim(); if (k === 'write' && !ins) return toast('Tell Dioma what to say first.');
     b.disabled = true; const l = b.textContent; b.textContent = 'Writing…';
@@ -1905,7 +1905,7 @@ async function viewAi() {
   main.innerHTML = `<div class="aitop row" style="justify-content:space-between;gap:8px"><button class="btn sm" id="aihist">☰ Chats</button><b style="font-weight:600">Dioma AI</b><button class="btn sm" id="ainew">＋ New chat</button></div>
     <div id="aihl" hidden class="card stack" style="margin-top:8px;max-height:50vh;overflow:auto"></div>
     <div id="aimsgs" class="aimsgs"></div>
-    <form id="aif" class="aibar"><div id="aifl" class="note"></div><div class="row" style="gap:6px;align-items:flex-end"><label class="btn sm" style="cursor:pointer;flex:none" title="Add photo or PDF">＋<input type="file" id="aifile" accept="image/*,application/pdf,text/plain,text/csv" multiple hidden></label><textarea id="aiq" class="field grow" rows="1" placeholder="Ask Dioma anything…"></textarea><button type="button" class="btn sm" id="aimic" style="flex:none" title="Speak">🎤</button><button class="btn sm pri" id="aisend" style="flex:none">↑</button></div></form>`;
+    <form id="aif" class="aibar"><div id="aifl" class="note"></div><div class="row" style="gap:6px;align-items:flex-end"><label class="btn sm" style="cursor:pointer;flex:none" title="Add photo or PDF">＋<input type="file" id="aifile" accept="image/*,application/pdf,text/plain,text/csv" multiple hidden></label><textarea id="aiq" class="field grow" rows="1" placeholder="Ask Dioma anything…" data-draft="ai"></textarea><button type="button" class="btn sm" id="aimic" style="flex:none" title="Speak">🎤</button><button class="btn sm pri" id="aisend" style="flex:none">↑</button></div></form>`;
   const nb = document.querySelector('nav.bot'); if (nb) $('#aif').style.bottom = nb.offsetHeight + 'px';
   const q = $('#aiq'); q.oninput = () => { q.style.height = 'auto'; q.style.height = Math.min(160, q.scrollHeight) + 'px'; };
   q.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey && innerWidth > 700) { e.preventDefault(); $('#aif').requestSubmit(); } };
@@ -1928,7 +1928,7 @@ async function viewAi() {
   });
   const bar = $('#aif'); bar.addEventListener('dragover', (e) => e.preventDefault());
   bar.addEventListener('drop', async (e) => { e.preventDefault(); for (const f of [...(e.dataTransfer?.files || [])]) await addFile(f); chips(); });
-  $('#aif').onsubmit = (e) => { e.preventDefault(); if (AIBUSY) { AIBUSY.abort(); return; } const t = q.value.trim(); if (!t && !AIFILES.length) return; q.value = ''; q.oninput(); aiSend(t); };
+  $('#aif').onsubmit = (e) => { e.preventDefault(); if (AIBUSY) { AIBUSY.abort(); return; } const t = q.value.trim(); if (!t && !AIFILES.length) return; draftClear(q); q.value = ''; q.oninput(); aiSend(t); };
   if (AIT) { const m = await api('GET', '/api/ai/thread?id=' + AIT).catch(() => ({ messages: [] })); drawAi(m.messages); } else drawAi([]);
 }
 function drawAi(list) {
@@ -2133,7 +2133,7 @@ async function waExpand(jid, name) {
   if (WEXP !== jid || !box.isConnected) return;
   const sk = Object.keys(WSUG).find((k) => k.startsWith(jid + ':')), pre = sk && !WSUG[sk].sent ? WSUG[sk].text : '';
   box.innerHTML = `<div class="wexm wmsgs">${d.messages.slice(-10).map((m) => wbub(jid, m, name)).join('') || '<div class="note">No messages yet.</div>'}</div>
-    <textarea class="field" rows="2" placeholder="Your reply…">${esc(pre)}</textarea>
+    <textarea class="field" rows="2" placeholder="Your reply…" data-draft="wa:${esc(jid)}">${esc(pre)}</textarea>
     <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm" data-x="reply">AI reply</button><button class="btn sm" data-x="fix">Fix</button><button class="btn sm pri" data-x="send">Send</button><button class="btn sm" data-emo>😊</button><button class="btn sm" data-x="voice">🎤 Voice</button><label class="btn sm" style="cursor:pointer">📎 Attach<input type="file" class="wexf" hidden></label><button class="btn sm" data-x="ignore">Ignore</button><button class="btn sm" data-x="noise">Move to Noise</button><button class="btn sm" data-x="full" style="margin-left:auto">Full chat ↗</button></div><div class="vrec" hidden></div>`;
   box.querySelector('.wexf').onchange = async (ev) => { const f = ev.target.files[0], ta = box.querySelector('textarea'); ev.target.value = ''; if (!f) return; if (f.size > 15 * 1048576) return toast('Files up to 15 MB.'); toast('Sending ' + f.name + '…');
     try { const r = await fetch(`/api/wa/sendfile?jid=${encodeURIComponent(jid)}&name=${encodeURIComponent(f.name)}&caption=${encodeURIComponent(ta.value.trim())}`, { method: 'POST', headers: { 'content-type': f.type || 'application/octet-stream', 'x-dioma': '1' }, body: f }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'Could not send the file.'); ta.value = ''; toast('Sent'); waDone(jid); } catch (x) { toast(x.message); } };
@@ -2146,7 +2146,7 @@ async function expClick(e) {
   if (k === 'voice') return voiceRec(b, box.querySelector('.vrec'), jid, () => waDone(jid));
   if (k === 'ignore' || k === 'noise') { await api('POST', k === 'ignore' ? '/api/wa/ignore' : '/api/wa/noise', { jid, on: true }).catch(() => {}); toast(k === 'ignore' ? 'Ignored until they write again' : 'Moved to Noise'); return waDone(jid, k); }
   if (k === 'full') { WEXP = null; waOpen = { jid, name: box.dataset.name }; return waChat(waOpen); }
-  if (k === 'send') { const t = ta.value.trim(); if (!t) return toast('Write a message first.'); b.disabled = true; try { await api('POST', '/api/wa/send', { jid, text: t }); toast('Sent'); ta.value = ''; waDone(jid); } catch (x) { toast(x.message); } b.disabled = false; return; }
+  if (k === 'send') { const t = ta.value.trim(); if (!t) return toast('Write a message first.'); b.disabled = true; try { await api('POST', '/api/wa/send', { jid, text: t }); draftClear(ta); toast('Sent'); ta.value = ''; waDone(jid); } catch (x) { toast(x.message); } b.disabled = false; return; }
   if (k === 'fix' && !ta.value.trim()) return toast('Write something first.');
   b.disabled = true; const l = b.textContent; b.textContent = 'Writing…';
   try { const r = await api('POST', '/api/wa/draft', { jid, mode: k, text: ta.value }); setVal(ta, r.text); } catch (x) { toast(x.message); }
@@ -2184,6 +2184,18 @@ const vnote = (jid, m) => `<div class="vnote"><audio controls preload="none" src
 document.addEventListener('click', async (e) => { const b = e.target.closest('[data-vt]'); if (!b) return; e.stopPropagation(); const out = b.parentElement.querySelector('.vtx'); b.disabled = true; out.textContent = 'Listening…'; try { const r = await api('POST', '/api/wa/voicetext', { jid: b.dataset.vj, id: b.dataset.vt }); out.textContent = r.text || '(nothing heard)'; b.remove(); } catch (x) { out.textContent = x.message; b.disabled = false; } }, true);
 document.addEventListener('error', async (e) => { const a = e.target; if (!a || a.tagName !== 'AUDIO' || !a.closest('.vnote')) return; const out = a.closest('.vnote').querySelector('.vtx'); try { const r = await fetch(a.src); const j = await r.json(); out.textContent = j.error || 'Could not play this voice note.'; } catch { out.textContent = 'Could not play this voice note.'; } }, true);
 // Emoji: tap 😊 next to any WhatsApp reply box, tap an emoji, it goes in where you are typing.
+// Drafts: whatever you type in a message box is kept (on this device) until you send it, even if you leave the page or reload.
+const DRK = 'dioma-draft:';
+function draftClear(el) { try { if (el && el.dataset.draft) localStorage.removeItem(DRK + el.dataset.draft); } catch {} }
+document.addEventListener('input', (e) => { const el = e.target; if (!el || !el.dataset || !el.dataset.draft) return; try { const v = el.value; if (v.trim()) localStorage.setItem(DRK + el.dataset.draft, JSON.stringify({ v, t: Date.now() })); else localStorage.removeItem(DRK + el.dataset.draft); } catch {} }, true);
+function draftRestore(root) {
+  (root.querySelectorAll ? root.querySelectorAll('[data-draft]') : []).forEach((el) => {
+    if (el.dataset.drOk || el.value.trim()) return; el.dataset.drOk = '1';
+    try { const d = JSON.parse(localStorage.getItem(DRK + el.dataset.draft) || 'null'); if (!d) return; if (Date.now() - d.t > 14 * 864e5) { localStorage.removeItem(DRK + el.dataset.draft); return; } el.value = d.v; el.dispatchEvent(new Event('input', { bubbles: true })); el.insertAdjacentHTML('afterend', '<div class="note drn" style="margin-top:2px">✎ Your unsent draft</div>'); } catch {}
+  });
+}
+new MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) { if (n.dataset && n.dataset.draft) draftRestore(n.parentElement || document); else draftRestore(n); } }).observe(document.documentElement, { childList: true, subtree: true });
+const hashK = (t) => { let h = 0; for (const c of String(t)) h = (h * 31 + c.charCodeAt(0)) | 0; return (h >>> 0).toString(36); };
 // Put text into a box the way typing does, so Ctrl+Z / Cmd+Z (undo) still works afterwards.
 function setVal(el, t, append) {
   if (!el) return; t = String(t ?? '');
@@ -2340,7 +2352,7 @@ async function waChat(c) {
   $('#wb').addEventListener('click', () => { waOpen = null; $('.composer')?.remove(); main.style.paddingBottom = ''; viewWa(); });
   const comp = document.createElement('div'); comp.className = 'composer';
   comp.innerHTML = `<div class="wrap stack" style="gap:8px">
-    <textarea class="field" id="wt" rows="2" placeholder="Write a reply…" maxlength="4000"></textarea>
+    <textarea class="field" id="wt" rows="2" placeholder="Write a reply…" maxlength="4000" data-draft="wa:${esc(c.jid)}"></textarea>
     <form class="row" id="wai" style="gap:6px"><input class="field grow" id="wi" placeholder="✍️ Tell AI what to say, e.g. &quot;yes, tomorrow 5pm&quot;" maxlength="500"><button class="btn sm" style="height:48px">Write</button></form>
     <div class="row wbar" style="gap:6px;flex-wrap:wrap"><button class="btn sm" data-wa="reply">AI reply</button><button class="btn sm" data-wa="fix">✨ Fix</button><button class="btn sm pri" data-wa="send">Send</button><button class="btn sm" data-emo>😊</button><button class="btn sm" data-wa="voice">🎤 Voice</button><label class="btn sm" style="cursor:pointer">📎 Attach<input type="file" id="wfile" hidden></label><button class="btn sm" data-wa="ignore">Ignore</button><button class="btn sm" data-wa="noise">Move to Noise</button></div></div>`;
   document.body.appendChild(comp); main.style.paddingBottom = '260px';
@@ -2352,7 +2364,7 @@ async function waChat(c) {
     if (k === 'voice') { let vr = comp.querySelector('.vrec'); if (!vr) { vr = document.createElement('div'); vr.className = 'vrec'; comp.querySelector('.wbar').after(vr); } return voiceRec(b, vr, c.jid, () => load()); }
     if (k === 'reply') return draft('reply', '', b);
     if (k === 'fix') { if (!box.value.trim()) return toast('Write something first, then tap Fix.'); return draft('fix', box.value, b); }
-    if (k === 'send') { const t = box.value.trim(); if (!t) return toast('Write a message first.'); b.disabled = true; try { await api('POST', '/api/wa/send', { jid: c.jid, text: t }); box.value = ''; $('#wi').value = ''; toast('Sent'); load(); } catch (x) { toast(x.message); } b.disabled = false; return; }
+    if (k === 'send') { const t = box.value.trim(); if (!t) return toast('Write a message first.'); b.disabled = true; try { await api('POST', '/api/wa/send', { jid: c.jid, text: t }); draftClear(box); box.value = ''; $('#wi').value = ''; toast('Sent'); load(); } catch (x) { toast(x.message); } b.disabled = false; return; }
     if (k === 'ignore') { await api('POST', '/api/wa/ignore', { jid: c.jid }).catch(() => {}); toast('Ignored until they write again'); waOpen = null; comp.remove(); return viewWa(); }
     if (k === 'noise') { await api('POST', '/api/wa/noise', { jid: c.jid, on: true }).catch(() => {}); toast('Moved to Noise'); waOpen = null; comp.remove(); return viewWa(); }
   });
