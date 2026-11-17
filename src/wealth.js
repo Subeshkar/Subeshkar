@@ -6,7 +6,7 @@ import { db, all, one, run } from './db.js';
 const require = createRequire(import.meta.url);
 const pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
 // PDF to text, one line per printed row (items grouped by their vertical position).
-async function pdfText(buf) {
+export async function pdfText(buf) {
   const doc = await pdfjs.getDocument({ data: new Uint8Array(buf), disableWorker: true, isEvalSupported: false, verbosity: 0 }).promise;
   const lines = [];
   for (let n = 1; n <= Math.min(doc.numPages, 60); n++) {
