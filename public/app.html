@@ -1905,7 +1905,7 @@ async function viewAi() {
   main.innerHTML = `<div class="aitop row" style="justify-content:space-between;gap:8px"><button class="btn sm" id="aihist">☰ Chats</button><b style="font-weight:600">Dioma AI</b><button class="btn sm" id="ainew">＋ New chat</button></div>
     <div id="aihl" hidden class="card stack" style="margin-top:8px;max-height:50vh;overflow:auto"></div>
     <div id="aimsgs" class="aimsgs"></div>
-    <form id="aif" class="aibar"><div id="aifl" class="note"></div><div class="row" style="gap:6px;align-items:flex-end"><label class="btn sm" style="cursor:pointer;flex:none" title="Add photo or PDF">＋<input type="file" id="aifile" accept="image/*,application/pdf,text/plain,text/csv" multiple hidden></label><textarea id="aiq" class="field grow" rows="1" placeholder="Ask Dioma anything…" data-draft="ai"></textarea><button type="button" class="btn sm" id="aimic" style="flex:none" title="Speak">🎤</button><button class="btn sm pri" id="aisend" style="flex:none">↑</button></div></form>`;
+    <form id="aif" class="aibar"><div id="aifl" class="note"></div><div class="row" style="gap:6px;align-items:flex-end"><label class="btn sm" style="cursor:pointer;flex:none" title="Add a photo, PDF, Excel, Word or PowerPoint file">＋<input type="file" id="aifile" accept="image/*,application/pdf,text/plain,text/csv,.csv,.xlsx,.xls,.xlsm,.ods,.docx,.pptx" multiple hidden></label><textarea id="aiq" class="field grow" rows="1" placeholder="Ask Dioma anything…" data-draft="ai"></textarea><button type="button" class="btn sm" id="aimic" style="flex:none" title="Speak">🎤</button><button class="btn sm pri" id="aisend" style="flex:none">↑</button></div></form>`;
   const nb = document.querySelector('nav.bot'); if (nb) $('#aif').style.bottom = nb.offsetHeight + 'px';
   const q = $('#aiq'); q.oninput = () => { q.style.height = 'auto'; q.style.height = Math.min(160, q.scrollHeight) + 'px'; };
   q.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey && innerWidth > 700) { e.preventDefault(); $('#aif').requestSubmit(); } };
@@ -1921,7 +1921,7 @@ async function viewAi() {
   const addFile = (f) => new Promise((ok) => { if (f.size > 10 * 1048576) { toast(f.name + ' is over 10 MB'); return ok(); } const r = new FileReader(); r.onload = () => { AIFILES.push({ name: f.name || 'pasted-image.png', type: f.type || 'text/plain', data: String(r.result).split(',')[1] }); ok(); }; r.readAsDataURL(f); });
   $('#aiq').addEventListener('paste', async (e) => {
     const cd = e.clipboardData; if (!cd) return;
-    const fl = [...(cd.files || [])].filter((f) => /^(image\/|application\/pdf|text\/)/.test(f.type));
+    const fl = [...(cd.files || [])].filter((f) => /^(image\/|application\/pdf|text\/)/.test(f.type) || /\.(xlsx|xls|xlsm|csv|ods|docx|pptx)$/i.test(f.name));
     if (fl.length) { e.preventDefault(); for (const f of fl) await addFile(f); chips(); return; }
     const t = cd.getData('text/plain') || '';
     if (t.length > 1200) { e.preventDefault(); const first = t.trim().split('\n')[0].slice(0, 60); AIFILES.push({ name: first || 'Pasted text', type: 'text/plain', pasted: 1, data: btoa(unescape(encodeURIComponent(t))) }); chips(); toast('Added as an attachment'); }

@@ -1,6 +1,22 @@
 // Dioma AI: a general assistant like ChatGPT. Separate conversations, answers stream as they are written,
 // web search for anything current, photos and PDFs can be added. Customers only ever see "Dioma".
 import { db, all, one, run } from './db.js';
+import { createRequire } from 'node:module';
+const XLSX = createRequire(import.meta.url)('xlsx');
+// Excel, CSV, Word and PowerPoint become plain text Dioma can read.
+const isSheet = (f) => /\.(xlsx|xlsm|xls|csv|ods)$/i.test(f.name || '') || /spreadsheet|excel|csv/.test(f.type || '');
+const isOffice = (f) => /\.(docx|pptx)$/i.test(f.name || '') || /wordprocessingml|presentationml/.test(f.type || '');
+export function officeText(f) {
+  const buf = Buffer.from(f.data, 'base64');
+  if (isSheet(f)) {
+    const wb = XLSX.read(buf, { type: 'buffer', cellDates: true });
+    return wb.SheetNames.slice(0, 12).map((n) => `Sheet "${n}":\n` + XLSX.utils.sheet_to_csv(wb.Sheets[n], { blankrows: false }).split('\n').slice(0, 1500).join('\n')).join('\n\n');
+  }
+  const zip = XLSX.CFB.read(buf, { type: 'buffer' }), get = (p) => { const e = XLSX.CFB.find(zip, '/' + p) || XLSX.CFB.find(zip, p); return e ? Buffer.from(e.content).toString('utf8') : ''; };
+  const strip = (x) => x.replace(/<\/w:p>|<\/a:p>/g, '\n').replace(/<w:tab\/>/g, '\t').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/\n{3,}/g, '\n\n').trim();
+  if (/\.docx$/i.test(f.name) || /wordprocessingml/.test(f.type)) return strip(get('word/document.xml'));
+  const out = []; for (let i = 1; i <= 80; i++) { const x = get(`ppt/slides/slide${i}.xml`); if (!x) break; out.push(`Slide ${i}:\n` + strip(x)); } return out.join('\n\n');
+}
 
 db.exec(`CREATE TABLE IF NOT EXISTS ai_threads (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, title TEXT, at INTEGER);
 CREATE TABLE IF NOT EXISTS ai_msgs (id INTEGER PRIMARY KEY AUTOINCREMENT, thread_id INTEGER NOT NULL REFERENCES ai_threads(id) ON DELETE CASCADE, role TEXT NOT NULL, text TEXT, files TEXT, at INTEGER);
@@ -38,6 +54,7 @@ export async function answer(u, tid, text, files, write) {
   for (const f of files || []) {
     if (/^image\/(png|jpe?g|gif|webp)$/.test(f.type)) content.push({ type: 'image', source: { type: 'base64', media_type: f.type === 'image/jpg' ? 'image/jpeg' : f.type, data: f.data } });
     else if (f.type === 'application/pdf') content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: f.data } });
+    else if (isSheet(f) || isOffice(f)) { let x = ''; try { x = officeText(f); } catch { x = '(Dioma could not open this file. Try saving it as PDF.)'; } content.push({ type: 'text', text: `File ${f.name}:\n` + x.slice(0, 80000) }); }
     else if (/^text\//.test(f.type)) content.push({ type: 'text', text: `File ${f.name}:\n` + Buffer.from(f.data, 'base64').toString('utf8').slice(0, 60000) });
   }
   content.push({ type: 'text', text });
