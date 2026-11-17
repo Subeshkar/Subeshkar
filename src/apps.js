@@ -216,7 +216,9 @@ export async function runFill(uid, tool, want = {}) {
   for (const [aliases, val] of Object.entries(want)) {
     if (val === undefined || val === null || val === '') continue;
     const al = aliases.split('|');
-    const k = names.find((n) => al.includes(n)) || names.find((n) => al.some((a) => n.toLowerCase().includes(a.toLowerCase()))) || (names.length ? null : al[0]);
+    // Exact name first, then whole-word match ("to" fits "to_address" but never "auto_reply"; "cc" never fits "account_id").
+    const words = (x) => x.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+    const k = names.find((n) => al.includes(n)) || names.find((n) => al.some((a) => { const nw = words(n), aw = words(a); return aw.length && aw.every((w) => nw.includes(w)); })) || (names.length ? null : al[0]);
     if (k) args[k] = val;
   }
   return exec(uid, tool, args);

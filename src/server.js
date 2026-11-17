@@ -664,6 +664,30 @@ on('POST', '/api/mail/aireply', async (req, res, u) => {
 });
 on('GET', '/api/mail/accounts', async (req, res, u) => send(res, 200, { accounts: (await mailAccounts(u)).filter((a) => ['gmail', 'zoho_mail'].includes(a.key)) }));
 // Send a new email (or a reply when id/thread are given) from any connected mailbox, after the person taps Send.
+// Zoho Mail sending that checks Zoho's real answer (a "successful" call can still carry a Zoho error), with Zoho's own API as a fallback.
+db.exec('CREATE TABLE IF NOT EXISTS mail_log (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, acct TEXT, to_addr TEXT, subject TEXT, ok INTEGER, error TEXT, at INTEGER)');
+const mailLog = (u, acct, to, subject, ok, error) => run('INSERT INTO mail_log (user_id, acct, to_addr, subject, ok, error, at) VALUES (?, ?, ?, ?, ?, ?, ?)', u.id, acct, String(to).slice(0, 300), String(subject || '').slice(0, 300), ok ? 1 : 0, error ? String(error).slice(0, 500) : null, Date.now());
+const zohoErr = (d) => { const st = d?.status || d?.data?.status; const code = Number(st?.code ?? st); if (code && code >= 400) return st.description || st.message || ('Zoho error ' + code); const e = d?.data?.errorCode || d?.errorCode; return e ? String(d?.data?.moreInfo || d?.moreInfo || e) : ''; };
+async function zohoSend(u, { to, cc = [], subject, html, replyId }) {
+  const acc = await A.zohoAccount(u.id); if (!acc.id) throw Object.assign(new Error('Dioma could not find your Zoho Mail account. Reconnect Zoho Mail under Apps.'), { status: 400 });
+  const body = { fromAddress: acc.email, toAddress: to.join(','), ...(cc.length ? { ccAddress: cc.join(',') } : {}), subject, content: html, mailFormat: 'html', ...(replyId ? { action: 'reply' } : {}) };
+  const errs = [];
+  const reply = replyId ? await A.findTool('zoho_mail', /REPLY/) : null, sendT = await A.findTool('zoho_mail', /SEND.*(MAIL|EMAIL)|EMAIL.*SEND/);
+  const tool = reply || sendT;
+  if (tool) {
+    try {
+      const d = await A.runFill(u.id, tool, { 'account_id|accountId': acc.id, 'from_address|fromAddress': acc.email, 'to_address|toAddress|to': to.join(','), 'cc_address|ccAddress': cc.join(','), 'subject': subject, 'content|body': html, 'mail_format|mailFormat': 'html', ...(replyId ? { 'message_id|messageId': replyId, 'action': 'reply' } : {}) });
+      const e = zohoErr(d); if (!e) return true; errs.push(e);
+    } catch (x) { errs.push(x.message); }
+  }
+  for (const base of ['https://mail.zoho.com', 'https://mail.zoho.eu', 'https://mail.zoho.in']) {
+    try {
+      const d = await A.proxy(u.id, 'zoho_mail', { endpoint: `${base}/api/accounts/${acc.id}/messages${replyId ? '/' + encodeURIComponent(replyId) : ''}`, method: 'POST', body });
+      const e = zohoErr(d); if (!e) return true; errs.push(e);
+    } catch (x) { errs.push(x.message); }
+  }
+  throw Object.assign(new Error('Zoho Mail did not send it: ' + (errs[0] || 'no answer')), { status: 502 });
+}
 async function sendMail(u, b) {
   const fail = (_r, st, m) => { throw Object.assign(new Error(m), { status: st }); }, res = null;
   const key = String(b.acct || ''), to = String(b.to || '').split(/[,;\s]+/).filter(Boolean), cc = String(b.cc || '').split(/[,;\s]+/).filter(Boolean);
@@ -673,16 +697,15 @@ async function sendMail(u, b) {
   if (limited('compose:' + u.id, 60, 3600e3)) return fail(res, 429, 'That is a lot of emails for one hour.');
   const id = String(b.id || '').replace(/^(gm|zm|im):/, '');
   if (key === 'gmail') {
-    if (b.thread) await A.runFill(u.id, 'GMAIL_REPLY_TO_THREAD', { 'thread_id': String(b.thread), 'message_body|body': text, 'recipient_email|to': to[0], 'extra_recipients': to.slice(1), 'cc': cc });
-    else await A.runFill(u.id, 'GMAIL_SEND_EMAIL', { 'recipient_email|to': to[0], 'extra_recipients': to.slice(1), 'cc': cc, 'subject': subject, 'body': text });
+    try {
+      if (b.thread) await A.runFill(u.id, 'GMAIL_REPLY_TO_THREAD', { 'thread_id': String(b.thread), 'message_body|body': text, 'recipient_email|to': to[0], 'extra_recipients': to.slice(1), 'cc': cc });
+      else await A.runFill(u.id, 'GMAIL_SEND_EMAIL', { 'recipient_email|to': to[0], 'extra_recipients': to.slice(1), 'cc': cc, 'subject': subject, 'body': text });
+    } catch (e) { mailLog(u, key, to.join(','), subject, 0, e.message); throw e; }
   } else if (key === 'zoho_mail') {
-    const acc = await A.zohoAccount(u.id), reply = await A.findTool('zoho_mail', /REPLY/), sendT = await A.findTool('zoho_mail', /SEND.*(MAIL|EMAIL)|EMAIL.*SEND/);
     const html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>');
-    const base = { 'account_id|accountId': acc.id, 'from_address|fromAddress': acc.email, 'to_address|toAddress|to': to.join(','), 'cc_address|ccAddress|cc': cc.join(','), 'subject': subject, 'content|body': html };
-    if (reply && id) await A.runFill(u.id, reply, { ...base, 'message_id|messageId': id, 'action': 'reply' });
-    else if (sendT) await A.runFill(u.id, sendT, base);
-    else return fail(res, 400, 'Zoho Mail cannot send from Dioma yet.');
+    try { await zohoSend(u, { to, cc, subject, html, replyId: id }); } catch (e) { mailLog(u, key, to.join(','), subject, 0, e.message); throw e; }
   } else fail(res, 400, 'Connect Gmail or Zoho Mail under Mail to send from Dioma.');
+  mailLog(u, key, to.join(','), subject, 1); A.dropMailCache?.(u.id);
   return { ok: true };
 }
 on('POST', '/api/mail/compose', async (req, res, u) => send(res, 200, await sendMail(u, await json(req))));
@@ -695,15 +718,15 @@ on('POST', '/api/mail/reply', async (req, res, u) => {
   if (files.length) text += '\n\nAttachments:\n' + files.map((f) => `${String(f.name).slice(0, 80)}: ${pub()}/p/${String(f.id).replace(/[^a-z0-9.]/gi, '')}`).join('\n');
   const subject = /^re:/i.test(b.subject || '') ? b.subject : 'Re: ' + (b.subject || '');
   if (key === 'gmail') {
-    if (b.thread) await A.runFill(u.id, 'GMAIL_REPLY_TO_THREAD', { 'thread_id': String(b.thread), 'message_body|body': text, 'recipient_email|to': to });
-    else await A.runFill(u.id, 'GMAIL_SEND_EMAIL', { 'recipient_email|to': to, 'subject': subject, 'body': text });
+    try {
+      if (b.thread) await A.runFill(u.id, 'GMAIL_REPLY_TO_THREAD', { 'thread_id': String(b.thread), 'message_body|body': text, 'recipient_email|to': to });
+      else await A.runFill(u.id, 'GMAIL_SEND_EMAIL', { 'recipient_email|to': to, 'subject': subject, 'body': text });
+    } catch (e) { mailLog(u, key, to, subject, 0, e.message); throw e; }
   } else if (key === 'zoho_mail') {
-    const acc = await A.zohoAccount(u.id), reply = await A.findTool('zoho_mail', /REPLY/), sendT = await A.findTool('zoho_mail', /SEND.*(MAIL|EMAIL)|EMAIL.*SEND/);
     const html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>');
-    if (reply && id) await A.runFill(u.id, reply, { 'account_id|accountId': acc.id, 'message_id|messageId': id, 'to_address|toAddress|to': to, 'from_address|fromAddress': acc.email, 'content|body': html, 'subject': subject, 'action': 'reply' });
-    else if (sendT) await A.runFill(u.id, sendT, { 'account_id|accountId': acc.id, 'from_address|fromAddress': acc.email, 'to_address|toAddress|to': to, 'subject': subject, 'content|body': html });
-    else return fail(res, 400, 'Zoho Mail cannot send from Dioma yet.');
+    try { await zohoSend(u, { to: [to], subject, html, replyId: id }); } catch (e) { mailLog(u, key, to, subject, 0, e.message); throw e; }
   } else return fail(res, 400, 'Replies from this mailbox are coming soon. Open it in its own app for now.');
+  mailLog(u, key, to, subject, 1); A.dropMailCache?.(u.id);
   run('INSERT OR IGNORE INTO mail_done (user_id, id, at) VALUES (?, ?, ?)', u.id, String(b.id), Date.now());
   send(res, 200, { ok: true });
 });
@@ -717,6 +740,12 @@ on('GET', '/api/mail/summary', async (req, res, u) => {
   const errors = [];
   const get = (f) => folder(u, a.key, f, q).catch((e) => { console.error('mail', a.key, f, e.message); errors.push(e.message); return []; });
   const [inbox, unread, sent, drafts] = await Promise.all([get('inbox'), get('unread'), get('sent'), get('drafts')]);
+  // Emails sent from Dioma show in Sent right away (with a clear note if the mailbox refused them), even before the mailbox lists them.
+  for (const l of all('SELECT * FROM mail_log WHERE user_id = ? AND acct = ? AND at > ? ORDER BY at DESC LIMIT 30', u.id, a.key, Date.now() - 7 * DAY)) {
+    const there = sent.some((m) => Math.abs(m.at - l.at) < 15 * 60e3 && (m.toAddr || '').includes(String(l.to_addr).split(',')[0].toLowerCase()));
+    if (!there) sent.unshift({ id: 'dl:' + l.id, from: 'You', to: l.to_addr, toAddr: String(l.to_addr).split(',')[0].toLowerCase(), subject: (l.ok ? '' : '⚠ Not sent: ') + (l.subject || '(no subject)'), snippet: l.ok ? 'Sent from Dioma' : String(l.error || 'The mailbox refused it.'), at: l.at, unread: false, failed: !l.ok });
+  }
+  sent.sort((x, y) => y.at - x.at);
   const now = Date.now();
   const lastSentTo = {}; for (const m of sent) if (m.toAddr) lastSentTo[m.toAddr] = Math.max(lastSentTo[m.toAddr] || 0, m.at);
   const lastFrom = {}; for (const m of inbox) if (m.fromAddr) lastFrom[m.fromAddr] = Math.max(lastFrom[m.fromAddr] || 0, m.at);
