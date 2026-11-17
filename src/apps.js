@@ -106,31 +106,45 @@ export async function events(uid) {
     const tz = (one('SELECT tz FROM users WHERE id = ?', uid) || {}).tz || 'Asia/Dubai';
     const day = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date()), offMs = Date.parse(new Date().toLocaleString('sv-SE', { timeZone: tz }).replace(' ', 'T') + 'Z') - Date.now();
     const now = new Date(Date.parse(day + 'T00:00:00Z') - offMs), end = new Date(now.getTime() + 2 * 864e5);
+    const inWin = (st) => { const t = Date.parse(st); return !t || (t >= now.getTime() - 864e5 && t < end.getTime()); };
     for (const slug of ['zoho', 'googlecalendar', 'outlook'].filter((s) => on.includes(s))) {
-      if (slug === 'zoho') {
-        try {
-          const tool = await findTool('zoho', /CALENDAR.*EVENTS?$|LIST.*EVENTS?$|GET.*EVENTS$/); if (!tool) continue;
-          const data = await runFill(uid, tool, { 'start|from|range_start|timeMin': now.toISOString(), 'end|to|range_end|timeMax': end.toISOString() }).catch(() => exec(uid, tool, {}));
+      // Each calendar on its own: one failing never hides the others, and its error is shown.
+      try {
+        if (slug === 'zoho') {
+          // Zoho CRM meetings (Events module). The CRM API needs the list of fields.
+          const tool = await findTool('zoho', /CALENDAR.*EVENTS?$|LIST.*EVENTS?$|GET.*EVENTS$/); if (!tool) { ERR.set(uid + slug, 'no calendar tool'); continue; }
+          const data = await runFill(uid, tool, { 'fields': 'Event_Title,Start_DateTime,End_DateTime,Venue,All_day,Description', 'module|module_api_name|moduleApiName': 'Events', 'start|from|range_start|timeMin': now.toISOString(), 'end|to|range_end|timeMax': end.toISOString(), 'sort_by': 'Start_DateTime', 'per_page': 200 });
           for (const e of firstArray(data) || []) {
-            const st = e.dateandtime?.start || e.start?.dateTime || e.start || e.startTime || e.Start_DateTime;
-            if (st) ev.push({ id: String(e.uid || e.id || st), title: e.title || e.Event_Title || e.summary || '(no title)', start: /^\d{8}T\d{6}/.test(st) ? st.replace(/^(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d)(\d\d)(.*)$/, '$1-$2-$3T$4:$5:$6$7') : st, allDay: !!e.isallday, where: e.location || e.Venue || '', src: 'business' });
+            const st = e.dateandtime?.start || e.start?.dateTime || e.Start_DateTime || e.startTime || (typeof e.start === 'string' ? e.start : '');
+            if (st && inWin(st)) ev.push({ id: String(e.uid || e.id || st), title: e.title || e.Event_Title || e.summary || '(no title)', start: /^\d{8}T\d{6}/.test(st) ? st.replace(/^(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d)(\d\d)(.*)$/, '$1-$2-$3T$4:$5:$6$7') : st, allDay: !!(e.isallday || e.All_day), where: e.location || e.Venue || '', src: 'business' });
           }
-        } catch (x) { ERR.set(uid + slug, x.message); }
-        continue;
-      }
-      // Google: the list tool with repeating events expanded (most daily routines repeat). Names come from the tool's own schema.
-      let tool = null;
-      if (slug === 'googlecalendar') { const all = (await toolsOf('googlecalendar').catch(() => [])); tool = ['GOOGLECALENDAR_EVENTS_LIST', 'GOOGLECALENDAR_FIND_EVENT'].find((t) => all.includes(t)) || null; }
-      tool = tool || await findTool(slug, /(LIST|FIND).*EVENTS?$|EVENTS_LIST$/) || await findTool(slug, /(LIST|FIND|GET).*EVENT/); if (!tool) { ERR.set(uid + slug, 'no calendar tool'); continue; }
-      const data = slug === 'googlecalendar'
-        ? await runFill(uid, tool, { 'calendarId|calendar_id': 'primary', 'timeMin|time_min': now.toISOString(), 'timeMax|time_max': end.toISOString(), 'singleEvents|single_events': true, 'orderBy|order_by': 'startTime', 'maxResults|max_results': 100 })
-        : await runFill(uid, tool, { 'start_datetime|startDateTime|start': now.toISOString(), 'end_datetime|endDateTime|end': end.toISOString(), 'top|max_results': 100 }).catch(() => exec(uid, tool, {}));
-      ERR.delete(uid + slug);
-      for (const e of firstArray(data) || []) {
-        const st = e.start?.dateTime || e.start?.date || e.start || e.startDateTime;
-        const where = typeof e.location === 'string' ? e.location : e.location?.displayName || e.location?.address?.street || '';
-        if (st) ev.push({ id: String(e.id || e.iCalUId || st), title: e.summary || e.subject || '(no title)', start: st, allDay: !!e.start?.date && !e.start?.dateTime || !!e.isAllDay, where, src: slug === 'outlook' ? 'business' : 'personal' });
-      }
+          ERR.delete(uid + slug); continue;
+        }
+        let items = null;
+        if (slug === 'googlecalendar') {
+          // Google's own API first (repeating events expanded), then the tool as a fallback.
+          try {
+            const qs = new URLSearchParams({ timeMin: now.toISOString(), timeMax: end.toISOString(), singleEvents: 'true', orderBy: 'startTime', maxResults: '250' });
+            const d = await proxy(uid, 'googlecalendar', { endpoint: 'https://www.googleapis.com/calendar/v3/calendars/primary/events?' + qs });
+            items = Array.isArray(d?.items) ? d.items : null;
+          } catch (x) { console.error('gcal proxy', x.message); }
+          if (!items) { const all = await toolsOf('googlecalendar').catch(() => []); const tool = ['GOOGLECALENDAR_EVENTS_LIST', 'GOOGLECALENDAR_FIND_EVENT'].find((t) => all.includes(t)) || await findTool(slug, /(LIST|FIND).*EVENTS?$|EVENTS_LIST$/);
+            if (!tool) { ERR.set(uid + slug, 'no calendar tool'); continue; }
+            items = firstArray(await runFill(uid, tool, { 'calendarId|calendar_id': 'primary', 'timeMin|time_min': now.toISOString(), 'timeMax|time_max': end.toISOString(), 'singleEvents|single_events': true, 'orderBy|order_by': 'startTime', 'maxResults|max_results': 250 })) || []; }
+        } else {
+          const tool = await findTool(slug, /(LIST|FIND).*EVENTS?$|EVENTS_LIST$/) || await findTool(slug, /(LIST|FIND|GET).*EVENT/); if (!tool) { ERR.set(uid + slug, 'no calendar tool'); continue; }
+          items = firstArray(await runFill(uid, tool, { 'start_datetime|startDateTime|start': now.toISOString(), 'end_datetime|endDateTime|end': end.toISOString(), 'top|max_results': 100 })) || [];
+        }
+        for (const e of items) {
+          if (e.status === 'cancelled') continue;
+          const st = e.start?.dateTime || e.start?.date || (typeof e.start === 'string' ? e.start : '') || e.startDateTime;
+          const where = typeof e.location === 'string' ? e.location : e.location?.displayName || e.location?.address?.street || '';
+          const link = e.hangoutLink || e.conferenceData?.entryPoints?.find?.((p) => p.entryPointType === 'video')?.uri || e.onlineMeeting?.joinUrl || '';
+          const who = (e.attendees || []).filter((a) => !a.self).map((a) => a.displayName || a.email || a.emailAddress?.name).filter(Boolean).slice(0, 6).join(', ');
+          if (st && inWin(st)) ev.push({ id: String(e.id || e.iCalUId || st), title: e.summary || e.subject || '(no title)', start: st, allDay: !!e.start?.date && !e.start?.dateTime || !!e.isAllDay, where, link, who, src: slug === 'outlook' || (e.attendees || []).length > 1 ? 'business' : 'personal' });
+        }
+        ERR.delete(uid + slug);
+      } catch (x) { ERR.set(uid + slug, x.message); console.error('events ' + slug, x.message); }
     }
   } catch (x) { console.error('events', x.message); }
   EVC.set(uid, { ev, at: Date.now() }); return ev;
