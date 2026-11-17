@@ -2,20 +2,25 @@
 // Without a key (local tests) a simple stand-in answers, so every screen can be tried end to end.
 const MODEL = () => process.env.DIOMA_MODEL || 'claude-sonnet-5-5';
 
-export async function claude({ system, messages, tools, max_tokens = 1200 }) {
+export async function claude({ system, messages, tools, max_tokens = 1200, model }) {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return mock(messages, tools);
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-    body: JSON.stringify({ model: MODEL(), max_tokens, system, messages, ...(tools ? { tools } : {}) }),
+    body: JSON.stringify({ model: model || MODEL(), max_tokens, system, messages, ...(tools ? { tools } : {}) }),
   });
   const j = await r.json().catch(() => ({}));
+  // A writing model that is not available falls back to the normal one.
+  if (!r.ok && model && model !== MODEL() && (r.status === 404 || r.status === 400 || r.status === 403)) return claude({ system, messages, tools, max_tokens });
   if (!r.ok) { const e = new Error(j?.error?.message || `AI ${r.status}`); e.status = r.status; throw e; }
   return j; // { content: [...], stop_reason, usage }
 }
 
 // Runs a short tool loop. `handlers` maps tool name -> async (input) => result.
+// The best writer for messages people will read (WhatsApp, email, posts).
+export const WRITER = () => process.env.DIOMA_WRITE_MODEL || 'claude-opus-5-5';
+
 export async function converse({ system, messages, tools, handlers, maxTurns = 6 }) {
   const msgs = [...messages];
   const actions = [];
