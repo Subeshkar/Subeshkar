@@ -207,12 +207,18 @@ export async function react(uid, jid, id, emoji) {
 // Dioma inside WhatsApp: whatever you write in your own "Message yourself" chat goes to your assistant, and its answer comes back there.
 let SELF = null; const OURS = new Set();
 export const onSelfMessage = (fn) => { SELF = fn; };
+let MINE = null; export const onMyMessage = (fn) => { MINE = fn; };
 export const DIOMA_TAG = '🤖 Dioma';
 function selfCheck(uid, sock, m) {
   try {
     if (!SELF || !m.key?.fromMe || !m.key.id || OURS.has(m.key.id)) return;
     const jid = bare(m.key.remoteJid), me = bare(sock.user?.id), meLid = bare(sock.user?.lid);
-    if (!jid || (jid !== me && jid !== meLid)) return;
+    if (!jid || (jid !== me && jid !== meLid)) {
+      // A message you sent to someone else: Dioma checks it for promises ("I'll get back to you") and makes a to-do.
+      const at0 = Number(m.messageTimestamp || 0) * 1000, t0 = textOf(m);
+      if (MINE && at0 && Date.now() - at0 < 120e3 && t0 && t0.length > 8 && !jid.endsWith('@broadcast') && !jid.endsWith('@newsletter')) MINE(uid, jid, m.key.id, t0);
+      return;
+    }
     const at = Number(m.messageTimestamp || 0) * 1000; if (!at || Date.now() - at > 120e3) return;
     const text = textOf(m); if (!text || text.startsWith(DIOMA_TAG)) return;
     SELF(uid, jid, text);

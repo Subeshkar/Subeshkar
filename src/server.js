@@ -707,7 +707,13 @@ on('GET', '/api/mail/summary', async (req, res, u) => {
 });
 
 // One AI helper for every section: posts, comment replies, CV, cover letters, plans, lessons, follow-ups.
-const STYLE = 'Writing style for anything they will send or post: natural, fluent American English, the way a friendly, confident American professional actually talks and texts: relaxed, direct and warm, with contractions (I\'m, we\'ll, that\'s), plain everyday words, US spelling, and short sentences. Avoid Indian/Gulf office phrasing like "kindly", "do the needful", "revert", "PFA", "as per", "please find attached", "hope you are doing well". Never robotic, stiff or salesy. Short, but always say what matters: the point, the key facts (names, dates, amounts) and one clear next step. WhatsApp: relaxed and friendly, an emoji or two when it fits the mood (never in serious, sad, money-dispute or formal messages). Email: short (usually 3 to 6 lines), polite and clear, no filler like "I hope this email finds you well". Reply in the language they were written to. Never use the em dash.';
+const STYLE = `Writing style for anything they will send or post. They deal with customers and partners, so every message must make the reader think "wow, these people are sharp and they care".
+Write like a top American client-success lead or founder: warm, confident, polished and human. Natural American English with contractions and US spelling, short punchy sentences, zero filler.
+How a great message works: open with the person's name and a genuine, specific touch (thank them for something real, or show you understood exactly what they need); then the substance with concrete details (dates, times, amounts, next step); close with clear ownership and energy ("I'll have this to you by 3 PM today." / "Leave it with me."). Make the reader feel looked after and confident in us.
+Never use weak or Indian/Gulf office phrasing: no "kindly", "do the needful", "revert", "PFA", "as per", "please find attached", "hope you are doing well", "noted", "ok sure", "will check and update". Never sound robotic, apologetic or salesy.
+WhatsApp: 1 to 4 short lines, friendly, one fitting emoji is great (never in complaints, money disputes or sad news). Email: 3 to 7 lines, a clear subject, a crisp ask or next step, warm sign-off.
+Example. Weak: "Ok noted, will check both questions and revert." Great: "Hi Houssam, great to hear from you! 🙌 I'm looking into both questions now and I'll come back to you with clear answers today."
+Reply in the language they were written to. Never use the em dash.`;
 const AIK = {
   post: 'Write social posts about the topic for each network asked: LinkedIn (professional, 600-1200 characters, a strong first line, short paragraphs, 3 hashtags), Facebook (friendly, 300-600 characters), Instagram (caption under 400 characters, 5-8 hashtags at the end). Reply with only JSON: {"linkedin": string, "facebook": string, "instagram": string}.',
   comment: 'Write a short, warm reply (1-2 sentences) to this comment on my post, in the same language. Reply with only the text.',
@@ -792,6 +798,25 @@ async function askDioma(u, q, channel) {
   run('INSERT INTO chats (user_id, role, text, at) VALUES (?, ?, ?, ?)', u.id, 'assistant', reply, now());
   return { reply, cards: out.actions.filter((a) => a.result && a.result.card).map((a) => a.result), changed: out.actions.some((a) => /todo/.test(a.tool)) };
 }
+// Your own promises on WhatsApp become to-dos ("I'll check and get back to you" -> "Get back to Houssam today").
+db.exec('CREATE TABLE IF NOT EXISTS promise_seen (user_id INTEGER NOT NULL, id TEXT NOT NULL, PRIMARY KEY (user_id, id))');
+const PROMISE = /\b(i'?ll|i will|we'?ll|we will|will (check|send|share|call|update|confirm|revert|come back|get back|let you know)|get back|come back to you|let you know|follow up|send (you|it)|share (it|the)|call you|by (today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|eod|end of day)|tomorrow|later today|this evening)\b/i;
+W.onMyMessage(async (uid, jid, id, text) => {
+  try {
+    if (!PROMISE.test(text)) return;
+    if (one('SELECT 1 FROM promise_seen WHERE user_id = ? AND id = ?', uid, id)) return; run('INSERT INTO promise_seen (user_id, id) VALUES (?, ?)', uid, id);
+    const u = one('SELECT * FROM users WHERE id = ?', uid); if (!u || limited('promise:' + uid, 60, DAY)) return;
+    const who = one('SELECT COALESCE(ct.name, c.name) n FROM wa_chats c LEFT JOIN wa_contacts ct ON ct.user_id = c.user_id AND ct.jid = c.jid WHERE c.user_id = ? AND c.jid = ?', uid, jid)?.n || jid.split('@')[0];
+    const last = all('SELECT from_me, text FROM wa_messages WHERE user_id = ? AND jid = ? ORDER BY at DESC LIMIT 6', uid, jid).reverse().map((m) => (m.from_me ? 'Me: ' : who + ': ') + String(m.text).slice(0, 300)).join('\n');
+    const ymd = today(u), wd = new Intl.DateTimeFormat('en-GB', { timeZone: u.tz || 'Asia/Dubai', weekday: 'long' }).format(new Date());
+    const r = await claude({ max_tokens: 200, system: `You turn a promise someone made in their own WhatsApp message into one to-do. Today is ${wd} ${ymd}. If the message (the last "Me:" line) commits them to do something later (get back, check, send, call, share, confirm), reply with JSON {"todo":"short action starting with a verb, naming the person and what, e.g. Get back to Houssam with answers to his 2 questions","due":"YYYY-MM-DD"}. Due is today unless they said another day. If there is no promise, reply {"todo":null}. JSON only. No em dash.`,
+      messages: [{ role: 'user', content: `Chat with ${who}:\n${last}` }] });
+    const d = aiJson(aiText(r)); if (!d || !d.todo) return;
+    const due = /^\d{4}-\d{2}-\d{2}$/.test(d.due || '') ? d.due : ymd;
+    if (one('SELECT 1 FROM todos WHERE user_id = ? AND done = 0 AND text = ?', uid, String(d.todo).slice(0, 300))) return;
+    run('INSERT INTO todos (user_id, text, due, source, created) VALUES (?, ?, ?, ?, ?)', uid, String(d.todo).slice(0, 300), due, 'whatsapp', now());
+  } catch (e) { console.error('promise', e.message); }
+});
 const BUSY = new Set();
 W.onSelfMessage(async (uid, jid, text) => {
   const u = one('SELECT * FROM users WHERE id = ?', uid); if (!u) return;
