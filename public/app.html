@@ -2102,8 +2102,8 @@ function waGroups(d) {
   const q = WAF.q.trim().toLowerCase();
   const pool = ['dunread', 'gunread', 'sent', 'all', 'groups'].includes(WAF.f) ? C : inTab;
   // Searching looks through every chat (all tabs, all filters), not just the list you are on.
-  const dq = q.replace(/\D/g, '');
-  const list = q ? C.filter((c) => (c.name + ' ' + (c.last_text || '')).toLowerCase().includes(q) || (dq.length >= 4 && c.jid.includes(dq))) : pool.filter(F[WAF.f] || F.all);
+  let dq = q.replace(/\D/g, '').replace(/^00/, ''); if (/^0\d{8,9}$/.test(dq)) dq = dq.slice(1); if (dq.length > 9) dq = dq.slice(-9);
+  const list = q ? C.filter((c) => (c.name + ' ' + (c.last_text || '')).toLowerCase().includes(q) || (dq.length >= 4 && (c.jid.split('@')[0] + ' ' + String(c.pn || '').split('@')[0]).includes(dq) && /@(s\.whatsapp\.net|lid)$/.test(c.jid) && (!c.jid.endsWith('@lid') || c.pn))) : pool.filter(F[WAF.f] || F.all);
   return { stats, counts, list, other: C.filter((c) => tabOf(c) === 'other').length };
 }
 // Also ask Dioma's saved contacts, group members and message text, so a name finds the person even without a recent chat.
@@ -2115,7 +2115,7 @@ function waSearchMore(shown) {
     const r = await api('GET', '/api/wa/search?q=' + encodeURIComponent(q)).catch(() => ({ people: [] }));
     if (n !== WSQ || !$('#wl') || WAF.q.trim() !== q) return;
     const have = new Set(shown.map((c) => c.jid)), extra = (r.people || []).filter((p) => !have.has(p.jid));
-    const why = { contact: 'Saved contact', chat: 'Chat', group: 'Writes in your groups', message: 'Mentioned in messages' };
+    const why = { contact: 'Saved contact', chat: 'Chat', group: 'Writes in your groups', message: 'Mentioned in messages', number: 'Tap to open or start a chat' };
     if (!extra.length) { if (!shown.length) $('#wl').innerHTML = '<div class="empty">Nobody found for "' + esc(q) + '". Try part of the name or the phone number.</div>'; return; }
     if (!shown.length) $('#wl').innerHTML = '';
     $('#wl').insertAdjacentHTML('beforeend', `<div class="note" style="margin:10px 0 2px">More people matching "${esc(q)}"</div>` + extra.map((p) => `<div class="item" data-jid="${esc(p.jid)}" data-name="${esc(p.name)}" style="cursor:pointer"><span class="ficon mono">${esc((p.name || '?').replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase() || '#')}</span><div class="grow" style="min-width:0"><div class="t">${esc(p.name)}${/@g\.us$/.test(p.jid) ? ' <span class="soon">Group</span>' : ''}</div><div class="s" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.last ? esc(p.last) : (why[p.why] || '')}${!p.last && /@s\.whatsapp\.net$/.test(p.jid) ? ' · +' + esc(p.jid.split('@')[0]) : ''}</div></div></div>`).join(''));

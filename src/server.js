@@ -1075,7 +1075,10 @@ on('POST', '/api/wa/start', async (req, res, u) => send(res, 200, await W.start(
 on('GET', '/api/wa/status', (req, res, u) => send(res, 200, W.status(u.id)));
 on('GET', '/api/wa/overview', (req, res, u) => send(res, 200, W.overview(u.id, new URL(req.url, 'http://x').searchParams.get('since'))));
 on('GET', '/api/wa/search', async (req, res, u) => {
-  const people = W.search(u.id, new URL(req.url, 'http://x').searchParams.get('q') || '');
+  const qq = new URL(req.url, 'http://x').searchParams.get('q') || '', people = W.search(u.id, qq);
+  // A full phone number nobody saved: still find the chat (or let them start one).
+  let num = qq.replace(/[\s\-().]/g, ''); if (/^\+?\d{8,15}$/.test(num)) { num = num.replace(/^\+/, '').replace(/^00/, ''); if (/^0\d{8,9}$/.test(num)) num = '971' + num.slice(1);
+    const pj = num + '@s.whatsapp.net'; if (!people.some((p) => p.jid === pj || p.jid.startsWith(num))) people.unshift({ jid: pj, name: '+' + num, why: 'number' }); }
   // A saved contact points at the phone number, but the chat may live under WhatsApp's private id: open that chat instead.
   for (const p of people.slice(0, 20)) if (p.jid.endsWith('@s.whatsapp.net') && !one('SELECT 1 FROM wa_chats WHERE user_id = ? AND jid = ? AND last_at > 0', u.id, p.jid)) {
     const l = await W.lidFor(u.id, p.jid).catch(() => ''); const c = l && one('SELECT last_text, last_at FROM wa_chats WHERE user_id = ? AND jid = ?', u.id, l);

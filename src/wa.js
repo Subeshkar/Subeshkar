@@ -75,7 +75,9 @@ async function fillLids(uid, sock) {
 // Search everyone: saved contacts, chat names, people who wrote in groups, and (for 3+ letters) message text.
 export function search(uid, q) {
   q = String(q || '').trim().toLowerCase().slice(0, 60); if (!q) return [];
-  const like = '%' + q + '%', dig = q.replace(/\D/g, ''), out = new Map();
+  const like = '%' + q + '%', out = new Map();
+  // Phone numbers: +971 58..., 00971..., 058... all match; we compare the last digits.
+  let dig = q.replace(/\D/g, '').replace(/^00/, ''); if (/^0\d{8,9}$/.test(dig)) dig = dig.slice(1); if (dig.length > 9) dig = dig.slice(-9);
   const add = (jid, name, why) => { if (!jid || out.has(jid) || /@(broadcast|newsletter)/.test(jid)) return; out.set(jid, { jid, name: name || jid.split('@')[0], why }); };
   all(`SELECT jid, name FROM wa_contacts WHERE user_id = ? AND (LOWER(name) LIKE ?${dig.length >= 4 ? ' OR jid LIKE ?' : ''}) LIMIT 60`, uid, like, ...(dig.length >= 4 ? ['%' + dig + '%'] : [])).forEach((r) => add(r.jid, r.name, 'contact'));
   all('SELECT jid, name FROM wa_chats WHERE user_id = ? AND LOWER(name) LIKE ? LIMIT 60', uid, like).forEach((r) => add(r.jid, r.name, 'chat'));
@@ -337,7 +339,7 @@ export function snapshot(uid) {
 
 // Everything the WhatsApp screen needs to sort chats (who is waiting, follow-ups, groups, unknown numbers).
 export function overview(uid, since) {
-  const chats = all(`SELECT c.jid, COALESCE(CASE WHEN ct.book = 1 THEN ct.name END, CASE WHEN cp.book = 1 THEN cp.name END, CASE WHEN c.jid LIKE '%@g.us' THEN c.name END, ct.name, cp.name, c.name) nm, c.is_group, c.unread, c.last_text, c.last_from_me, c.last_at,
+  const chats = all(`SELECT c.jid, l.pn, COALESCE(CASE WHEN ct.book = 1 THEN ct.name END, CASE WHEN cp.book = 1 THEN cp.name END, CASE WHEN c.jid LIKE '%@g.us' THEN c.name END, ct.name, cp.name, c.name) nm, c.is_group, c.unread, c.last_text, c.last_from_me, c.last_at,
       (SELECT MAX(at) FROM wa_messages m WHERE m.user_id = c.user_id AND m.jid = c.jid AND m.from_me = 1) my_at, f.ignored_at, f.noise,
       CASE WHEN c.last_text = '🎤 Voice message' THEN (SELECT id FROM wa_messages v WHERE v.user_id = c.user_id AND v.jid = c.jid AND v.text = c.last_text ORDER BY v.at DESC LIMIT 1) END voice_id
     FROM wa_chats c LEFT JOIN wa_contacts ct ON ct.user_id = c.user_id AND ct.jid = c.jid LEFT JOIN wa_flags f ON f.user_id = c.user_id AND f.jid = c.jid
