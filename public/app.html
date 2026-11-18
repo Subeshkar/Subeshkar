@@ -1415,13 +1415,13 @@ function drawCr() {
       let mails = (j.mails || []).slice();
       try { const f = await api('GET', '/api/career/mails?company=' + encodeURIComponent(j.company || '') + '&role=' + encodeURIComponent(j.role || '')); for (const x of f.mails) if (!mails.some((y) => y.id === x.id)) mails.push(x); } catch {}
       mails.sort((a, b) => (b.at || 0) - (a.at || 0));
-      p.innerHTML = mails.length ? `<div class="note">${mails.length} email${mails.length > 1 ? 's' : ''} about this application. Tap one to read it.</div>` + mails.map((x) => `<button type="button" class="jml" data-jm data-acct="${esc(x.acct)}" data-id="${esc(x.id)}"><b>${esc(x.subject || '(no subject)')}</b><span>${esc(x.from || '')}${x.at ? ' · ' + new Date(x.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''}</span></button><div class="jmb" hidden></div>`).join('') + `<div class="row"><button type="button" class="btn sm" data-askai>Ask AI about this job</button></div>` : '<p class="note">No emails found for this company. Try Scan again, or search it in Mail.</p>';
+      p.innerHTML = mails.length ? `<div class="note">${mails.length} email${mails.length > 1 ? 's' : ''} about this application. Tap one to read it.</div>` + mails.map((x) => `<button type="button" class="jml" data-jm data-acct="${esc(x.acct)}" data-id="${esc(x.id)}"><b>${esc(x.subject || '(no subject)')}</b><span>${x.via ? 'via ' + esc(x.via) + ' · ' : ''}${esc(x.from || '')}${x.at ? ' · ' + new Date(x.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''}</span></button><div class="jmb" hidden></div>`).join('') + `<div class="row"><button type="button" class="btn sm" data-askai>Ask AI about this job</button></div>` : `<p class="note">No emails found yet for ${esc(j.company || 'this company')}${j.role ? ' or ' + esc(j.role) : ''} (Gmail, Zoho and job sites like Indeed, LinkedIn and NaukriGulf were checked). Tap Scan my Gmail to refresh.</p>`;
       p.dataset.mid = ''; };
     // open one email right under its title (the same reader as Mail: formatted email, attachments)
     async function jobMail(btn) {
       const body = btn.nextElementSibling; if (!body.hidden) { body.hidden = true; return; }
       body.hidden = false; body.innerHTML = '<p class="note">Opening…</p>';
-      const pan = btn.closest('.jpan'); pan.dataset.mid = btn.dataset.id; pan.dataset.acct = btn.dataset.acct; pan.dataset.who = btn.querySelector('span').textContent.split(' · ')[0];
+      const pan = btn.closest('.jpan'); pan.dataset.mid = btn.dataset.id; pan.dataset.acct = btn.dataset.acct; pan.dataset.who = btn.querySelector('span').textContent.replace(/^via [^·]+· /, '').split(' · ')[0];
       try {
         const r = await api('GET', `/api/mail/full?acct=${encodeURIComponent(btn.dataset.acct)}&id=${encodeURIComponent(btn.dataset.id)}`);
         body.innerHTML = '';

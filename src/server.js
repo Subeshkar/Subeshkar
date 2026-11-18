@@ -1200,14 +1200,31 @@ on('POST', '/api/career/scan', async (req, res, u) => {
   const L = list.slice(0, 30), ml = (n) => L[n] ? { acct: 'gmail', id: L[n].id, subject: L[n].subject || '', from: L[n].from || '', at: L[n].at || 0 } : null;
   send(res, 200, { apps: Array.isArray(apps) ? apps.filter((a) => a && a.company).map((a) => ({ ...a, mails: (Array.isArray(a.emails) ? a.emails : []).map(Number).map(ml).filter(Boolean) })) : [] });
 });
-// The emails about one application: the ones the scan found, plus a fresh search by company in every mailbox.
+// The emails about one application, wherever they came from: the company itself, or a job site (Indeed, LinkedIn,
+// NaukriGulf, Bayt, GulfTalent, Workable, Greenhouse…) that mentions the company or the role.
+const JOBSITES = 'indeed.com OR linkedin.com OR naukrigulf.com OR bayt.com OR gulftalent.com OR workablemail.com OR greenhouse.io OR lever.co OR smartrecruiters.com OR myworkday.com OR monstergulf.com OR dubizzle.com OR glassdoor.com OR recruitee.com OR zohorecruit.com OR breezy.hr';
+const SITE = (from) => { const f = String(from || '').toLowerCase(); return [['indeed', 'Indeed'], ['linkedin', 'LinkedIn'], ['naukrigulf', 'NaukriGulf'], ['bayt', 'Bayt'], ['gulftalent', 'GulfTalent'], ['workable', 'Workable'], ['greenhouse', 'Greenhouse'], ['lever.co', 'Lever'], ['smartrecruiters', 'SmartRecruiters'], ['workday', 'Workday'], ['monster', 'Monster'], ['glassdoor', 'Glassdoor'], ['zohorecruit', 'Zoho Recruit']].find(([k]) => f.includes(k))?.[1] || ''; };
 on('GET', '/api/career/mails', async (req, res, u) => {
-  const q = new URL(req.url, 'http://x').searchParams, co = String(q.get('company') || '').replace(/["()]/g, ' ').trim().slice(0, 60); const out = [];
-  if (co && !/^not specified$/i.test(co)) for (const a of await mailAccounts(u).catch(() => [])) {
-    const r = await folder(u, a.key, 'all', a.key === 'gmail' ? `"${co}" newer_than:180d` : co).catch(() => []);
-    for (const m of (r || []).slice(0, 8)) out.push({ acct: a.key, box: a.label, id: m.id, subject: m.subject || '', from: m.from || '', at: m.at || 0, snippet: (m.snippet || '').slice(0, 160) });
+  const q = new URL(req.url, 'http://x').searchParams, clean = (x) => String(x || '').replace(/["]/g, ' ').replace(/\s+/g, ' ').trim();
+  const co = clean(q.get('company')), role = clean(q.get('role')).slice(0, 80);
+  const core = clean(co.replace(/\([^)]*\)/g, '')), paren = (co.match(/\(([^)]+)\)/) || [])[1] || '';
+  const coWords = core.split(' ').filter((w) => w.length > 2 && !/^(llc|fze|fzco|group|company|the|and|ltd|limited|international|talent|solutions|services)$/i.test(w));
+  const names = [...new Set([core, paren, coWords.slice(0, 2).join(' ')].map(clean).filter((x) => x.length > 2 && !/^not specified$/i.test(x)))];
+  const out = new Map();
+  for (const a of await mailAccounts(u).catch(() => [])) {
+    const g = a.key === 'gmail', queries = g ? [
+      names.length && `newer_than:180d (${names.map((n) => `"${n}"`).join(' OR ')})`,
+      role && `newer_than:180d from:(${JOBSITES}) "${role}"`,
+      role && names.length && `newer_than:180d "${role}" (${names.map((n) => `"${n}"`).join(' OR ')})`,
+    ] : [...names, role];
+    for (const qq of queries.filter(Boolean)) {
+      const r = await folder(u, a.key, 'all', qq).catch(() => []);
+      for (const m of (r || []).slice(0, 10)) if (!out.has(m.id)) out.set(m.id, { acct: a.key, box: a.label, id: m.id, subject: m.subject || '', from: m.from || m.fromAddr || '', via: SITE((m.fromAddr || '') + ' ' + (m.from || '')), at: m.at || 0, snippet: (m.snippet || '').slice(0, 160) });
+    }
   }
-  send(res, 200, { mails: out.sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, 12) });
+  // most relevant first: mentions the company, then the role, then newest
+  const hay = (m) => (m.subject + ' ' + m.snippet + ' ' + m.from).toLowerCase(), score = (m) => (names.some((n) => hay(m).includes(n.toLowerCase())) ? 2 : 0) + (role && hay(m).includes(role.toLowerCase().slice(0, 25)) ? 1 : 0);
+  send(res, 200, { mails: [...out.values()].sort((a, b) => score(b) - score(a) || (b.at || 0) - (a.at || 0)).slice(0, 12) });
 });
 
 // Pulse: today's headlines from Google News for the customer's topics (titles and links only).
