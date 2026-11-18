@@ -867,7 +867,9 @@ async function sendMail(u, b) {
   const key = String(b.acct || ''), to = String(b.to || '').split(/[,;\s]+/).filter(Boolean), cc = String(b.cc || '').split(/[,;\s]+/).filter(Boolean);
   const ok = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
   if (!to.length || !to.every(ok) || !cc.every(ok)) return fail(res, 400, 'Check the email addresses.');
-  const text = String(b.body || '').trim(), subject = String(b.subject || '').slice(0, 300); if (!text) return fail(res, 400, 'The email is empty.');
+  let text = String(b.body || '').trim(); const subject = String(b.subject || '').slice(0, 300); if (!text) return fail(res, 400, 'The email is empty.');
+  const files = (Array.isArray(b.files) ? b.files : []).slice(0, 5); // attachments go as private links (works with every mailbox)
+  if (files.length) text += '\n\nAttachments:\n' + files.map((f) => `- [${String(f.name).slice(0, 80)}](${pub()}/p/${String(f.id).replace(/[^a-z0-9.]/gi, '')})`).join('\n');
   if (limited('compose:' + u.id, 60, 3600e3)) return fail(res, 429, 'That is a lot of emails for one hour.');
   const id = String(b.id || '').replace(/^(gm|zm|im):/, '');
   if (key === 'gmail') {
@@ -882,6 +884,18 @@ async function sendMail(u, b) {
   mailLog(u, key, to.join(','), subject, 1); A.dropMailCache?.(u.id);
   return { ok: true };
 }
+// My CV: upload the resume file once (PDF or Word). Dioma reads the text for tailoring and keeps the file to attach to applications.
+on('POST', '/api/career/cv', async (req, res, u) => {
+  const name = String(new URL(req.url, 'http://x').searchParams.get('name') || 'CV.pdf').replace(/[^\w .()-]/g, '').slice(0, 80) || 'CV.pdf';
+  const ext = (name.match(/\.([a-z0-9]{1,5})$/i) || [, ''])[1].toLowerCase();
+  if (!['pdf', 'docx', 'doc', 'txt', 'rtf'].includes(ext)) return fail(res, 400, 'Upload your CV as a PDF or Word (.docx) file.');
+  const buf = await readBody(req, 10 * 1024 * 1024); let text = '';
+  try { text = ext === 'pdf' ? await WL.pdfText(buf) : ext === 'docx' ? AIC.officeText({ name, type: '', data: buf.toString('base64') }) : ext === 'txt' ? buf.toString('utf8') : ''; } catch {}
+  const id = SO.savePublicFile(buf, ext); const old = one("SELECT v FROM kv WHERE user_id = ? AND k = 'cv'", u.id); const prev = old ? JSON.parse(old.v || 'null') || {} : {};
+  const v = { text: String(text || prev.text || '').trim().slice(0, 60000), at: Date.now(), file: { id, name } };
+  run('INSERT INTO kv (user_id, k, v, at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, k) DO UPDATE SET v = excluded.v, at = excluded.at', u.id, 'cv', JSON.stringify(v), Date.now());
+  send(res, 200, { ...v, url: `/p/${id}`, read: !!text });
+});
 on('POST', '/api/mail/compose', async (req, res, u) => send(res, 200, await sendMail(u, await json(req))));
 on('POST', '/api/mail/reply', async (req, res, u) => {
   const b = await json(req), key = String(b.acct || ''), id = String(b.id || '').replace(/^(gm|zm|im):/, ''), to = String(b.to || '').trim();
@@ -1172,8 +1186,7 @@ on('POST', '/api/mail/send', async (req, res, u) => {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return fail(res, 400, 'Enter a valid email address.');
   if (!body.trim()) return fail(res, 400, 'The email is empty.');
   if (!(await A.connected(u.id)).some((x) => x.slug === 'gmail')) return fail(res, 400, 'Connect Gmail under Mail first.');
-  await A.runFill(u.id, 'GMAIL_SEND_EMAIL', { 'recipient_email|to': to, 'subject': subject, 'body': body });
-  send(res, 200, { ok: true });
+  send(res, 200, await sendMail(u, { acct: 'gmail', to, subject, body, files: b.files }));
 });
 // Career: find job applications in Gmail and sort them (Applied / Interview / Offer / Rejected).
 on('POST', '/api/career/scan', async (req, res, u) => {

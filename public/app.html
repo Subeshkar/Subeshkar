@@ -1439,21 +1439,29 @@ function drawCr() {
     v.innerHTML = `<div class="stack"><textarea class="field" id="tcv" rows="5" placeholder="Paste your CV text once. Dioma keeps it for next time.">${esc(cv)}</textarea>
       <input class="field" id="jr" placeholder="Role and company, e.g. Operations Manager at Noon"><textarea class="field" id="jd" rows="6" placeholder="Paste the job ad here"></textarea>
       <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn pri" data-k="tailor">Tailor my application</button><button class="btn" data-k="cv">Rewrite my CV for it</button><button class="btn" data-k="cover">Cover letter only</button></div><div id="jo"></div></div>`;
-    $('#tcv').onchange = () => kvSave('cv', { text: $('#tcv').value, at: Date.now() });
+    $('#tcv').onchange = () => kvSave('cv', { ...(KVS.cv || {}), text: $('#tcv').value, at: Date.now() });
     v.onclick = async (e) => {
       if (e.target.closest('[data-trk]')) { await kvSave('jobs', [{ role: $('#jr').value.trim() || 'New job', status: 'Applied', at: tday() }, ...(KVS.jobs || [])]); return toast('Added to Applications'); }
       const b = e.target.closest('[data-k]'); if (!b) return; const cvT = $('#tcv').value.trim(), role = $('#jr').value.trim(), jd = $('#jd').value.trim();
-      if (!jd && !role) return toast('Paste the job ad first.'); if (cvT !== cv) kvSave('cv', { text: cvT, at: Date.now() });
+      if (!jd && !role) return toast('Paste the job ad first.'); if (cvT !== cv) kvSave('cv', { ...(KVS.cv || {}), text: cvT, at: Date.now() });
       busyB(b, 'Writing…', async () => {
         const a = b.dataset.k === 'tailor' ? await aiAsk(`You are a UAE career coach. Job: ${role}\nJob ad:\n${jd.slice(0, 6000)}\n\nCV:\n${(cvT || 'not provided').slice(0, 8000)}\n\nWrite, in plain text:\nFIT: a score out of 10 and one sentence why.\nCV CHANGES: 5 specific • bullets.\nCOVER LETTER: a 150-word cover letter ready to send, signed with my name.\nINTERVIEW: 3 likely questions with a one-line answer angle each.`) : await aiw(b.dataset.k, { cv: cvT, role, jobDescription: jd });
         const letter = b.dataset.k === 'cv' ? '' : ((a.text.split(/COVER LETTER:?/i)[1] || a.text).split(/INTERVIEW:?/i)[0].trim());
-        $('#jo').innerHTML = `<div class="card stack" style="margin-top:10px"><textarea class="field" id="jout" rows="16">${esc(a.text)}</textarea><div class="row" style="gap:6px;flex-wrap:wrap">${copyBtnH('jout')}<button class="btn sm" data-trk>Add to Applications</button></div>${letter ? `<div class="row" style="gap:6px;flex-wrap:wrap"><input class="field" id="jto" placeholder="Recruiter email" style="flex:1;min-width:180px"><button class="btn sm pri" id="jsend">Email the cover letter from Gmail</button></div>` : ''}</div>`;
-        if (letter) twoTap($('#jsend'), 'Email the cover letter from Gmail', async () => { const to = $('#jto').value.trim(); await api('POST', '/api/mail/send', { to, subject: 'Application: ' + (role || 'role'), body: letter }); $('#jsend').textContent = 'Sent ✓'; toast('Sent from your Gmail'); });
+        $('#jo').innerHTML = `<div class="card stack" style="margin-top:10px"><textarea class="field" id="jout" rows="16">${esc(a.text)}</textarea><div class="row" style="gap:6px;flex-wrap:wrap">${copyBtnH('jout')}<button class="btn sm" data-trk>Add to Applications</button></div>${letter ? `<div class="row" style="gap:6px;flex-wrap:wrap"><input class="field" id="jto" placeholder="Recruiter email" style="flex:1;min-width:180px">${KVS.cv && KVS.cv.file ? `<label class="row" style="gap:6px;align-items:center;font-size:14px"><input type="checkbox" id="jatt" checked> Attach ${esc(KVS.cv.file.name)}</label>` : ''}<button class="btn sm pri" id="jsend">Email the cover letter from Gmail</button></div>` : ''}</div>`;
+        if (letter) twoTap($('#jsend'), 'Email the cover letter from Gmail', async () => { const to = $('#jto').value.trim(); await api('POST', '/api/mail/send', { to, subject: 'Application: ' + (role || 'role'), body: letter, files: $('#jatt') && $('#jatt').checked ? [KVS.cv.file] : [] }); $('#jsend').textContent = 'Sent ✓'; toast('Sent from your Gmail'); });
       });
     };
   } else {
-    v.innerHTML = `<div class="stack"><p class="note">Paste your CV once. Dioma uses it to tailor applications and cover letters.</p><textarea class="field" id="cvt" rows="16" placeholder="Paste your CV here">${esc(cv)}</textarea><button class="btn pri" id="cvs" style="justify-self:start">Save CV</button></div>`;
-    $('#cvs').onclick = async () => { await kvSave('cv', { text: $('#cvt').value, at: Date.now() }); toast('CV saved'); };
+    const cf = KVS.cv && KVS.cv.file;
+    v.innerHTML = `<div class="stack"><p class="note">Upload your resume once (PDF or Word). Dioma reads it to tailor applications and attaches it when you send a cover letter.</p>
+      <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center"><label class="btn pri" style="cursor:pointer"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>${cf ? 'Replace resume' : 'Upload resume'}<input type="file" id="cvf" hidden accept=".pdf,.docx,.doc,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"></label>
+      ${cf ? `<button type="button" class="btn sm" data-view="/p/${esc(cf.id)}" data-vtype="${/\.pdf$/i.test(cf.name) ? 'application/pdf' : ''}" data-vn="${esc(cf.name)}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6zM14 3v4h4M9 13h6M9 17h4"/></svg>${esc(cf.name)}</button>` : ''}</div>
+      <p class="note" id="cvst">${cf ? 'Saved. The text below is what Dioma reads from it; fix anything that came out wrong.' : 'Or paste the text below.'}</p>
+      <textarea class="field" id="cvt" rows="14" placeholder="Your CV text">${esc(cv)}</textarea><button class="btn" id="cvs" style="justify-self:start">Save text</button></div>`;
+    $('#cvf').onchange = async (e) => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; if (f.size > 10 * 1048576) return toast('That file is over 10 MB.'); $('#cvst').textContent = 'Reading ' + f.name + '…';
+      try { const r = await fetch('/api/career/cv?name=' + encodeURIComponent(f.name), { method: 'POST', headers: { 'content-type': f.type || 'application/octet-stream', 'x-dioma': '1' }, body: f }); const j = await r.json(); if (!r.ok) throw new Error(j.error); KVS.cv = { text: j.text, at: j.at, file: j.file }; toast(j.read ? 'Resume saved and read' : 'Resume saved. Paste the text too, Dioma could not read this file.'); drawCr(); }
+      catch (x) { $('#cvst').textContent = x.message || 'Could not upload.'; } };
+    $('#cvs').onclick = async () => { await kvSave('cv', { ...(KVS.cv || {}), text: $('#cvt').value, at: Date.now() }); toast('CV saved'); };
   }
 }
 
