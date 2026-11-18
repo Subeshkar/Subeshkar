@@ -515,6 +515,38 @@ const MIC = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke=
 // Send card: an email or WhatsApp that Dioma prepared. You check it, change anything, tap Send twice.
 let MACCTS = null;
 async function sendCard(box, c) {
+  if (c.card === 'fuel') {
+    const L = { super98: 'Super 98', special95: 'Special 95', eplus91: 'E-Plus 91', diesel: 'Diesel' }, f2 = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), f0 = (n) => Number(n || 0).toLocaleString('en-US');
+    const TH = 'style="text-align:left;padding:6px;border-bottom:1px solid var(--line);white-space:nowrap"', TR = 'style="text-align:right;padding:6px;white-space:nowrap"', TL = 'style="padding:6px;white-space:nowrap"';
+    const sel = c.vehicles.filter((v) => v.include).map((v) => v.plate);
+    const ML = (m) => new Date(m + '-01T00:00').toLocaleString('en-US', { month: 'short', year: 'numeric' });
+    const xurl = `/api/fuel/xlsx?id=${encodeURIComponent(c.id)}&base=${encodeURIComponent(c.baseMonth)}&plates=${encodeURIComponent(sel.join(','))}`;
+    box.innerHTML = `<div class="card stack" style="margin-top:8px"><b style="font-weight:600">Fuel surcharge ${ML(c.month)} <span class="note">vs ${ML(c.baseMonth)}</span></b>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:14px"><tr><th ${TH}>Fuel</th><th ${TH}>${ML(c.baseMonth)}</th><th ${TH}>${ML(c.month)}</th><th ${TH}>Increase</th></tr>
+      ${c.kinds.map((k) => `<tr><td ${TL}>${L[k] || k}</td><td ${TR}>${f2(c.base[k])}</td><td ${TR}>${f2(c.paid[k])}</td><td ${TR}>+${f2(c.paid[k] - c.base[k])} (${Math.round((c.paid[k] - c.base[k]) / c.base[k] * 100)}%)</td></tr>`).join('')}</table></div>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:14px"><tr><th ${TH}></th><th ${TH}>Vehicle</th><th ${TH}>Litres</th><th ${TH}>Km</th><th ${TH}>Surcharge</th></tr>
+      ${c.vehicles.map((v, i) => `<tr style="${v.include ? '' : 'opacity:.45'}"><td ${TL}><input type="checkbox" data-fv="${i}" ${v.include ? 'checked' : ''} aria-label="Include ${esc(v.plate)}"></td><td ${TL}>${esc(v.plate)}</td><td ${TR}>${f0(Math.round(v.litres))}</td><td ${TR}>${f0(v.km)}${v.kpl > 12 || (v.kpl && v.kpl < 3) ? ' <span title="Unusual km per litre: check this vehicle" style="color:#e5a43d">!</span>' : ''}</td><td ${TR}>${f2(v.surExcl)}</td></tr>`).join('')}
+      <tr><td></td><td ${TL}><b>Total</b></td><td ${TR}><b>${f0(Math.round(c.totals.litres))}</b></td><td ${TR}><b>${f0(c.totals.km)}</b></td><td ${TR}><b>${f2(c.totals.excl)}</b></td></tr></table></div>
+      <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:6px"><span>Before VAT ${f2(c.totals.excl)} · VAT ${f2(c.totals.vat)}</span><b>Invoice AED ${f2(c.totals.total)}</b></div>
+      ${(c.fixes || []).length ? `<div class="note">Odometer fixed: ${esc(c.fixes.join('; '))}</div>` : ''}<div class="note">Blank odometer readings are estimated from the fuel bought between readings (they are marked in the Excel file).</div>
+      <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><label class="note" for="fb${c.id}">Compare with</label><input class="field" id="fb${c.id}" data-fbase type="month" value="${esc(c.baseMonth)}" style="max-width:170px;height:40px"></div>
+      <div class="row" style="gap:6px;flex-wrap:wrap"><a class="btn sm" href="${xurl}" download><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Download Excel</a><input class="field" data-fcust placeholder="Customer to bill" value="${esc(c.customer || '')}" style="max-width:220px;height:40px"><button class="btn sm pri" data-fbill>Bill this</button></div><div data-fslot></div></div>`;
+    const rerun = async (plates, base) => { box.style.opacity = '.6'; try { const r = await api('POST', '/api/fuel/run', { id: c.id, base: base || c.baseMonth, plates }); Object.assign(c, { baseMonth: r.baseMonth, base: r.base, paid: r.paid, kinds: r.kinds, vehicles: r.vehicles, totals: r.totals, fixes: r.fixes }); } catch (x) { toast(x.message); } box.style.opacity = ''; sendCard(box, c); };
+    box.querySelectorAll('[data-fv]').forEach((cb) => cb.onchange = () => { const pl = c.vehicles.filter((v, i) => i === +cb.dataset.fv ? cb.checked : v.include).map((v) => v.plate); if (!pl.length) { cb.checked = true; return toast('Keep at least one vehicle.'); } rerun(pl); });
+    box.querySelector('[data-fbase]').onchange = (e) => { if (/^\d{4}-\d{2}$/.test(e.target.value)) rerun(c.vehicles.filter((v) => v.include).map((v) => v.plate), e.target.value); };
+    box.querySelector('[data-fcust]').oninput = (e) => { c.customer = e.target.value; };
+    box.querySelector('[data-fbill]').onclick = async () => {
+      if (!c.customer.trim()) return toast('Type the customer to bill.');
+      const mn = new Date(c.month + '-01T00:00').toLocaleString('en-US', { month: 'long', year: 'numeric' }), bn = new Date(c.baseMonth + '-01T00:00').toLocaleString('en-US', { month: 'long', year: 'numeric' });
+      const tbl = '| Fuel | ' + bn + ' | ' + mn + ' | Increase |\n|---|---|---|---|\n' + c.kinds.map((k) => `| ${L[k]} | AED ${f2(c.base[k])} | AED ${f2(c.paid[k])} | +AED ${f2(c.paid[k] - c.base[k])} |`).join('\n');
+      const cs = await api('GET', '/api/biz/customers?q=' + encodeURIComponent(c.customer)).catch(() => ({ customers: [] }));
+      const one = cs.customers.length === 1 || (cs.customers[0] && cs.customers[1] && cs.customers[0].score > cs.customers[1].score) ? cs.customers[0] : null;
+      sendCard(box.querySelector('[data-fslot]'), { card: 'invoice', customer: one ? one.name : c.customer, customer_id: one ? one.id : '', choices: cs.customers, email_to: one ? one.email : '',
+        items: [{ name: `Fuel surcharge ${mn}`, description: `${f0(Math.round(c.totals.litres))} litres across ${c.vehicles.filter((v) => v.include).length} vehicles, fuel price increase since ${bn}`, rate: c.totals.excl, quantity: 1 }],
+        email_subject: `${mn} Fuel Surcharge: Invoice attached`, email_body: `Hi,\n\nHope you're doing well! Fuel prices have gone up sharply since ${bn}, so here's the fuel surcharge for ${mn}:\n\n${tbl}\n\n- Fuel used on your routes: **${f0(Math.round(c.totals.litres))} litres** (about ${f0(c.totals.km)} km)\n- Surcharge: **AED ${f2(c.totals.excl)} + 5% VAT = AED ${f2(c.totals.total)}**\n\nThe invoice is attached, and we're happy to share the full fuel log anytime. Thanks so much for your partnership!` });
+    };
+    return;
+  }
   if (c.card === 'invoice') {
     const it = (c.items || []).map((x) => ({ name: x.name || '', description: x.description || '', rate: Number(x.rate) || 0, quantity: Number(x.quantity) || 1 }));
     const sub = it.reduce((a, x) => a + x.rate * x.quantity, 0), vat = Math.round(sub * 5) / 100, f2 = (n) => Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
