@@ -451,18 +451,22 @@ function wireTodos(el, after) {
   });
 }
 let TODOSCAN = 0;
+// Clear auto to-dos: first tap asks, second tap clears; they do not come back unless something new happens.
+function twoTapNow(b) { if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = 'Tap again to clear'; setTimeout(() => { if (b.isConnected && b.dataset.sure === '1') { b.dataset.sure = ''; viewTodo(); } }, 4000); return; }
+  b.disabled = true; api('POST', '/api/todos/clear-auto').then((r) => { toast(`Cleared ${r.removed} auto to-dos`); viewTodo(); }).catch((x) => toast(x.message)); }
 async function viewTodo(fresh) {
   const main = $('#main');
   const scan = fresh === true || Date.now() - TODOSCAN > 10 * 60e3; if (scan) TODOSCAN = Date.now();
   if (scan && !$('#op')) main.innerHTML = '<p class="dim" style="margin-top:10px">Checking your WhatsApp, mail and calendar…</p>';
   const d = await api('GET', '/api/todos' + (scan ? '?scan=1' : '')).catch(() => ({ open: [], done: [] }));
   if (cur() !== 'todo') return;
-  const auto = d.open.filter((t) => SRC[t.source] && t.source !== 'ask').length;
-  main.innerHTML = `<form id="add" style="display:grid;grid-template-columns:1fr auto auto;gap:8px"><input class="field" id="tt" placeholder="Add a to-do" maxlength="300" style="grid-column:1/-1"><input class="field" id="td" type="date" aria-label="Due date (optional)" style="min-width:0"><button class="btn pri" style="height:48px">Add</button><button type="button" class="btn" id="tscan" style="height:48px" title="Check WhatsApp, mail and calendar for new to-dos">↻</button></form>
+  const auto = d.open.filter((t) => SRC[t.source] && t.source !== 'ask' && t.source !== 'meeting').length;
+  main.innerHTML = `<form id="add" style="display:grid;grid-template-columns:1fr auto auto;gap:8px"><input class="field" id="tt" placeholder="Add a to-do" maxlength="300" style="grid-column:1/-1"><input class="field" id="td" type="date" aria-label="Due date (optional)" style="min-width:0"><button class="btn pri" style="height:48px">Add</button><button type="button" class="btn" id="tscan" style="height:48px" title="Check WhatsApp, mail and calendar for new to-dos">↻</button>${auto ? `<button type="button" class="btn sm" id="tclr" style="height:48px" title="Remove all the to-dos Dioma added (yours stay)">Clear auto (${auto})</button>` : ''}</form>
     <section class="sec"><h2>Open · ${d.open.length}</h2><div class="list" id="op">${todoRows(d.open) || '<div class="empty">All clear.</div>'}</div></section>
     ${d.done.length ? `<section class="sec"><h2>Done this week</h2><div class="list" id="dn">${todoRows(d.done, true)}</div></section>` : ''}`;
   $('#add').addEventListener('submit', async (e) => { e.preventDefault(); const text = $('#tt').value.trim(); if (!text) return; await api('POST', '/api/todos', { text, due: $('#td').value || null }).catch((x) => toast(x.message)); viewTodo(); });
   wireTodos($('#op'), viewTodo); if ($('#dn')) wireTodos($('#dn'), viewTodo);
+  $('#tclr')?.addEventListener('click', (e) => twoTapNow(e.target));
   $('#tscan').addEventListener('click', async (e) => { e.target.disabled = true; e.target.textContent = 'Checking…'; const r = await api('POST', '/api/todos/scan').catch((x) => (toast(x.message), null)); if (r) toast(r.added ? `${r.added} new to-do${r.added > 1 ? 's' : ''} added` : 'Nothing new to add'); TODOSCAN = Date.now(); viewTodo(); });
   if (window.innerWidth > 600) $('#tt').focus();
 }

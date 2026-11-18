@@ -439,7 +439,8 @@ on('DELETE', '/api/me', async (req, res, u) => {
 // To-dos
 on('POST', '/api/todos/scan', async (req, res, u) => send(res, 200, await AT.scan(u, true)));
 on('GET', '/api/todos', async (req, res, u) => {
-  if (new URL(req.url, 'http://x').searchParams.get('scan') === '1') await AT.scan(u, false).catch((e) => console.error('scan', e.message));
+  AT.tidy(u.id);
+  if (new URL(req.url, 'http://x').searchParams.get('scan') === '1' && aiAuto(u.id)) await AT.scan(u, false).catch((e) => console.error('scan', e.message));
   send(res, 200, {
   open: all('SELECT id, text, due, source FROM todos WHERE user_id = ? AND done = 0 ORDER BY (due IS NULL), due, created DESC LIMIT 80', u.id),
   done: all('SELECT id, text, due, done_at, source FROM todos WHERE user_id = ? AND done = 1 AND done_at > ? ORDER BY done_at DESC LIMIT 20', u.id, now() - 7 * DAY),
@@ -455,11 +456,14 @@ on('PATCH', '/api/todos/:id', async (req, res, u, p) => {
   const b = await json(req); const t = one('SELECT * FROM todos WHERE id = ? AND user_id = ?', p.id, u.id);
   if (!t) return fail(res, 404, 'Not found');
   const done = b.done === undefined ? t.done : (b.done ? 1 : 0);
+  if (done) AT.handled(u.id, t.ref);
   run('UPDATE todos SET text = ?, due = ?, done = ?, done_at = ? WHERE id = ?', b.text ? String(b.text).slice(0, 300) : t.text,
     b.due !== undefined ? (/^\d{4}-\d{2}-\d{2}$/.test(b.due || '') ? b.due : null) : t.due, done, done ? (t.done_at || now()) : null, t.id);
   send(res, 200, { ok: true });
 });
-on('DELETE', '/api/todos/:id', (req, res, u, p) => { run('DELETE FROM todos WHERE id = ? AND user_id = ?', p.id, u.id); send(res, 200, { ok: true }); });
+on('DELETE', '/api/todos/:id', (req, res, u, p) => { const t = one('SELECT ref FROM todos WHERE id = ? AND user_id = ?', p.id, u.id); if (t) AT.handled(u.id, t.ref); run('DELETE FROM todos WHERE id = ? AND user_id = ?', p.id, u.id); send(res, 200, { ok: true }); });
+// Clear every automatic to-do at once (yours stay).
+on('POST', '/api/todos/clear-auto', (req, res, u) => { for (const t of all("SELECT ref FROM todos WHERE user_id = ? AND done = 0 AND source IN ('whatsapp','mail','calendar','zoho books','zoho crm')", u.id)) AT.handled(u.id, t.ref); const r = run("DELETE FROM todos WHERE user_id = ? AND done = 0 AND source IN ('whatsapp','mail','calendar','zoho books','zoho crm')", u.id); send(res, 200, { removed: Number(r.changes || 0) }); });
 
 // Ask (chat)
 on('GET', '/api/chat', (req, res, u) => send(res, 200, { messages: all('SELECT role, text, at FROM chats WHERE user_id = ? ORDER BY id DESC LIMIT 40', u.id).reverse(), used: usedToday(u), cap: CAP }));
