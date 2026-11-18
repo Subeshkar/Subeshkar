@@ -24,6 +24,7 @@ import * as FU from './fuel.js';
 import * as PF from './payfollow.js';
 import * as AIC from './aichat.js';
 import * as BRN from './brain.js';
+import * as XB from './excel.js';
 import vm from 'node:vm';
 import { createRequire as _cr } from 'node:module';
 const XL = _cr(import.meta.url)('xlsx');
@@ -134,7 +135,7 @@ async function context(u) {
   };
 }
 const SYSTEM = (ctx, boxes) => `You are Dioma, a calm, capable personal assistant. You help one person run their day: their to-dos, calendar, email, WhatsApp, business and files.
-NUMBERS: never do math in your head; use calculate for every number you give (totals, VAT, per-unit, fuel, margins), and show the result in a clear table. EXCEL: when they want a sheet, a breakdown or a model, call make_excel with live formulas for totals; to analyse their Excel, read the attachment or read_file.
+NUMBERS: never do math in your head; use calculate for every number you give (totals, VAT, per-unit, fuel, margins), and show the result in a clear table. EXCEL: when they want a sheet, a breakdown or a model, call make_excel like a finance analyst: assumptions block with yellow input cells, live formulas that use them, red header rows, options side by side if useful (e.g. Option A 1 trip, Option B 2 trips), subtotal, VAT 5% and total. Every quote you make also gets a costing workbook with make_excel unless they say no; to analyse their Excel, read the attachment or read_file.
 WORK LIKE A SUPER ASSISTANT: act first, ask last. Never answer "I can't" or "I don't have" before trying: search their mail, WhatsApp, files, Zoho, Google Sheets and the web with your tools, read attachments, and work out numbers yourself. When a fact is missing, make the best estimate from what you found and the market, say what you assumed in one line, and still deliver the draft, quote, invoice or answer; they can change it. Ask a question only when a wrong guess would cost money or can't be undone, and then ask once, after doing everything else. Use several tools in one turn when that is faster. Learn from Dioma Brain below: their prices, people, tone and rules.
 When they say "remember", "always", "never", or correct you ("no, it's 475"), call remember with the fact so Dioma never makes that mistake again.
 Style: short, warm, plain words. Never use the em dash or en dash characters; use commas or full stops instead. Lead with the answer. Use bullet points only for lists. No emoji. Never invent facts about their mail or calendar, use only what is below, and say so when something is not there.
@@ -165,7 +166,7 @@ ${ctx}`;
 const TOOLS = [
   { name: 'send_quote', description: 'Email a quote that is already in Zoho Books (from draft_quote) to the customer from Zoho Books, with the PDF. Only when they clearly said to send it in this chat.', input_schema: { type: 'object', properties: { quote_id: { type: 'string' }, to: { type: 'string' }, cc: { type: 'string' }, subject: { type: 'string' }, body: { type: 'string', description: 'Short email, light Markdown, ends with their signature' } }, required: ['quote_id', 'to', 'subject', 'body'] } },
   { name: 'calculate', description: 'Exact math. Run JavaScript and get the result: any sum, VAT, margin, percentage, loan/EMI, fuel cost, km, unit price, statistics, dates, or a whole table built in a loop. Always use this for numbers instead of doing math in your head. Return a value or use console.log. No internet or files.', input_schema: { type: 'object', properties: { code: { type: 'string', description: 'JavaScript, e.g. const km = 560*26; const l = km/12; (l*4.04).toFixed(2)' } }, required: ['code'] } },
-  { name: 'make_excel', description: 'Create a real Excel file (.xlsx) and save it in their Dioma Files, with a download button. Use for any table, price list, quote breakdown, budget, report or model they want as Excel. Cells: numbers stay numbers; a text cell starting with = is a live Excel formula (e.g. "=B2*C2", "=SUM(D2:D9)"), so totals update when they edit. Put headers in the first row.', input_schema: { type: 'object', properties: { file_name: { type: 'string', description: 'e.g. Aramex sedan pricing.xlsx' }, sheets: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, rows: { type: 'array', items: { type: 'array', items: {} } }, widths: { type: 'array', items: { type: 'number' }, description: 'column widths in characters' } }, required: ['name', 'rows'] } } }, required: ['file_name', 'sheets'] } },
+  { name: 'make_excel', description: 'Create a polished Excel file (.xlsx) and save it in their Dioma Files, with a Download button. Build it like a finance model: a title, an assumptions block with input cells (input:true, shown yellow) and live formulas that reference them (e.g. "=B5*B6", "=SUM(P2:P5)", "=ROUND(...,0)"), brand-coloured header rows, subtotal / VAT / total rows in bold. Row numbers in formulas count from the first data row = row 1 of the sheet data (Dioma shifts them under the title). Use for costings, quotes, price lists, budgets, reports.', input_schema: { type: 'object', properties: { file_name: { type: 'string', description: 'e.g. Aramex Sedan Costing QT-00907.xlsx' }, brand: { type: 'string', description: 'Header colour hex, default C00000 (RedExGo red)' }, sheets: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, title: { type: 'string' }, subtitle: { type: 'string' }, rows: { type: 'array', description: 'Rows of cells. A cell is a number, text, a formula text starting with =, or {v, input, bold, fmt, pct, money}', items: { type: 'array', items: {} } }, header_rows: { type: 'array', items: { type: 'number' }, description: '0-based row indexes styled as table headers (default [0])' }, section_rows: { type: 'array', items: { type: 'number' } }, bold_rows: { type: 'array', items: { type: 'number' } }, widths: { type: 'array', items: { type: 'number' } }, note: { type: 'string' } }, required: ['name', 'rows'] } } }, required: ['file_name', 'sheets'] } },
   { name: 'read_file', description: 'Read a file they keep in Dioma Files (Excel, CSV, Word, PDF, text) by its name, so you can analyse it.', input_schema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] } },
   { name: 'remember', description: 'Save a lasting fact, rule, price or preference about the person or their business in Dioma Brain, so every future answer uses it. Use when they say remember/always/never, or correct you.', input_schema: { type: 'object', properties: { fact: { type: 'string', description: 'One short, clear line, e.g. "Abu Dhabi delivery for Maryjane is AED 665 per trip"' } }, required: ['fact'] } },
   { name: 'add_todo', description: 'Add a to-do for the user.', input_schema: { type: 'object', properties: { text: { type: 'string' }, due: { type: 'string', description: 'YYYY-MM-DD, optional' } }, required: ['text'] } },
@@ -192,21 +193,15 @@ const handlers = (u) => ({
     try { const r = vm.runInContext(String(code || '').slice(0, 20000), ctx, { timeout: 2000 }); return { result: r === undefined ? null : typeof r === 'object' ? JSON.parse(JSON.stringify(r)) : r, log: out.join('\n').slice(0, 6000) }; }
     catch (e) { return { error: e.message, log: out.join('\n').slice(0, 2000) }; }
   },
-  make_excel: async ({ file_name, sheets }) => {
-    const wb = XL.utils.book_new(); let n = 0;
-    for (const sh of (sheets || []).slice(0, 10)) {
-      const rows = (sh.rows || []).slice(0, 5000).map((r) => (Array.isArray(r) ? r : [r]).slice(0, 60));
-      const ws = XL.utils.aoa_to_sheet(rows.map((r) => r.map((c) => (typeof c === 'string' && c.startsWith('=') ? null : c))));
-      rows.forEach((r, i) => r.forEach((c, j) => { if (typeof c === 'string' && c.startsWith('=')) ws[XL.utils.encode_cell({ r: i, c: j })] = { t: 'n', f: c.slice(1) }; }));
-      const cols = Math.max(0, ...rows.map((r) => r.length)); ws['!cols'] = Array.from({ length: cols }, (_, j) => ({ wch: (sh.widths && sh.widths[j]) || Math.min(45, Math.max(10, ...rows.map((r) => String(r[j] ?? '').length + 2))) }));
-      if (rows.length) ws['!ref'] = XL.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length - 1, c: Math.max(0, cols - 1) } });
-      XL.utils.book_append_sheet(wb, ws, String(sh.name || 'Sheet' + (++n)).replace(/[\\/?*\[\]:]/g, ' ').slice(0, 31));
-    }
-    if (!wb.SheetNames.length) return { error: 'No data' };
-    const buf = XL.write(wb, { type: 'buffer', bookType: 'xlsx' }); const name = cleanName(String(file_name || 'Dioma.xlsx').replace(/\.xlsx?$/i, '') + '.xlsx');
+  make_excel: async ({ file_name, sheets, brand }) => {
+    // A polished, editable workbook (like a finance team would make): title, yellow input cells that feed live formulas,
+    // brand-coloured header rows, money formats, totals in bold, frozen header, sensible widths.
+    const buf = await XB.build(sheets, brand); if (!buf) return { error: 'No data' };
+    const name = cleanName(String(file_name || 'Dioma.xlsx').replace(/\.xlsx?$/i, '') + '.xlsx');
     const used = one('SELECT COALESCE(SUM(size),0) s FROM files WHERE user_id = ?', u.id).s; if (used + buf.length > QUOTA) return { error: 'Dioma Files is full.' };
     const id = token(12); fs.writeFileSync(path.join(fileDir(u.id), id), buf);
     run('INSERT INTO files (id, user_id, name, folder, mime, size, created) VALUES (?, ?, ?, ?, ?, ?, ?)', id, u.id, name, cleanFolder('Excel'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buf.length, now());
+    BRN.note(u.id, 'excel made', name);
     return { card: 'file', id, name, size: buf.length, url: '/api/files/' + id, shown: 'They now see the Excel file with a Download button; it is also saved in Files > Excel.' };
   },
   read_file: async ({ name }) => {
