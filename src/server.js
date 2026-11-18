@@ -136,6 +136,7 @@ To find someone's email address or the thread to reply in, use find_emails first
 Never invent an email address. If you cannot find it, leave "to" empty and say so; they can type it on the card.
 When they ask whether an email was sent (or received, or replied to), check first (check_sent for sent mail; find_emails for received) and answer with a clear Yes or No, the date and time in their time zone, the subject and which mailbox. If a mailbox could not be read, say which one. Never reply with just "Done."
 To compare someone's latest reply or proposal with an earlier one: find_emails for that person or company, read_email the latest and the earlier one, read_attachments when they have files (quotes, proposals), then show what changed (a short table of old vs new), what it means for them, your recommendation, and prepare the reply with draft_email. Be efficient: no more than 14 lookups.
+MEETING FOLLOW-UP: after a meeting, write one short email to the attendees: thank them warmly, the minutes (3 to 6 key points and decisions as bullets), and next steps as a small table | Action | Owner | By when |, then a friendly close. Use the draft_email tool so they can send with one tap (or OK on WhatsApp).
 JOB APPLICATIONS (or any topic across many emails, e.g. 'job updates for the last 3 months'): run find_emails several times with different words (application, applied, interview, thank you for applying, unfortunately, offer, recruiter, position, hiring) with since_days and the mailbox they are in, read_email the ones that need it, then give a short table | Company | Role | Date | Status | Next step | (newest first, one row per company and role), then 2 to 4 suggested actions (who to follow up, replies to send as draft_email cards). Use the previews when an email will not open.
 MAILBOX: when the screen says which mailbox is open, search that mailbox first (find_emails with mailbox) unless they ask about others.
 THEIR OWN TARGETS WIN: when the person gives their own target prices, discounts or terms (in this message or earlier in the chat), use exactly those: the table gets an 'Our target' column and the email asks for exactly their numbers, never your own suggested asks; if they correct an email, redo the whole summary and email with the correction, do not repeat the old one.
@@ -313,6 +314,42 @@ async function meetAlertWa(u, e, t, mins) {
   const msg = `⏰ *${e.title}* at ${t} (in ${Math.max(1, Math.round(mins))} min)${e.where ? '\n📍 ' + e.where : ''}${e.link ? '\n🔗 ' + e.link : ''}${prep ? '\n\n' + prep : ''}\n\nOpen Dioma → Cal to record it and get notes.`;
   await W.sendToMe(u.id, msg);
 }
+// After a business meeting: never forget the thank-you, minutes (MoM) and next steps.
+// 10 minutes after it ends: if it was recorded, the draft is ready to send with "OK" on WhatsApp; if not, Dioma asks for
+// a quick voice note or a few lines and writes it. A to-do stays until it is done. Personal routines are skipped.
+const ROUTINE = /\b(prayer|meditation|gym|workout|lunch|dinner|breakfast|shower|reading|french|wife|family|walk|sleep|wind down|review day|plan tomorrow|hydrate|nap|commute|focus|blocked?|busy|holiday|birthday|daily ops call|standup|stand-up)\b/i;
+async function afterMeeting(u, e, tz) {
+  const end = Date.parse(e.end || '') || Date.parse(e.start) + 60 * 60e3, since = (Date.now() - end) / 60e3;
+  if (since < 10 || since > 6 * 60 || e.allDay || ROUTINE.test(e.title || '')) return;
+  const people = (e.emails || []).filter((x) => /@/.test(x) && x.toLowerCase() !== String(u.email || '').toLowerCase());
+  if (!people.length && !e.link && !e.where && e.src !== 'business' && !/meet|call|with|x |review|demo|interview|client|vendor|partner/i.test(e.title || '')) return;
+  const tag = 'after:' + (e.id || e.title) + ':' + e.start;
+  if (!Number(run('INSERT OR IGNORE INTO wa_alerts (user_id, tag, at) VALUES (?, ?, ?)', u.id, tag, Date.now()).changes)) return;
+  // already followed up by email to someone who was there?
+  if (people.length && one(`SELECT 1 FROM mail_log WHERE user_id = ? AND at > ? AND ok = 1 AND (${people.map(() => 'lower(to_addr) LIKE ?').join(' OR ')})`, u.id, end - 30 * 60e3, ...people.map((x) => '%' + x.toLowerCase() + '%'))) return;
+  const t = new Intl.DateTimeFormat('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: tz }).format(new Date(e.start));
+  run('INSERT INTO todos (user_id, text, due, source, created) VALUES (?, ?, ?, ?, ?)', u.id, `Send thanks, minutes and next steps: ${e.title}${people.length ? ' (' + people.slice(0, 3).join(', ') + ')' : ''}`.slice(0, 300), today(u), 'meeting', now());
+  const rec = one('SELECT * FROM meetings WHERE user_id = ? AND started BETWEEN ? AND ? AND summary IS NOT NULL ORDER BY started DESC LIMIT 1', u.id, Date.parse(e.start) - 45 * 60e3, end + 30 * 60e3);
+  let msg, ask;
+  if (rec) {
+    let n = {}; try { n = JSON.parse(rec.summary || '{}'); } catch {}
+    ask = `My meeting "${e.title}" (${t}) just ended. Attendees: ${people.join(', ') || 'not listed'}. Here are the recorded notes: ${JSON.stringify(n).slice(0, 6000)}\nDraft one short email to the attendees: thank them, the minutes (key points and decisions) and the next steps with owners and dates, then show it so I can reply OK to send.`;
+  } else {
+    ask = `My meeting "${e.title}" (${t}) just ended. Attendees: ${people.join(', ') || 'not listed in the calendar'}. I have not sent the thank-you, minutes or next steps yet.`;
+    msg = `📝 *${e.title}* (${t}) has ended.\n\nLet's send the thank-you, minutes and next steps while it's fresh. Reply here with a quick voice note or 2 to 3 lines: what was agreed, who does what, and by when. I'll write the email${people.length ? ' to ' + people.slice(0, 3).join(', ') : ''} for your OK.`;
+  }
+  P.once(u.id, tag, { title: `Follow up: ${e.title}`, body: 'Send the thank-you, minutes and next steps. Tap to do it now.', url: '/#ai' }).catch(() => {});
+  if (W.status(u.id).status !== 'open') return;
+  if (rec) { // the draft is written now; OK on WhatsApp sends it
+    const r = await askDioma(u, ask, 'whatsapp').catch(() => null);
+    if (r && r.reply) await W.sendToMe(u.id, `📝 *${e.title}* has ended. Here's your follow-up:\n\n${waFmt(r.reply)}`);
+    if (r && r.cards && r.cards.length) PENDING.set(u.id, { cards: r.cards, at: Date.now() });
+    return;
+  }
+  run('INSERT INTO chats (user_id, role, text, at) VALUES (?, ?, ?, ?)', u.id, 'user', ask, now());
+  run('INSERT INTO chats (user_id, role, text, at) VALUES (?, ?, ?, ?)', u.id, 'assistant', msg, now());
+  await W.sendToMe(u.id, msg);
+}
 async function reminders() {
   autoScanAll().catch((e) => console.error('autoscan', e.message));
   // Everyone with notifications on, or with WhatsApp connected (alerts also arrive in their "Message yourself" chat).
@@ -329,6 +366,7 @@ async function reminders() {
     // Every calendar together: Google plus Zoho / Outlook / others connected in Apps (a Zoho meeting is never skipped because Google has events).
     const g = await G.snapshot(u.id).catch(() => null), seenEv = new Set(), evs = [];
     for (const e of [...(g?.events || []), ...(await A.events(u.id).catch(() => []))]) { const k = String(e.title).toLowerCase() + '|' + String(e.start).slice(0, 16); if (seenEv.has(k)) continue; seenEv.add(k); evs.push(e); }
+    for (const e of evs) afterMeeting(u, e, tz).catch((x) => console.error('after meeting', x.message));
     for (const e of evs) {
       if (e.allDay || !e.start) continue;
       const mins = (Date.parse(e.start) - Date.now()) / 60e3;
