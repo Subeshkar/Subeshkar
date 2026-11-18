@@ -39,8 +39,9 @@ async function sess(uid, create, mobile) {
 }
 const okUrl = (u) => { try { const x = new URL(/^https?:\/\//.test(u) ? u : 'https://' + u); return x.protocol === 'https:' || x.protocol === 'http:' ? x.href : null; } catch { return null; } };
 
-export async function open(uid, url, mobile) {
+export async function open(uid, url, mobile, cookies) {
   const s = await sess(uid, true, mobile); const u = okUrl(url || 'https://www.google.com');
+  if (cookies && cookies.length) await s.ctx.addCookies(cookies).catch(() => {}); // their saved sign-in for this site
   if (!u) throw Object.assign(new Error('That address does not look right.'), { status: 400 });
   await s.page.goto(u, { waitUntil: 'domcontentloaded', timeout: 30e3 }).catch(() => {});
   return state(uid);

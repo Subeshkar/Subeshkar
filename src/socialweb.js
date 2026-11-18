@@ -285,3 +285,11 @@ export function fbComment(uid, url, text) {
     await box.click(); await pause(page, 400, 800); await page.keyboard.type(text, { delay: 25 }); await pause(page, 400, 800); await page.keyboard.press('Enter'); await pause(page, 2000, 3000); drop(uid); return { ok: true };
   });
 }
+
+// Saved sign-in cookies for the site a link points to (so a post opens signed in inside Dioma).
+export function cookiesFor(uid, url) {
+  let h = ''; try { h = new URL(url).hostname; } catch { return []; }
+  const site = Object.keys(SITES).find((k) => SITES[k].dom.test(h)); if (!site) return [];
+  const row = one('SELECT state FROM web_logins WHERE user_id = ? AND site = ?', uid, site); if (!row) return [];
+  try { return open(row.state).cookies || []; } catch { return []; }
+}

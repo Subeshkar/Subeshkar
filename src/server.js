@@ -767,7 +767,7 @@ on('POST', '/api/push/sub', async (req, res, u) => { P.subscribe(u.id, await jso
 on('POST', '/api/push/test', async (req, res, u) => { const n = await P.send(u.id, { title: 'Dioma', body: `Hi ${u.name || 'there'}, notifications are on. This is how Dioma will reach you.`, urgent: true, url: '/#home' }); send(res, 200, { sent: n }); });
 
 // Dioma Browser (the customer logs in themselves; nothing is saved; closes after 10 idle minutes)
-on('POST', '/api/browser/open', async (req, res, u) => { if (!BR.available()) return fail(res, 503, 'The Dioma browser is being switched on. Try again soon.'); const b = await json(req); send(res, 200, await BR.open(u.id, b.url, !!b.mobile)); });
+on('POST', '/api/browser/open', async (req, res, u) => { if (!BR.available()) return fail(res, 503, 'The Dioma browser is being switched on. Try again soon.'); const b = await json(req); send(res, 200, await BR.open(u.id, b.url, !!b.mobile, SW.cookiesFor(u.id, String(b.url || '')))); });
 on('GET', '/api/browser/state', async (req, res, u) => send(res, 200, await BR.state(u.id)));
 on('GET', '/api/browser/shot', async (req, res, u) => { const img = await BR.shot(u.id); res.writeHead(200, { 'content-type': 'image/jpeg', 'cache-control': 'no-store' }); res.end(img); });
 on('POST', '/api/browser/act', async (req, res, u) => send(res, 200, await BR.act(u.id, await json(req))));
