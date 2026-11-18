@@ -1449,6 +1449,9 @@ on('GET', '/api/social/web/li/inbox', async (req, res, u) => { swLim(u, req); se
 on('GET', '/api/social/web/li/thread', async (req, res, u) => { swLim(u); send(res, 200, await SW.liThread(u.id, swq(req).get('id') || '')); });
 on('POST', '/api/social/web/li/send', async (req, res, u) => { swLim(u); const b = await json(req); send(res, 200, await SW.liSend(u.id, String(b.id || ''), b.text)); });
 on('POST', '/api/social/web/li/like', async (req, res, u) => { swLim(u); const b = await json(req); send(res, 200, await SW.liLike(u.id, String(b.urn || ''))); });
+on('GET', '/api/social/web/ig/tag', async (req, res, u) => { swLim(u, req); send(res, 200, await SW.igTag(u.id, swq(req).get('tag') || '')); });
+on('POST', '/api/social/web/ig/comment', async (req, res, u) => { swLim(u); const b = await json(req); const r = await SW.igComment(u.id, String(b.url || ''), b.text); BRN.note(u.id, 'instagram comment', String(b.text || '').slice(0, 300)); send(res, 200, r); });
+on('POST', '/api/social/web/fb/comment', async (req, res, u) => { swLim(u); const b = await json(req); const r = await SW.fbComment(u.id, String(b.url || ''), b.text); BRN.note(u.id, 'facebook comment', String(b.text || '').slice(0, 300)); send(res, 200, r); });
 on('POST', '/api/social/web/li/comment', async (req, res, u) => { swLim(u); const b = await json(req); send(res, 200, await SW.liComment(u.id, String(b.urn || ''), b.text)); });
 
 // Business

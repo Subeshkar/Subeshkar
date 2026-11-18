@@ -9,6 +9,8 @@ db.exec('CREATE TABLE IF NOT EXISTS web_logins (user_id INTEGER NOT NULL, site T
 
 const SITES = {
   linkedin: { name: 'LinkedIn', dom: /(^|\.)linkedin\.com$/, need: 'li_at', login: 'https://www.linkedin.com/login', out: /\/(login|authwall|checkpoint|uas\/login)/ },
+  instagram: { name: 'Instagram', dom: /(^|\.)instagram\.com$/, need: 'sessionid', login: 'https://www.instagram.com/accounts/login/', out: /\/accounts\/login|\/challenge\// },
+  facebook: { name: 'Facebook', dom: /(^|\.)facebook\.com$/, need: 'c_user', login: 'https://www.facebook.com/login/', out: /\/login|\/checkpoint\// },
 };
 const err = (m, status = 400) => Object.assign(new Error(m), { status });
 const C = new Map(); // short cache: uid:key -> { at, v }
@@ -246,3 +248,40 @@ export function liConnectStart(uid, people, note) {
   return { ok: true, total: list.length, minutes: Math.ceil(list.length * 0.6) };
 }
 export const liConnectStatus = (uid) => JOBS.get(uid) || { total: 0, done: 0, sent: [], failed: [], running: false };
+
+
+// ---------- Instagram and Facebook (as you, in the Dioma browser) ----------
+const IG = 'https://www.instagram.com';
+// Top posts for a hashtag: link, picture, caption.
+export function igTag(uid, tag) {
+  tag = String(tag || '').replace(/[^\p{L}\p{N}_]/gu, '').slice(0, 60); if (!tag) throw err('Pick a hashtag.');
+  return cached(`${uid}:igtag:${tag}`, 15 * 60e3, () => use(uid, 'instagram', async (page, go) => {
+    await go(`${IG}/explore/tags/${encodeURIComponent(tag)}/`); await page.waitForSelector('a[href*="/p/"], a[href*="/reel/"]', { timeout: 20e3 }).catch(() => {});
+    for (let i = 0; i < 2; i++) { await page.mouse.wheel(0, 1800); await pause(page, 900, 1500); }
+    const posts = await page.evaluate(() => { const out = [], seen = new Set(); for (const a of document.querySelectorAll('a[href*="/p/"], a[href*="/reel/"]')) { const u = a.href.split('?')[0]; if (seen.has(u)) continue; seen.add(u); const img = a.querySelector('img'); out.push({ url: u, image: img && /^https:/.test(img.src) ? img.src : '', text: (img?.alt || '').slice(0, 400), reel: /\/reel\//.test(u) }); if (out.length >= 18) break; } return out; });
+    if (!posts.length) throw err('Instagram showed no posts for #' + tag + ' just now. Try another hashtag.', 404);
+    return { tag, posts };
+  }));
+}
+// Comment on any Instagram post as you.
+export function igComment(uid, url, text) {
+  text = String(text || '').trim().slice(0, 2000); if (!text) throw err('Write the comment first.');
+  if (!/^https:\/\/www\.instagram\.com\/(p|reel)\//.test(url || '')) throw err('That is not an Instagram post link.');
+  return use(uid, 'instagram', async (page, go) => {
+    await go(url); const box = await page.waitForSelector('textarea[aria-label*="comment" i], form textarea', { timeout: 20e3 }).catch(() => null);
+    if (!box) throw err('Comments are turned off on this post, or Instagram did not show the comment box.', 409);
+    await box.click(); await pause(page, 400, 800); await page.keyboard.type(text, { delay: 25 }); await pause(page, 500, 900);
+    const post = await page.$('form button[type="submit"], div[role="button"]:has-text("Post")'); if (post) await post.click(); else await page.keyboard.press('Enter');
+    await pause(page, 2000, 3000); drop(uid); return { ok: true };
+  });
+}
+// Comment on a Facebook post (link) as you.
+export function fbComment(uid, url, text) {
+  text = String(text || '').trim().slice(0, 2000); if (!text) throw err('Write the comment first.');
+  if (!/^https:\/\/(www|m|web)\.facebook\.com\//.test(url || '')) throw err('That is not a Facebook post link.');
+  return use(uid, 'facebook', async (page, go) => {
+    await go(url); const box = await page.waitForSelector('div[contenteditable="true"][aria-label*="comment" i], div[contenteditable="true"][role="textbox"]', { timeout: 20e3 }).catch(() => null);
+    if (!box) throw err('Facebook did not show a comment box on this post.', 409);
+    await box.click(); await pause(page, 400, 800); await page.keyboard.type(text, { delay: 25 }); await pause(page, 400, 800); await page.keyboard.press('Enter'); await pause(page, 2000, 3000); drop(uid); return { ok: true };
+  });
+}
