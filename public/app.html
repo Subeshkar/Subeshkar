@@ -2101,7 +2101,7 @@ function pageCtx() {
   if (open) { const row = open.previousElementSibling; parts.push('Open item: ' + ((row ? row.innerText + '\n' : '') + open.innerText).replace(/\s+\n/g, '\n').slice(0, 1200)); }
   return parts.join('\n');
 }
-const FABHIDE = new Set(['ai', 'ask']);
+const FABHIDE = new Set(['ai', 'ask', 'mail', 'wa', 'biz']); // these screens have their own AI button at the top
 function fabSync() {
   let f = $('#aifab'); if (!S.me || !$('#botw')) { f && f.remove(); return; }
   if (!f) { document.body.insertAdjacentHTML('beforeend', `<button type="button" id="aifab" aria-label="Ask Dioma" title="Ask Dioma about this screen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button>`); f = $('#aifab'); f.onclick = aiSheet; }
