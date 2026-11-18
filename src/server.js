@@ -533,7 +533,12 @@ const plainBrief = (ctx) => {
 const fileDir = (uid) => { const d = path.join(DIR, 'files', String(uid)); fs.mkdirSync(d, { recursive: true }); return d; };
 const cleanName = (s) => String(s || '').replace(/[\\/\0<>:"|?*\x00-\x1f]/g, '_').trim().slice(0, 140) || 'file';
 const cleanFolder = (s) => String(s || '').split('/').map((x) => cleanName(x).slice(0, 40)).filter((x) => x && x !== '.' && x !== '..' && x !== 'file').join('/').slice(0, 160);
-on('GET', '/api/files', (req, res, u) => send(res, 200, { files: all('SELECT id, name, folder, mime, size, created FROM files WHERE user_id = ? ORDER BY folder, name', u.id), used: one('SELECT COALESCE(SUM(size),0) s FROM files WHERE user_id = ?', u.id).s, quota: QUOTA }));
+on('GET', '/api/files', (req, res, u) => {
+  // a resume uploaded in Career before Files kept it: add it once
+  try { const r = one("SELECT v FROM kv WHERE user_id = ? AND k = 'cv'", u.id); const v = r ? JSON.parse(r.v || 'null') : null;
+    if (v && v.file && !v.fid) { const f = path.join(SO.PUB_DIR, String(v.file.id).replace(/[^a-z0-9.]/gi, '')); if (fs.existsSync(f)) { v.fid = cvToFiles(u, fs.readFileSync(f), v.file.name, v); if (v.fid) run("UPDATE kv SET v = ? WHERE user_id = ? AND k = 'cv'", JSON.stringify(v), u.id); } } } catch {}
+  send(res, 200, { files: all('SELECT id, name, folder, mime, size, created FROM files WHERE user_id = ? ORDER BY folder, name', u.id), used: one('SELECT COALESCE(SUM(size),0) s FROM files WHERE user_id = ?', u.id).s, quota: QUOTA });
+});
 on('POST', '/api/files', async (req, res, u) => {
   const q = new URL(req.url, 'http://x').searchParams;
   const len = Number(req.headers['content-length'] || 0);
@@ -885,6 +890,17 @@ async function sendMail(u, b) {
   return { ok: true };
 }
 // My CV: upload the resume file once (PDF or Word). Dioma reads the text for tailoring and keeps the file to attach to applications.
+// The resume also lives in Files, folder "Career" (the newest one replaces the one Dioma saved before).
+function cvToFiles(u, buf, name, v) {
+  try {
+    const mime = /\.pdf$/i.test(name) ? 'application/pdf' : /\.docx$/i.test(name) ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : /\.doc$/i.test(name) ? 'application/msword' : 'text/plain';
+    if (v && v.fid) { const o = one('SELECT id FROM files WHERE id = ? AND user_id = ?', v.fid, u.id); if (o) { try { fs.unlinkSync(path.join(fileDir(u.id), o.id)); } catch {} run('DELETE FROM files WHERE id = ?', o.id); } }
+    const used = one('SELECT COALESCE(SUM(size),0) s FROM files WHERE user_id = ?', u.id).s; if (used + buf.length > QUOTA) return '';
+    const id = token(12); fs.writeFileSync(path.join(fileDir(u.id), id), buf);
+    run('INSERT INTO files (id, user_id, name, folder, mime, size, created) VALUES (?, ?, ?, ?, ?, ?, ?)', id, u.id, cleanName(name), cleanFolder('Career'), mime, buf.length, now());
+    return id;
+  } catch { return ''; }
+}
 on('POST', '/api/career/cv', async (req, res, u) => {
   const name = String(new URL(req.url, 'http://x').searchParams.get('name') || 'CV.pdf').replace(/[^\w .()-]/g, '').slice(0, 80) || 'CV.pdf';
   const ext = (name.match(/\.([a-z0-9]{1,5})$/i) || [, ''])[1].toLowerCase();
@@ -893,6 +909,7 @@ on('POST', '/api/career/cv', async (req, res, u) => {
   try { text = ext === 'pdf' ? await WL.pdfText(buf) : ext === 'docx' ? AIC.officeText({ name, type: '', data: buf.toString('base64') }) : ext === 'txt' ? buf.toString('utf8') : ''; } catch {}
   const id = SO.savePublicFile(buf, ext); const old = one("SELECT v FROM kv WHERE user_id = ? AND k = 'cv'", u.id); const prev = old ? JSON.parse(old.v || 'null') || {} : {};
   const v = { text: String(text || prev.text || '').trim().slice(0, 60000), at: Date.now(), file: { id, name } };
+  v.fid = cvToFiles(u, buf, name, prev);
   run('INSERT INTO kv (user_id, k, v, at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, k) DO UPDATE SET v = excluded.v, at = excluded.at', u.id, 'cv', JSON.stringify(v), Date.now());
   send(res, 200, { ...v, url: `/p/${id}`, read: !!text });
 });
@@ -1172,7 +1189,7 @@ on('GET', '/api/biz', async (req, res, u) => send(res, 200, await BZ.overview(u.
 
 // Personal notebook: CV, jobs, goals, habits, people, plan, learning progress, news topics. One JSON value per key.
 db.exec('CREATE TABLE IF NOT EXISTS kv (user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, k TEXT NOT NULL, v TEXT, at INTEGER, PRIMARY KEY (user_id, k))');
-const KV = ['cv', 'jobs', 'goals', 'habits', 'people', 'plan', 'learn', 'pulse', 'life', 'money', 'ideas', 'plans', 'posts', 'contacts', 'lessons', 'academy', 'role'];
+const KV = ['folders', 'cv', 'jobs', 'goals', 'habits', 'people', 'plan', 'learn', 'pulse', 'life', 'money', 'ideas', 'plans', 'posts', 'contacts', 'lessons', 'academy', 'role'];
 on('GET', '/api/kv', async (req, res, u) => { const o = {}; for (const r of all('SELECT k, v FROM kv WHERE user_id = ?', u.id)) { try { o[r.k] = JSON.parse(r.v); } catch {} } send(res, 200, o); });
 on('POST', '/api/kv', async (req, res, u) => {
   const b = await json(req); if (!KV.includes(b.k)) return fail(res, 400, 'Unknown item.');

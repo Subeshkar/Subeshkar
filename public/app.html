@@ -660,13 +660,14 @@ async function viewFiles() {
   const main = $('#main');
   const d = await api('GET', '/api/files').catch(() => ({ files: [], used: 0, quota: 1 }));
   if (cur() !== 'files') return;
-  const cur = S.folder;
+  try { const kf = await api('GET', '/api/kv'); for (const x of (kf.folders || [])) if (!S.newFolders.includes(x)) S.newFolders.push(x); } catch {}
+  const fo = S.folder; // the open folder ('' = All files)
   const folders = new Set(['Personal', 'Work', ...S.newFolders]);
   d.files.forEach((f) => { const parts = f.folder.split('/'); for (let i = 1; i <= parts.length; i++) if (parts[0]) folders.add(parts.slice(0, i).join('/')); });
-  const subs = [...folders].filter((f) => cur ? f.startsWith(cur + '/') && !f.slice(cur.length + 1).includes('/') : !f.includes('/')).sort();
-  const here = d.files.filter((f) => f.folder === cur);
+  const subs = [...folders].filter((f) => fo ? f.startsWith(fo + '/') && !f.slice(fo.length + 1).includes('/') : !f.includes('/')).sort();
+  const here = d.files.filter((f) => f.folder === fo);
   const count = (fo) => d.files.filter((f) => f.folder === fo || f.folder.startsWith(fo + '/')).length;
-  const crumbs = ['', ...cur.split('/').filter(Boolean).map((_, i, a) => a.slice(0, i + 1).join('/'))];
+  const crumbs = ['', ...fo.split('/').filter(Boolean).map((_, i, a) => a.slice(0, i + 1).join('/'))];
   main.innerHTML = `<div class="row" style="justify-content:flex-end"><span class="note mono" style="font-size:11.5px">${kb(d.used)} of ${kb(d.quota)}</span></div>
     <div class="crumbs" style="margin-top:14px">${crumbs.map((c) => `<button data-go="${esc(c)}">${c ? esc(c.split('/').pop()) : 'All files'}</button>`).join('<span class="faint">/</span>')}</div>
     <div class="row" style="margin-top:14px;flex-wrap:wrap"><label class="btn pri sm">Upload<input type="file" id="up" multiple hidden></label><button class="btn sm" id="nf">New folder</button></div>
@@ -681,13 +682,13 @@ async function viewFiles() {
   $('#nf').addEventListener('click', () => {
     $('#nfrow').innerHTML = `<form class="row" id="nff" style="margin-top:12px"><input class="field grow" id="nfn" placeholder="Folder name" maxlength="40"><button class="btn sm pri">Create</button></form>`;
     $('#nfn').focus();
-    $('#nff').addEventListener('submit', (e) => { e.preventDefault(); const n = $('#nfn').value.trim().replace(/\//g, '-'); if (!n) return; S.newFolders.push(cur ? cur + '/' + n : n); S.folder = cur ? cur + '/' + n : n; viewFiles(); });
+    $('#nff').addEventListener('submit', (e) => { e.preventDefault(); const n = $('#nfn').value.trim().replace(/\//g, '-'); if (!n) return; const nfo = fo ? fo + '/' + n : n; if (!S.newFolders.includes(nfo)) S.newFolders.push(nfo); api('POST', '/api/kv', { k: 'folders', v: S.newFolders }).catch(() => {}); S.folder = nfo; toast('Folder created'); viewFiles(); });
   });
   $('#up').addEventListener('change', async (e) => {
     const files = [...e.target.files]; let ok = 0;
     for (const [i, f] of files.entries()) {
       $('#prog').textContent = `Uploading ${i + 1} of ${files.length}: ${f.name}`;
-      try { await api('POST', `/api/files?name=${encodeURIComponent(f.name)}&folder=${encodeURIComponent(cur)}`, undefined, f); ok++; }
+      try { await api('POST', `/api/files?name=${encodeURIComponent(f.name)}&folder=${encodeURIComponent(fo)}`, undefined, f); ok++; }
       catch (x) { toast(`${f.name}: ${x.message}`); }
     }
     toast(`${ok} file${ok === 1 ? '' : 's'} uploaded`); viewFiles();
@@ -702,7 +703,7 @@ async function viewFiles() {
     }
     const a = e.target.closest('[data-a]')?.dataset.a; if (!a) return;
     if (a === 'ren') { more.innerHTML = `<form class="row inline" data-f="ren"><input class="field grow" value="${esc(f.name)}" maxlength="140"><button class="btn sm pri">Save</button></form>`; more.querySelector('input').focus(); }
-    if (a === 'mv') { more.innerHTML = `<form class="row inline" data-f="mv"><select class="field grow">${['', ...folders].sort().map((fo) => `<option value="${esc(fo)}" ${fo === cur ? 'selected' : ''}>${fo ? esc(fo) : 'All files (top)'}</option>`).join('')}</select><button class="btn sm pri">Move</button></form>`; }
+    if (a === 'mv') { more.innerHTML = `<form class="row inline" data-f="mv"><select class="field grow">${['', ...folders].sort().map((fo) => `<option value="${esc(fo)}" ${fo === fo ? 'selected' : ''}>${fo ? esc(fo) : 'All files (top)'}</option>`).join('')}</select><button class="btn sm pri">Move</button></form>`; }
     if (a === 'del') more.innerHTML = `<div class="inline"><span class="note" style="align-self:center">Delete for good?</span><button class="btn sm bad" data-a="del2">Delete</button><button class="btn sm" data-more>Cancel</button></div>`;
     if (a === 'del2') { await api('DELETE', `/api/files/${id}`).catch((x) => toast(x.message)); viewFiles(); }
     more.querySelector('form')?.addEventListener('submit', async (ev) => {

@@ -7,6 +7,7 @@ import { DIR } from './db.js';
 import * as A from './apps.js';
 
 const PUB = path.join(DIR, 'pub'); fs.mkdirSync(PUB, { recursive: true });
+export const PUB_DIR = PUB;
 const C = new Map(); // uid:net -> { at, data }
 const arr = (d) => A.arrayIn(d) || [];
 const err = (m, s = 502) => Object.assign(new Error(m), { status: s });
