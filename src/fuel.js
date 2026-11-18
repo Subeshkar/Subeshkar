@@ -57,6 +57,9 @@ export function analyse(rows, base, opts = {}) {
   for (const [plate, list] of Object.entries(by)) {
     list.sort((a, b) => a.at - b.at);
     const known = list.map((r, k) => [k, r.odo]).filter(([, v]) => v);
+    // readings must go up with time: a reading lower than or equal to an earlier one is wrong (unless it is a missing digit, fixed below)
+    for (let j = 1; j < known.length; j++) { const prev = Math.max(...known.slice(0, j).map((x) => x[1])), c = known[j][1], next = known[j + 1]?.[1];
+      if (c <= prev && !(c * 10 >= prev && (!next || c * 10 <= next + 10))) { const r = list[known[j][0]]; fixes.push(`${plate} ${isNaN(r.at) ? '' : r.at.toISOString().slice(0, 16).replace('T', ' ')}: ${c === prev ? 'same reading as before' : 'went backwards'} (${c}), estimated`); r.bad = 1; known.splice(j, 1); j--; } }
     // a reading that dropped to about a tenth of its neighbours is a missing digit
     for (let j = 1; j < known.length - 1; j++) { const [p, c, n] = [known[j - 1][1], known[j][1], known[j + 1][1]]; if (c < p * 0.5 && c * 10 >= p && c * 10 <= n + 10) { fixes.push(`${plate}: ${c} read as ${c * 10}`); known[j][1] = c * 10; list[known[j][0]].fixed = c * 10; } }
     const cum = [0]; for (const r of list) cum.push(cum[cum.length - 1] + r.qty);
@@ -67,7 +70,7 @@ export function analyse(rows, base, opts = {}) {
       const prev = [...known].reverse().find(([i]) => i < k), next = known.find(([i]) => i > k);
       let v; if (prev && next) v = prev[1] + (cum[k] - cum[prev[0]]) / ((cum[next[0]] - cum[prev[0]]) || 1) * (next[1] - prev[1]);
       else if (prev) v = prev[1] + (cum[k] - cum[prev[0]]) * kpl; else v = next[1] - (cum[next[0]] - cum[k]) * kpl;
-      r.odoFilled = Math.round(v); r.odoNote = 'Estimated';
+      r.odoFilled = Math.round(v); r.odoNote = r.bad ? 'Wrong reading, estimated' : 'Estimated';
     });
     const km = known.length ? Math.round(list[list.length - 1].odoFilled - list[0].odoFilled + list[list.length - 1].qty * kpl) : 0;
     const litres = {}; let spent = 0, sur = 0;
