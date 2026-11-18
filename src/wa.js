@@ -33,7 +33,8 @@ let version;
 const textOf = (m) => {
   const x = m.message || {};
   const inner = x.ephemeralMessage?.message || x.viewOnceMessage?.message || x;
-  return inner.conversation || inner.extendedTextMessage?.text || inner.imageMessage?.caption || inner.videoMessage?.caption || inner.documentMessage?.caption
+  const ext = inner.extendedTextMessage; const link = ext && (ext.matchedText || ext.canonicalUrl) && !String(ext.text || '').includes(ext.matchedText || ext.canonicalUrl) ? ((ext.text ? ext.text + '\n' : '') + (ext.matchedText || ext.canonicalUrl)) : '';
+  return inner.conversation || link || ext?.text || inner.imageMessage?.caption || inner.videoMessage?.caption || inner.documentMessage?.caption
     || (inner.imageMessage && '📷 Photo') || (inner.videoMessage && '🎥 Video') || (inner.audioMessage && '🎤 Voice message') || (inner.documentMessage && `📄 ${inner.documentMessage.fileName || 'Document'}`) || (inner.stickerMessage && 'Sticker') || (inner.locationMessage && '📍 Location') || '';
 };
 const skip = (jid) => !jid || jid === 'status@broadcast' || jid.endsWith('@newsletter') || jid.endsWith('@broadcast');
