@@ -22,7 +22,7 @@ export const CATALOG = {
   cal: [['googlecalendar', 'Google Calendar', ''], ['outlook', 'Outlook Calendar', 'Comes with Outlook'], ['zoho', 'Zoho Calendar', '']],
   social: [['instagram', 'Instagram', 'DMs, comments and posts'], ['facebook', 'Facebook', 'Page messages and comments'], ['linkedin', 'LinkedIn', 'Posts and profile'], ['twitter', 'X', 'Mentions and posts'], ['youtube', 'YouTube', 'Comments and videos'], ['tiktok', 'TikTok', 'Posts']],
   biz: [['zoho_books', 'Zoho Books', 'Invoices, bills, purchase orders'], ['zoho', 'Zoho CRM', 'Leads, deals, follow-ups'], ['quickbooks', 'QuickBooks', 'Invoices and payments'], ['hubspot', 'HubSpot', 'Contacts and deals'], ['xero', 'Xero', 'Invoices and payments'], ['shopify', 'Shopify', 'Orders and products']],
-  tools: [['canva', 'Canva', 'Designs'], ['notion', 'Notion', 'Notes and pages'], ['googledrive', 'Google Drive', 'Files'], ['onedrive', 'OneDrive', 'Files'], ['slack', 'Slack', 'Messages'], ['trello', 'Trello', 'Boards']],
+  tools: [['canva', 'Canva', 'Designs'], ['notion', 'Notion', 'Notes and pages'], ['googlesheets', 'Google Sheets', 'Read your sheets'], ['googledrive', 'Google Drive', 'Files'], ['onedrive', 'OneDrive', 'Files'], ['slack', 'Slack', 'Messages'], ['trello', 'Trello', 'Boards']],
 };
 
 async function configFor(slug) {
@@ -289,4 +289,33 @@ export async function zohoAttachment(uid, mid, att) {
   }
   console.error('zoho attachment failed', mid, att, tr.join(' | ').slice(0, 1200));
   return null;
+}
+
+// Read a Google Sheet from its link: through Google Sheets or Google Drive if connected, else the public CSV link.
+// Returns { title, tabs: [{ name, rows }] } or { error, connect }.
+export async function readSheet(uid, url) {
+  const id = (String(url).match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]{20,})/) || String(url).match(/^([a-zA-Z0-9_-]{30,})$/) || [])[1];
+  if (!id) return { error: 'That does not look like a Google Sheets link.' };
+  const gid = (String(url).match(/[#&?]gid=(\d+)/) || [])[1];
+  const on = enabled() ? (await connected(uid)).map((x) => x.slug) : [];
+  const csv = (t) => t.split(/\r?\n/).slice(0, 3000).join('\n');
+  if (on.includes('googlesheets')) {
+    try {
+      const meta = await proxy(uid, 'googlesheets', { endpoint: `https://sheets.googleapis.com/v4/spreadsheets/${id}?fields=properties.title,sheets.properties` });
+      const tabs = [];
+      for (const sh of (meta.sheets || []).slice(0, 8)) {
+        const name = sh.properties.title; const v = await proxy(uid, 'googlesheets', { endpoint: `https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent("'" + name.replace(/'/g, "''") + "'")}?majorDimension=ROWS` }).catch(() => ({ values: [] }));
+        tabs.push({ name, rows: (v.values || []).slice(0, 2000).map((r) => r.map((c) => String(c).replace(/[\r\n]+/g, ' ').replace(/,/g, ';')).join(',')).join('\n') });
+      }
+      return { title: meta.properties?.title || '', tabs, via: 'Google Sheets' };
+    } catch (e) { console.error('sheet via sheets', e.message); }
+  }
+  if (on.includes('googledrive')) {
+    try { const r = await proxy(uid, 'googledrive', { endpoint: `https://www.googleapis.com/drive/v3/files/${id}/export?mimeType=text/csv` }); const t = typeof r === 'string' ? r : r?.data || ''; if (t) return { title: '', tabs: [{ name: 'First tab', rows: csv(String(t)) }], via: 'Google Drive' }; } catch (e) { console.error('sheet via drive', e.message); }
+  }
+  try { // a sheet shared as "anyone with the link"
+    const r = await fetch(`https://docs.google.com/spreadsheets/d/${id}/export?format=csv${gid ? '&gid=' + gid : ''}`, { redirect: 'follow', signal: AbortSignal.timeout(20e3) });
+    const t = await r.text(); if (r.ok && !/<html/i.test(t.slice(0, 200))) return { title: '', tabs: [{ name: gid ? 'Tab ' + gid : 'First tab', rows: csv(t) }], via: 'public link' };
+  } catch {}
+  return { error: 'This sheet is private and Google Sheets is not connected to Dioma yet.', connect: '/connect/app?slug=googlesheets&to=ai' };
 }
