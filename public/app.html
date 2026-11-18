@@ -170,6 +170,7 @@ nav.bot a.on svg{stroke:var(--acc)}
 .sec{display:grid;gap:10px;margin-top:26px}
 .list{border-top:1px solid var(--line)}
 .item{display:flex;gap:12px;align-items:flex-start;padding:13px 0;border-bottom:1px solid var(--line);min-width:0}
+.item.autodone{background:rgba(95,191,134,.07);border-radius:10px;padding-left:8px;padding-right:8px}.item.autodone .chk.on{background:#5fbf86;border-color:#5fbf86}
 button.item{appearance:none;-webkit-appearance:none;background:transparent;border:0;border-bottom:1px solid var(--line);border-radius:0;font:inherit;color:inherit;cursor:pointer;text-align:left;width:100%}button.item:hover{background:rgba(255,255,255,.03)}button.item .s{display:block;margin-top:3px}
 .item .t{font-size:15px;overflow-wrap:anywhere}
 .item .s{font-size:13px;color:var(--dim);overflow-wrap:anywhere}
@@ -459,7 +460,7 @@ async function homeTrend() {
 // ---------- To-do ----------
 const dueTxt = (d) => { if (!d) return ''; const t = new Intl.DateTimeFormat('en-CA', { timeZone: S.me.tz }).format(new Date()); if (d === t) return 'Today'; if (d < t) return 'Overdue · ' + d; return new Date(d + 'T12:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }); };
 const SRC = { whatsapp: 'From WhatsApp', mail: 'From mail', calendar: 'From calendar', ask: 'Added by Dioma', meeting: 'From a meeting', 'zoho books': 'From Zoho Books', 'zoho crm': 'From Zoho CRM' };
-const todoRows = (ts, done) => ts.map((t) => `<div class="item ${done ? 'done' : ''}" data-id="${t.id}"><button class="chk ${done ? 'on' : ''}" aria-label="${done ? 'Mark not done' : 'Mark done'}"></button><div class="grow"><div class="t">${esc(t.text)}</div>${SRC[t.source] ? `<span class="srcb">${SRC[t.source]}</span>` : ''}${t.due ? `<div class="s" style="${!done && dueTxt(t.due).startsWith('Overdue') ? 'color:var(--bad)' : ''}">${esc(dueTxt(t.due))}</div>` : ''}</div>${done ? '' : '<button type="button" class="btn sm pri tdo" title="Dioma gets it ready, you say OK">Do it</button>'}<button class="x" aria-label="Delete">×</button></div>`).join('');
+const todoRows = (ts, done) => ts.map((t) => `<div class="item ${done ? 'done' : ''}${t.done_note ? ' autodone' : ''}" data-id="${t.id}"><button class="chk ${done ? 'on' : ''}" aria-label="${done ? 'Mark not done' : 'Mark done'}"></button><div class="grow"><div class="t">${esc(t.text)}</div>${SRC[t.source] ? `<span class="srcb">${SRC[t.source]}</span>` : ''}${t.done_note ? `<div class="s" style="color:#5fbf86">✓ ${esc(t.done_note.replace(/^Done: /, ''))}</div>` : t.due ? `<div class="s" style="${!done && dueTxt(t.due).startsWith('Overdue') ? 'color:var(--bad)' : ''}">${esc(dueTxt(t.due))}</div>` : ''}</div>${done ? '' : '<button type="button" class="btn sm pri tdo" title="Dioma gets it ready, you say OK">Do it</button>'}<button class="x" aria-label="Delete">×</button></div>`).join('');
 function wireTodos(el, after) {
   el.addEventListener('click', async (e) => {
     const it = e.target.closest('.item'); if (!it) return;

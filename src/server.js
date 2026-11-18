@@ -423,6 +423,8 @@ async function afterMeeting(u, e, tz) {
 }
 async function reminders() {
   autoScanAll().catch((e) => console.error('autoscan', e.message));
+  // Promises: tick them when Dioma sees them done, remind when they are late.
+  for (const r of all("SELECT DISTINCT user_id FROM todos WHERE done = 0 AND meta LIKE '%\"promise\":1%'")) { const pu = one('SELECT * FROM users WHERE id = ?', r.user_id); if (pu) promiseCheck(pu).catch((e) => console.error('promise check', e.message)); }
   // Dioma Radar: twice a day, look out for what matters to each person and tell them.
   for (const r of all('SELECT DISTINCT user_id FROM brain_events WHERE at > ?', Date.now() - 7 * 864e5)) { const ru = one('SELECT * FROM users WHERE id = ?', r.user_id); if (ru) radarMaybe(ru).catch((e) => console.error('radar', e.message)); }
   // Dioma Brain: rewrite each profile when enough has happened (12+ actions, or a day).
@@ -513,7 +515,7 @@ on('GET', '/api/todos', async (req, res, u) => {
   if (new URL(req.url, 'http://x').searchParams.get('scan') === '1' && aiAuto(u.id)) await AT.scan(u, false).catch((e) => console.error('scan', e.message));
   send(res, 200, {
   open: all('SELECT id, text, due, source FROM todos WHERE user_id = ? AND done = 0 ORDER BY (due IS NULL), due, created DESC LIMIT 80', u.id),
-  done: all('SELECT id, text, due, done_at, source FROM todos WHERE user_id = ? AND done = 1 AND done_at > ? ORDER BY done_at DESC LIMIT 20', u.id, now() - 7 * DAY),
+  done: all('SELECT id, text, due, done_at, source, done_note FROM todos WHERE user_id = ? AND done = 1 AND done_at > ? ORDER BY done_at DESC LIMIT 20', u.id, now() - 7 * DAY),
   });
 });
 on('POST', '/api/todos', async (req, res, u) => {
@@ -1031,6 +1033,39 @@ function cvToFiles(u, buf, name, v) {
     return id;
   } catch { return ''; }
 }
+// ---------- Promises kept ----------
+// A promise from WhatsApp ("I'll send you the proposal tomorrow") becomes a to-do. Dioma then watches your WhatsApp and
+// every mailbox's Sent folder (also mail sent outside Dioma): when it sees the thing go out, it ticks the to-do itself and
+// says where it saw it. If the day passes and nothing went out, it reminds you once, on WhatsApp and as a notification.
+try { db.exec('ALTER TABLE todos ADD COLUMN meta TEXT'); } catch {} try { db.exec('ALTER TABLE todos ADD COLUMN done_note TEXT'); } catch {}
+const PCHK = new Map();
+async function promiseCheck(u) {
+  if (Date.now() - (PCHK.get(u.id) || 0) < 25 * 60e3) return; PCHK.set(u.id, Date.now());
+  const rows = all("SELECT id, text, due, created, meta, ref FROM todos WHERE user_id = ? AND done = 0 AND meta LIKE '%\"promise\":1%' AND created > ? LIMIT 30", u.id, now() - 21 * DAY);
+  for (const t of rows) {
+    let m = {}; try { m = JSON.parse(t.meta || '{}'); } catch {} const since = m.at || t.created;
+    const words = [m.what, ...String(m.what || '').split(/\s+/)].filter((w) => w && w.length > 2).map((w) => w.toLowerCase());
+    let seen = '';
+    // 1. WhatsApp: a file to them, or a message about the thing, after the promise
+    const wa = one(`SELECT at, text, media FROM wa_messages WHERE user_id = ? AND jid = ? AND from_me = 1 AND at > ? AND (media IS NOT NULL ${words.map(() => 'OR LOWER(text) LIKE ?').join(' ')}) ORDER BY at LIMIT 1`, u.id, m.jid, since + 30e3, ...words.map((w) => '%' + w + '%'));
+    if (wa && (wa.media || !m.sends || /attach|here|sent|sharing|find/i.test(wa.text))) seen = `on WhatsApp to ${m.who} on ${new Intl.DateTimeFormat('en-GB', { timeZone: u.tz, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(wa.at))}`;
+    // 2. Email: any Sent folder (sent from Dioma or straight from the mailbox), to them, after the promise
+    if (!seen && m.who) {
+      const r = await handlers(u).check_sent({ to: String(m.who).split(' ')[0] }).catch(() => null);
+      const hit = (r?.emails || []).find((e) => { const at = Date.parse(String(e.when).replace(' UTC', 'Z').replace(' ', 'T')); return (!at || at > since - 60e3) && (!words.length || words.some((w) => String(e.subject || '').toLowerCase().includes(w)) || !m.sends) && !/FAILED/.test(e.status); });
+      if (hit) seen = `by email to ${hit.to} ("${String(hit.subject || '').slice(0, 60)}")${hit.when ? ' on ' + hit.when.slice(0, 10) : ''}`;
+    }
+    if (seen) { run('UPDATE todos SET done = 1, done_at = ?, done_note = ? WHERE id = ?', now(), 'Done: Dioma saw it sent ' + seen, t.id); AT.handled(u.id, t.ref); BRN.note(u.id, 'promise kept', t.text + ' | ' + seen); continue; }
+    // 3. Overdue: remind once
+    if (t.due && t.due < today(u) && !m.reminded) {
+      m.reminded = 1; run('UPDATE todos SET meta = ? WHERE id = ?', JSON.stringify(m), t.id);
+      const first = (u.name || '').split(' ')[0];
+      const msg = `⏰ ${first ? first + ', y' : 'Y'}ou told *${m.who}* on WhatsApp: "${String(m.said).slice(0, 160)}"\n\nI can't see ${m.what ? 'the ' + m.what : 'it'} sent yet, on WhatsApp or in any of your Sent folders. Want me to prepare it now? Reply *yes* and I'll draft it.`;
+      P.once(u.id, 'promise:' + t.id, { title: `Still to do: ${t.text}`, body: `You promised ${m.who}. Not sent yet.`, url: '/#todo' }).catch(() => {});
+      if (W.status(u.id).status === 'open') { await W.sendToMe(u.id, msg).catch(() => {}); run('INSERT INTO chats (user_id, role, text, at) VALUES (?, ?, ?, ?)', u.id, 'assistant', msg + `\n(If they reply yes: prepare "${t.text}" for ${m.who} with draft_whatsapp or draft_email, attaching or linking the ${m.what || 'file'} from their files or mail if you can find it.)`, now()); }
+    }
+  }
+}
 // ---------- Dioma Radar ----------
 // Dioma knows who they are (Brain, CV, mail, WhatsApp) and watches the web, news and LinkedIn for them: new leads for
 // their businesses, tenders, jobs that fit, people worth meeting, posts worth answering, news about their clients.
@@ -1295,18 +1330,18 @@ W.onMedia(async (uid, jid, id, mtype) => {
 });
 W.onMyMessage(async (uid, jid, id, text) => {
   try {
-    if (!PROMISE.test(text) || !aiAuto(uid)) return;
+    if (!PROMISE.test(text)) return; // promises are tracked even with Automatic AI off (a small, cheap model)
     if (one('SELECT 1 FROM promise_seen WHERE user_id = ? AND id = ?', uid, id)) return; run('INSERT INTO promise_seen (user_id, id) VALUES (?, ?)', uid, id);
     const u = one('SELECT * FROM users WHERE id = ?', uid); if (!u || limited('promise:' + uid, 60, DAY)) return;
     const who = one('SELECT COALESCE(ct.name, c.name) n FROM wa_chats c LEFT JOIN wa_contacts ct ON ct.user_id = c.user_id AND ct.jid = c.jid WHERE c.user_id = ? AND c.jid = ?', uid, jid)?.n || jid.split('@')[0];
     const last = all('SELECT from_me, text FROM wa_messages WHERE user_id = ? AND jid = ? ORDER BY at DESC LIMIT 6', uid, jid).reverse().map((m) => (m.from_me ? 'Me: ' : who + ': ') + String(m.text).slice(0, 300)).join('\n');
     const ymd = today(u), wd = new Intl.DateTimeFormat('en-GB', { timeZone: u.tz || 'Asia/Dubai', weekday: 'long' }).format(new Date());
-    const r = await claude({ max_tokens: 200, system: `You turn a promise someone made in their own WhatsApp message into one to-do. Today is ${wd} ${ymd}. If the message (the last "Me:" line) commits them to do something later (get back, check, send, call, share, confirm), reply with JSON {"todo":"short action starting with a verb, naming the person and what, e.g. Get back to Houssam with answers to his 2 questions","due":"YYYY-MM-DD"}. Due is today unless they said another day. If there is no promise, reply {"todo":null}. JSON only. No em dash.`,
+    const r = await claude({ model: process.env.DIOMA_SMALL || 'claude-haiku-5-5', max_tokens: 250, system: `You turn a promise someone made in their own WhatsApp message into one to-do. Today is ${wd} ${ymd}. If the message (the last "Me:" line) commits them to do something later (get back, check, send, call, share, confirm), reply with JSON {"what":"the thing promised in 1 to 3 words, e.g. proposal, quote, invoice, contract, call","sends":true if it is something to send (a file, document, email, quote), else false,"todo":"short action starting with a verb, naming the person and what, e.g. Get back to Houssam with answers to his 2 questions","due":"YYYY-MM-DD"}. Due is today unless they said another day. If there is no promise, reply {"todo":null}. JSON only. No em dash.`,
       messages: [{ role: 'user', content: `Chat with ${who}:\n${last}` }] });
     const d = aiJson(aiText(r)); if (!d || !d.todo) return;
     const due = /^\d{4}-\d{2}-\d{2}$/.test(d.due || '') ? d.due : ymd;
     if (one('SELECT 1 FROM todos WHERE user_id = ? AND done = 0 AND text = ?', uid, String(d.todo).slice(0, 300))) return;
-    run('INSERT INTO todos (user_id, text, due, source, created) VALUES (?, ?, ?, ?, ?)', uid, String(d.todo).slice(0, 300), due, 'whatsapp', now());
+    run('INSERT INTO todos (user_id, text, due, source, created, ref, meta) VALUES (?, ?, ?, ?, ?, ?, ?)', uid, String(d.todo).slice(0, 300), due, 'whatsapp', now(), 'promise:' + jid + ':' + id, JSON.stringify({ promise: 1, jid, who, what: String(d.what || '').slice(0, 40), sends: !!d.sends, said: String(text).slice(0, 300), at: Date.now() }));
   } catch (e) { console.error('promise', e.message); }
 });
 const BUSY = new Set();
