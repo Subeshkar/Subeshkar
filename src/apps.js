@@ -246,7 +246,7 @@ export async function zohoMessage(uid, mid, trace = []) {
   const got = (r) => { const d = r?.data?.data ?? r?.data ?? r; const c = d?.content ?? d?.data?.content ?? d?.body ?? d?.html; return typeof c === 'string' ? c : null; };
   // The attachment list: Zoho's own tool first, then Zoho's API (the address that worked, or each region).
   const attsOf = async (fid, base) => {
-    const norm = (list) => (list || []).map((x) => ({ id: String(x.attachmentId || x.attachment_id || x.id || ''), name: x.attachmentName || x.fileName || x.name || 'file', size: x.attachmentSize || x.size || 0 })).filter((x) => x.id);
+    const norm = (list) => (list || []).map((x) => ({ id: String(x.attachmentId || x.attachment_id || x.id || ''), name: x.attachmentName || x.fileName || x.name || x.attachmentname || 'Attachment', size: x.attachmentSize || x.size || 0 })).filter((x) => x.id);
     const lt = (await zohoTools(uid)).find((t) => /ATTACH.*(INFO|LIST|DETAIL)|LIST.*ATTACH/.test(t));
     if (lt) { try { const d = await runFill(uid, lt, { 'account_id|accountId': acc.id, 'folder_id|folderId': fid, 'message_id|messageId': mid }); const dd = d?.data?.data ?? d?.data ?? d; const l = norm(dd?.attachments || firstArray(dd)); if (l.length) return l; } catch (e) { trace.push(lt + ': ' + e.message.slice(0, 120)); } }
     for (const b of [...new Set([base, ZBASE.get(uid), '', 'https://mail.zoho.com', 'https://mail.zoho.eu', 'https://mail.zoho.in'].filter((x) => x != null))]) {

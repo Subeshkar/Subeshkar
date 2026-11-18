@@ -1852,7 +1852,7 @@ const loadApps = async (fresh) => { if (!APPS || fresh) APPS = await api('GET', 
 const appOn = (slug) => !!APPS && APPS.connected.includes(slug);
 function appList(group, to, skip = []) {
   const items = ((APPS && APPS.catalog[group]) || []).filter(([k]) => !skip.includes(k));
-  return `<div class="prov">${items.map(([k, n, d]) => `<div class="item"><div class="grow"><div class="t">${n}</div><div class="s">${appOn(k) ? 'Connected' : d}</div></div>${appOn(k) ? `<button class="btn sm" data-off="${k}" data-to="${to}">Disconnect</button>` : APPS && APPS.enabled ? `<a class="btn sm pri" href="/connect/app?slug=${k}&to=${to}">Connect</a>` : '<span class="soon">Coming soon</span>'}</div>`).join('')}</div>`;
+  return `<div class="prov">${items.map(([k, n, d]) => `<div class="item"><div class="grow"><div class="t">${n}</div><div class="s">${appOn(k) ? 'Connected' : d}</div></div>${appOn(k) ? `<button class="btn sm" data-off="${k}" data-to="${to}">Disconnect</button>` : APPS && APPS.enabled && !(APPS.soon || []).includes(k) ? `<a class="btn sm pri" href="/connect/app?slug=${k}&to=${to}">Connect</a>` : '<span class="soon">Coming soon</span>'}</div>`).join('')}</div>`;
 }
 document.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-off]'); if (!b) return;
@@ -2386,7 +2386,7 @@ function viewFile(url, type, name) {
   document.addEventListener('keydown', function k(e) { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', k); } });
 }
 document.addEventListener('click', (e) => { const t = e.target.closest('[data-mtxt]'); if (t) { const b = t.closest('.mexp'), f = b.querySelector('.mhtml'), mb = b.querySelector('.mbody'); const showText = f.style.display !== 'none'; f.style.display = showText ? 'none' : ''; mb.style.display = showText ? '' : 'none'; t.textContent = showText ? 'Show as email' : 'Show as text'; } });
-document.addEventListener('click', (e) => { const v = e.target.closest('[data-view]'); if (!v) return; e.preventDefault(); e.stopPropagation(); viewFile(v.dataset.view || v.getAttribute('src'), v.dataset.vtype || 'image/jpeg', v.dataset.vn || ''); }, true);
+document.addEventListener('click', (e) => { const v = e.target.closest('[data-view]'); if (!v) return; e.preventDefault(); e.stopPropagation(); const url = v.dataset.view || v.getAttribute('src'); if (v.hasAttribute('data-vtype') && !v.dataset.vtype) { const l = v.innerHTML; v.textContent = 'Opening…'; fetch(url, { headers: { range: 'bytes=0-0' } }).then((r) => { if (!r.ok) throw new Error(); viewFile(url, (r.headers.get('content-type') || '').split(';')[0], v.dataset.vn || ''); }).catch(() => toast('Could not open this attachment.')).finally(() => { v.innerHTML = l; }); return; } viewFile(url, v.dataset.vtype || 'image/jpeg', v.dataset.vn || ''); }, true);
 const waMediaUrl = (jid, m) => `/api/wa/media?jid=${encodeURIComponent(m.jid || jid)}&id=${encodeURIComponent(m.id)}`;
 const waMedia = (jid, m) => {
   const u = waMediaUrl(jid, m), cap = String(m.text || '').replace(/^(📷 Photo|🎥 Video|Sticker|📄 .*)$/, '');

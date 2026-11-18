@@ -771,7 +771,7 @@ async function mailFull(u, key, id) {
       const d = await A.proxy(u.id, 'gmail', { endpoint: `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(raw)}?format=full` });
       const cid = {}; let html = '', text = '';
       const walk = (p) => { if (!p) return; const mt = p.mimeType || '', fn = p.filename || '', h = Object.fromEntries((p.headers || []).map((x) => [String(x.name).toLowerCase(), x.value]));
-        if (p.body?.attachmentId) { const a = { id: p.body.attachmentId, name: fn || 'file', mime: mt, size: p.body.size || 0 }; const c = (h['content-id'] || '').replace(/[<>]/g, ''); const url = `/api/mail/att?acct=gmail&id=${encodeURIComponent(raw)}&att=${encodeURIComponent(a.id)}&mime=${encodeURIComponent(mt)}&name=${encodeURIComponent(a.name)}`; if (c) cid[c] = url; if (fn || !c) out.atts.push({ ...a, url }); }
+        if (p.body?.attachmentId) { const a = { id: p.body.attachmentId, name: fn || ('Attachment' + ({ 'application/pdf': '.pdf', 'image/png': '.png', 'image/jpeg': '.jpg', 'image/gif': '.gif' }[mt] || '')), mime: mt, size: p.body.size || 0 }; const c = (h['content-id'] || '').replace(/[<>]/g, ''); const url = `/api/mail/att?acct=gmail&id=${encodeURIComponent(raw)}&att=${encodeURIComponent(a.id)}&mime=${encodeURIComponent(mt)}&name=${encodeURIComponent(a.name)}`; if (c) cid[c] = url; if (fn || !c) out.atts.push({ ...a, url }); }
         else if (mt === 'text/html' && p.body?.data) html += b64u(p.body.data).toString('utf8');
         else if (mt === 'text/plain' && p.body?.data) text += b64u(p.body.data).toString('utf8');
         (p.parts || []).forEach(walk); };
@@ -786,14 +786,14 @@ async function mailFull(u, key, id) {
   if (key === 'zoho_mail') {
     try {
       const tr = []; const z = await A.zohoMessage(u.id, raw, tr); out.trace = tr;
-      if (z) { out.html = cleanHtml(z.html, {}); out.text = strip(z.html); out.atts = z.atts.map((a) => ({ ...a, mime: '', url: `/api/mail/att?acct=zoho_mail&id=${encodeURIComponent(raw)}&att=${encodeURIComponent(a.id)}&name=${encodeURIComponent(a.name)}` })); if (out.text || out.atts.length) return out; }
+      if (z) { out.html = cleanHtml(z.html, {}); out.text = strip(z.html); out.atts = z.atts.map((a) => ({ ...a, name: a.name === 'file' ? 'Attachment' : a.name, mime: '', url: `/api/mail/att?acct=zoho_mail&id=${encodeURIComponent(raw)}&att=${encodeURIComponent(a.id)}&name=${encodeURIComponent(a.name)}` })); if (out.text || out.atts.length) return out; }
     } catch (e) { console.error('mailfull zoho rest', e.message); }
     try {
       const acc = await A.zohoAccount(u.id), t = await A.findTool('zoho_mail', /CONTENT|GET.*MESSAGE.*(DETAIL|BODY)|MESSAGES_GET/);
       if (t) { const d = await A.runFill(u.id, t, { 'account_id|accountId': acc.id, 'message_id|messageId': raw, 'folder_id|folderId': '' }); const r = d?.data || d || {}; out.html = cleanHtml(r.content || r.body || '', {}); out.text = strip(r.content || r.body || r.summary || ''); }
       const ti = await A.findTool('zoho_mail', /ATTACHMENT.*(INFO|LIST|DETAIL)/);
       if (ti) { const d = await A.runFill(u.id, ti, { 'account_id|accountId': acc.id, 'message_id|messageId': raw, 'folder_id|folderId': '' }).catch(() => null); const list = A.arrayIn(d?.data?.attachments ? d.data.attachments : d) || [];
-        for (const a of list) { const aid = a.attachmentId || a.attachment_id || a.id; if (!aid) continue; const name = a.attachmentName || a.fileName || a.name || 'file'; out.atts.push({ id: String(aid), name, mime: a.contentType || '', size: a.attachmentSize || a.size || 0, url: `/api/mail/att?acct=zoho_mail&id=${encodeURIComponent(raw)}&att=${encodeURIComponent(aid)}&name=${encodeURIComponent(name)}` }); } }
+        for (const a of list) { const aid = a.attachmentId || a.attachment_id || a.id; if (!aid) continue; const name = a.attachmentName || a.fileName || a.name || 'Attachment'; out.atts.push({ id: String(aid), name, mime: a.contentType || '', size: a.attachmentSize || a.size || 0, url: `/api/mail/att?acct=zoho_mail&id=${encodeURIComponent(raw)}&att=${encodeURIComponent(aid)}&name=${encodeURIComponent(name)}` }); } }
       return out;
     } catch (e) { console.error('mailfull zoho', e.message); }
   }
@@ -823,6 +823,12 @@ async function mailAtt(u, acct, id, att, name, mimeIn) {
     if (buf && /\.pdf$/i.test(name) && buf.slice(0, 4).toString() !== '%PDF') { const b2 = Buffer.from(buf.toString('latin1').trim(), 'base64'); buf = b2.slice(0, 4).toString() === '%PDF' ? b2 : null; }
     if (!buf || !buf.length) throw Object.assign(new Error('Could not open this attachment.'), { status: 404 });
     fs.writeFileSync(f, buf);
+  }
+  // Unknown type or no file name: read the first bytes so the file opens as what it really is.
+  if (!extMime || /^(file|attachment)$/i.test(name)) {
+    const h = Buffer.alloc(8); try { const fd = fs.openSync(f, 'r'); fs.readSync(fd, h, 0, 8, 0); fs.closeSync(fd); } catch {}
+    const sn = h.slice(0, 4).toString() === '%PDF' ? ['application/pdf', 'pdf'] : h[0] === 0x89 && h[1] === 0x50 ? ['image/png', 'png'] : h[0] === 0xff && h[1] === 0xd8 ? ['image/jpeg', 'jpg'] : h.slice(0, 3).toString() === 'GIF' ? ['image/gif', 'gif'] : h.slice(0, 4).toString() === 'RIFF' ? ['image/webp', 'webp'] : h[0] === 0x50 && h[1] === 0x4b ? [/\.(xlsx|docx|pptx|zip)$/i.test(name) ? mime : 'application/zip', 'zip'] : null;
+    if (sn) return { file: f, mime: sn[0], name: /^(file|attachment)$/i.test(name) ? 'Attachment.' + sn[1] : name };
   }
   return { file: f, mime, name };
 }
@@ -1348,7 +1354,8 @@ const pub = () => (process.env.PUBLIC_URL || 'http://localhost:8080').replace(/\
 const slugOk = (s) => /^[a-z0-9_]{2,40}$/.test(s || '');
 on('GET', '/api/apps', async (req, res, u) => {
   let connected = []; try { connected = (await A.connected(u.id)).map((x) => x.slug); } catch {}
-  send(res, 200, { enabled: A.enabled(), catalog: A.CATALOG, connected });
+  const soon = one('SELECT id FROM app_configs WHERE slug = ?', 'twitter') ? [] : ['twitter']; // X needs Dioma's own X app first
+  send(res, 200, { enabled: A.enabled(), catalog: A.CATALOG, connected, soon });
 });
 on('GET', '/connect/app', async (req, res, u) => {
   const q = new URL(req.url, 'http://x').searchParams, slug = q.get('slug'), to = /^[a-z]{2,10}$/.test(q.get('to') || '') ? q.get('to') : 'home';
