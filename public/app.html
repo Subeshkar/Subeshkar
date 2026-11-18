@@ -612,7 +612,7 @@ async function sendCard(box, c) {
     return;
   }
   if (c.card === 'file') {
-    box.innerHTML = `<div class="card row" style="margin-top:8px;gap:12px;align-items:center;flex-wrap:wrap"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:28px;height:28px;stroke:var(--acc)"><path d="M6 3h8l4 4v14H6zM14 3v4h4M9 12l6 6M15 12l-6 6"/></svg><div class="grow" style="min-width:0"><b style="font-weight:600;word-break:break-word">${esc(c.name)}</b><div class="note">Excel · ${kb(c.size || 0)} · saved in Files › Excel</div></div><a class="btn sm pri" href="${esc(c.url)}" download="${esc(c.name)}">Download</a><a class="btn sm" href="#files">Files</a></div>`;
+    box.innerHTML = `<div class="card row" style="margin-top:8px;gap:12px;align-items:center;flex-wrap:wrap"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:28px;height:28px;stroke:var(--acc)"><path d="M6 3h8l4 4v14H6zM14 3v4h4M9 12l6 6M15 12l-6 6"/></svg><div class="grow" style="min-width:0"><b style="font-weight:600;word-break:break-word">${esc(c.name)}</b><div class="note">${c.kind === 'pdf' ? 'PDF' + (c.pages ? ' · ' + c.pages + ' page' + (c.pages > 1 ? 's' : '') : '') : 'Excel'} · ${kb(c.size || 0)} · saved in Files › ${c.kind === 'pdf' ? 'PDF' : 'Excel'}</div></div><a class="btn sm pri" href="${esc(c.url)}" download="${esc(c.name)}">Download</a><a class="btn sm" href="#files">Files</a></div>`;
     return;
   }
   if (c.card === 'invoice') {

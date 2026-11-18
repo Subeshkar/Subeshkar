@@ -95,3 +95,10 @@ export async function close(uid) {
   const s = S.get(uid); S.delete(uid); if (!s) return;
   clearTimeout(s.timer); await s.ctx.close().catch(() => {}); // cookies, logins and history are gone
 }
+
+// HTML to PDF (A4) with the same built-in browser, for Dioma's make_pdf.
+export async function pdf(html, landscape = false) {
+  const ctx = await (await getBrowser()).newContext();
+  try { const page = await ctx.newPage(); await page.setContent(html, { waitUntil: 'load', timeout: 30e3 }); return await page.pdf({ format: 'A4', landscape, printBackground: true, margin: { top: '14mm', bottom: '14mm', left: '12mm', right: '12mm' } }); }
+  finally { await ctx.close().catch(() => {}); }
+}
