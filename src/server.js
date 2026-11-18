@@ -1036,7 +1036,11 @@ on('POST', '/api/brain', async (req, res, u) => { const b = await json(req);
 on('GET', '/api/career/targets', async (req, res, u) => {
   const fresh = new URL(req.url, 'http://x').searchParams.get('refresh') === '1', saved = kvJ(u.id, 'targets');
   if (!fresh) return send(res, 200, saved || { companies: [] });
-  if (limited('ctarget:' + u.id, 8, DAY)) return fail(res, 429, 'That is a lot of searches today. Try again tomorrow.');
+  if (limited('ctarget:' + u.id, 12, DAY)) return fail(res, 429, 'That is a lot of searches today. Try again tomorrow.');
+  // Streams progress (one JSON per line) so the screen shows each step and the connection never sits silent.
+  res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store', 'x-accel-buffering': 'no' });
+  const write = (o) => { try { res.write(JSON.stringify(o) + '\n'); } catch {} };
+  const beat = setInterval(() => write({ s: 'Still searching…' }), 10e3); write({ s: 'Reading your CV…' });
   const cv = kvJ(u.id, 'cv'), jobs = kvJ(u.id, 'jobs'), role = kvJ(u.id, 'role');
   const applied = (Array.isArray(jobs) ? jobs : jobs?.list || []).slice(0, 20).map((j) => [j.role, j.company].filter(Boolean).join(' at ')).join('; ');
   const who = [u.about, role && (role.text ? 'Role they want: ' + role.text : ''), cv && String(cv.text || '').slice(0, 3500)].filter(Boolean).join('\n');
@@ -1044,15 +1048,19 @@ on('GET', '/api/career/targets', async (req, res, u) => {
 Use web search (news from the last 60 days) to find 8 UAE or GCC companies that fit this person's field and level and are hiring or likely to hire: companies that just raised money, are expanding, opening sites, or posting roles in this field. Skip companies they already applied to. For each: why now (with the funding amount or news and a source URL), 1 to 3 open roles that fit (with the job post URL only if you found one), and 2 people to connect with (the role to look for, e.g. "Head of Operations", "COO", "Talent Acquisition Lead"; a real name only if you saw it in a public source). Never give personal phone numbers or emails. Never use the em dash.
 Reply with only JSON: {"companies":[{"name":"","what":"one line on what they do","why":"why now, one line","amount":"e.g. $12.5M Series A or empty","source":"url","roles":[{"title":"","url":""}],"people":[{"name":"","title":""}],"note":"a LinkedIn connection note from ${u.name || 'me'}, under 280 characters, warm and specific, no em dash"}]}`;
   try {
-    const out = await converse({ system: sys, messages: [{ role: 'user', content: 'Find my target companies and people now.' }], tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 6 }], handlers: {}, maxTurns: 6 });
-    const t = String(out.text || ''); let d = null; try { d = JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1)); } catch {}
+    write({ s: 'Searching UAE news for companies that raised money or are hiring…' });
+    const out = await converse({ system: sys, messages: [{ role: 'user', content: 'Find my target companies and people now.' }], tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }], handlers: {}, maxTurns: 8 });
+    const pj = (t) => { t = String(t || ''); try { return JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1)); } catch { return null; } };
+    let d = pj(out.text);
+    if (!d?.companies?.length && out.text) { write({ s: 'Putting the list together…' }); const r2 = await claude({ max_tokens: 4000, system: 'Turn this into only the JSON asked for, keep every company, role, person and URL. JSON shape: {"companies":[{"name":"","what":"","why":"","amount":"","source":"","roles":[{"title":"","url":""}],"people":[{"name":"","title":""}],"note":""}]}', messages: [{ role: 'user', content: String(out.text).slice(0, 30000) }] }); d = pj((r2.content || []).filter((x) => x.type === 'text').map((x) => x.text).join('')); }
     const url = (x) => /^https?:\/\//.test(x || '') ? String(x) : '';
     const companies = (d?.companies || []).slice(0, 10).map((c) => ({ name: String(c.name || ''), what: String(c.what || ''), why: String(c.why || ''), amount: String(c.amount || ''), source: url(c.source),
       roles: (c.roles || []).slice(0, 3).map((r) => ({ title: String(r.title || ''), url: url(r.url) })), people: (c.people || []).slice(0, 3).map((p) => ({ name: String(p.name || ''), title: String(p.title || '') })), note: String(c.note || '').replace(/—/g, ',').slice(0, 300) })).filter((c) => c.name);
-    if (!companies.length) return fail(res, 502, 'Dioma could not find companies just now. Try again in a minute.');
+    clearInterval(beat);
+    if (!companies.length) { write({ error: 'Dioma could not find companies just now. Try again in a minute.' }); return res.end(); }
     const v = { at: now(), companies }; run("INSERT OR REPLACE INTO kv (user_id, k, v) VALUES (?, 'targets', ?)", u.id, JSON.stringify(v));
-    send(res, 200, v);
-  } catch (e) { console.error('targets', e.message); fail(res, 502, /credit balance|billing|quota/i.test(e.message || '') ? 'Dioma\'s AI credit has run out, so it is paused. Top up the AI credit to continue.' : 'Dioma could not search just now. Please try again.'); }
+    write({ done: 1, data: v }); res.end();
+  } catch (e) { clearInterval(beat); console.error('targets', e.message); write({ error: /credit balance|billing|quota/i.test(e.message || '') ? 'Dioma\'s AI credit has run out, so it is paused. Top up the AI credit to continue.' : 'Dioma could not search just now. Please try again.' }); res.end(); }
 });
 on('POST', '/api/career/cv', async (req, res, u) => {
   const name = String(new URL(req.url, 'http://x').searchParams.get('name') || 'CV.pdf').replace(/[^\w .()-]/g, '').slice(0, 80) || 'CV.pdf';

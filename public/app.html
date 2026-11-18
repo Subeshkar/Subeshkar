@@ -453,14 +453,30 @@ async function homeTrend() {
 // ---------- To-do ----------
 const dueTxt = (d) => { if (!d) return ''; const t = new Intl.DateTimeFormat('en-CA', { timeZone: S.me.tz }).format(new Date()); if (d === t) return 'Today'; if (d < t) return 'Overdue · ' + d; return new Date(d + 'T12:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }); };
 const SRC = { whatsapp: 'From WhatsApp', mail: 'From mail', calendar: 'From calendar', ask: 'Added by Dioma', meeting: 'From a meeting', 'zoho books': 'From Zoho Books', 'zoho crm': 'From Zoho CRM' };
-const todoRows = (ts, done) => ts.map((t) => `<div class="item ${done ? 'done' : ''}" data-id="${t.id}"><button class="chk ${done ? 'on' : ''}" aria-label="${done ? 'Mark not done' : 'Mark done'}"></button><div class="grow"><div class="t">${esc(t.text)}</div>${SRC[t.source] ? `<span class="srcb">${SRC[t.source]}</span>` : ''}${t.due ? `<div class="s" style="${!done && dueTxt(t.due).startsWith('Overdue') ? 'color:var(--bad)' : ''}">${esc(dueTxt(t.due))}</div>` : ''}</div><button class="x" aria-label="Delete">×</button></div>`).join('');
+const todoRows = (ts, done) => ts.map((t) => `<div class="item ${done ? 'done' : ''}" data-id="${t.id}"><button class="chk ${done ? 'on' : ''}" aria-label="${done ? 'Mark not done' : 'Mark done'}"></button><div class="grow"><div class="t">${esc(t.text)}</div>${SRC[t.source] ? `<span class="srcb">${SRC[t.source]}</span>` : ''}${t.due ? `<div class="s" style="${!done && dueTxt(t.due).startsWith('Overdue') ? 'color:var(--bad)' : ''}">${esc(dueTxt(t.due))}</div>` : ''}</div>${done ? '' : '<button type="button" class="btn sm pri tdo" title="Dioma gets it ready, you say OK">Do it</button>'}<button class="x" aria-label="Delete">×</button></div>`).join('');
 function wireTodos(el, after) {
   el.addEventListener('click', async (e) => {
     const it = e.target.closest('.item'); if (!it) return;
     const id = it.dataset.id;
     if (e.target.closest('.chk')) { const on = !e.target.classList.contains('on'); e.target.classList.toggle('on', on); it.classList.toggle('done', on); await api('PATCH', `/api/todos/${id}`, { done: on }).catch((x) => toast(x.message)); setTimeout(after, 350); }
-    if (e.target.closest('.x')) { it.remove(); await api('DELETE', `/api/todos/${id}`).catch((x) => toast(x.message)); }
+    if (e.target.closest('.x')) { it.remove(); it.nextElementSibling?.classList.contains('tdp') && it.nextElementSibling.remove(); await api('DELETE', `/api/todos/${id}`).catch((x) => toast(x.message)); }
+    if (e.target.closest('.tdo')) { const nx = it.nextElementSibling; if (nx && nx.classList.contains('tdp')) { nx.remove(); return; } todoDo(it, id, it.querySelector('.t').textContent, after); }
   });
+}
+// "Do it": Dioma finds what this to-do needs and gets the action ready (email, WhatsApp, quote, invoice). You say OK.
+async function todoDo(it, id, text, after, change) {
+  let p = it.nextElementSibling; if (!p || !p.classList.contains('tdp')) { p = document.createElement('div'); p.className = 'tdp card stack'; p.style.margin = '4px 0 10px'; it.after(p); }
+  p.innerHTML = '<div class="note tds">Dioma is getting this ready…</div>';
+  const tick = setInterval(() => { const w = p.querySelector('.tds'); if (w) w.textContent = ['Reading your mail and WhatsApp…', 'Checking Zoho and your files…', 'Preparing the action…'][Math.floor(Date.now() / 4000) % 3]; }, 1000);
+  try {
+    const r = await api('POST', '/api/chat', { text: `Do this to-do for me: "${text}". Find everything it needs (who, which email or chat, numbers) in my mail, WhatsApp, Zoho and files, then prepare the ready-to-send action with your tools (draft_email, draft_whatsapp, draft_quote, draft_invoice) or do it (add_todo, remember). In 2 lines say what you found and what is ready. If it is already done, say so.${change ? ' Change: ' + change : ''}`, page: 'Screen: To-do' });
+    clearInterval(tick);
+    p.innerHTML = `<div class="md">${md(r.reply)}</div>${(r.cards || []).map((_, j) => `<div data-tdc="${j}"></div>`).join('')}<div class="row" style="gap:6px;flex-wrap:wrap"><input class="field grow" data-tch placeholder="Change something, e.g. make it shorter" style="min-height:40px;min-width:180px"><button type="button" class="btn sm" data-tre>Redo</button><button type="button" class="btn sm pri" data-tok>OK, done</button></div>`;
+    p.querySelectorAll('[data-tdc]').forEach((el) => sendCard(el, r.cards[+el.dataset.tdc]));
+    p.querySelector('[data-tre]').onclick = () => todoDo(it, id, text, after, p.querySelector('[data-tch]').value.trim());
+    p.querySelector('[data-tch]').onkeydown = (ev) => { if (ev.key === 'Enter') p.querySelector('[data-tre]').click(); };
+    p.querySelector('[data-tok]').onclick = async () => { await api('PATCH', `/api/todos/${id}`, { done: true }).catch((x) => toast(x.message)); p.remove(); it.classList.add('done'); toast('Done'); setTimeout(after, 350); };
+  } catch (x) { clearInterval(tick); p.innerHTML = `<p class="err">${esc(x.message)}</p><button type="button" class="btn sm" data-tre>Try again</button>`; p.querySelector('[data-tre]').onclick = () => todoDo(it, id, text, after, change); }
 }
 let TODOSCAN = 0;
 // Clear auto to-dos: first tap asks, second tap clears; they do not come back unless something new happens.
@@ -793,7 +809,9 @@ function drawNav() {
   // The All / Less button keeps its place at the end of the first row, so closing is always where opening was.
   const items = show.map((k) => a(k, true));
   if (tg) items.splice(Math.min(cols - 1, items.length), 0, tg);
-  $('#tabs').innerHTML = top.length ? `<div class="stabs fold${NAVOPEN ? ' open' : ''}" role="tablist" style="--cols:${cols}">${items.join('')}</div>` : '';
+  // One clean row: your top items, swipe for the rest (no drop-down). Change what is here under More > Customize your bars.
+  $('#tabs').innerHTML = top.length ? `<div class="stabs" role="tablist">${top.map((k) => a(k, true)).join('')}</div>` : '';
+  const on = document.querySelector('#tabs a.on'), row = document.querySelector('#tabs .stabs'); if (on && row && on.offsetLeft + on.offsetWidth > row.clientWidth) row.scrollLeft = on.offsetLeft - 40;
 }
 let NAVOPEN = false;
 document.addEventListener('click', (e) => { if (e.target.closest('#ntg')) { NAVOPEN = !NAVOPEN; drawNav(); return; } if (NAVOPEN && (e.target.closest('#tabs a') || !e.target.closest('#tabs'))) { NAVOPEN = false; drawNav(); } });
@@ -1464,7 +1482,12 @@ function drawCr() {
         ${c.roles.length ? `<div class="row" style="gap:6px;flex-wrap:wrap">${c.roles.map((r) => `<a class="btn sm" href="${esc(r.url || 'https://www.linkedin.com/jobs/search/?keywords=' + encodeURIComponent(r.title + ' ' + c.name) + '&location=United%20Arab%20Emirates')}" target="_blank" rel="noopener">${esc(r.title)} ↗</a>`).join('')}<button class="btn sm" data-tsave="${i}">Save to Applications</button></div>` : ''}
         <div class="list">${c.people.map((p) => `<div class="item"><div class="grow" style="min-width:0"><div class="t">${esc(p.name || p.title)}</div><div class="s">${esc(p.name ? p.title : 'Look for this role')} · ${esc(c.name)}</div></div><a class="btn sm pri" href="${li((p.name || p.title) + ' ' + c.name)}" target="_blank" rel="noopener">Find on LinkedIn ↗</a></div>`).join('')}</div>
         ${c.note ? `<div class="note" style="white-space:pre-wrap">Connection note: ${esc(c.note)}</div><div><button class="btn sm" data-tcopy="${i}">Copy note</button></div>` : ''}</div>`).join('')}</div>`;
-      $('#tgo').onclick = (e) => busyB(e.target, 'Searching the news… (about a minute)', async () => { draw(await api('GET', '/api/career/targets?refresh=1')); });
+      $('#tgo').onclick = (e) => busyB(e.target, 'Searching… (about a minute)', async () => {
+        const st = e.target.nextElementSibling; const r = await fetch('/api/career/targets?refresh=1', { headers: { 'x-dioma': '1' } });
+        if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'Dioma could not search just now.'); }
+        const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '', got = null;
+        for (;;) { const { value, done } = await rd.read(); if (done) break; buf += dec.decode(value, { stream: true }); let i; while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i); buf = buf.slice(i + 1); let o; try { o = JSON.parse(line); } catch { continue; } if (o.s && st) st.textContent = o.s; if (o.error) throw new Error(o.error); if (o.done) got = o.data; } }
+        if (!got) throw new Error('Dioma could not search just now. Try again.'); draw(got); });
       v.onclick = async (e) => { const cp = e.target.closest('[data-tcopy]'); if (cp) return copyT(cs[+cp.dataset.tcopy].note); const sv = e.target.closest('[data-tsave]'); if (sv) { const c = cs[+sv.dataset.tsave], jobs = KVS.jobs || []; await kvSave('jobs', [{ role: (c.roles[0] && c.roles[0].title) || 'Role', company: c.name, status: 'Saved', at: tday() }, ...jobs]); toast('Saved to Applications'); } };
     };
     v.innerHTML = '<div class="empty">Loading…</div>'; api('GET', '/api/career/targets').then(draw).catch(() => draw(null));
