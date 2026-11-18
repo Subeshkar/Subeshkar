@@ -1,6 +1,7 @@
 // Dioma AI: a general assistant like ChatGPT. Separate conversations, answers stream as they are written,
 // web search for anything current, photos and PDFs can be added. Customers only ever see "Dioma".
 import { db, all, one, run } from './db.js';
+import { safeJson } from './ai.js';
 import { createRequire } from 'node:module';
 const XLSX = createRequire(import.meta.url)('xlsx');
 // Excel, CSV, Word and PowerPoint become plain text Dioma can read.
@@ -72,7 +73,7 @@ export async function answer(u, tid, text, files, write) {
   if (!key) { full = 'This is a test answer (no AI key on this server).\n\n- You asked: **' + text.slice(0, 80) + '**'; write({ t: full }); }
   else {
     const call = (web) => fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({ model: MODEL(), max_tokens: 4000, stream: true, system: SYS(u), messages: msgs, ...(web ? { tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 4 }] } : {}) }) });
+      body: safeJson({ model: MODEL(), max_tokens: 4000, stream: true, system: SYS(u), messages: msgs, ...(web ? { tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 4 }] } : {}) }) });
     let r = await call(true);
     if (!r.ok && r.status === 400) r = await call(false); // web search not available: answer without it
     if (!r.ok) { const j = await r.json().catch(() => ({})); throw Object.assign(new Error(j?.error?.message || 'Dioma could not answer just now.'), { status: 502 }); }

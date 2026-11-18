@@ -2,13 +2,16 @@
 // Without a key (local tests) a simple stand-in answers, so every screen can be tried end to end.
 const MODEL = () => process.env.DIOMA_MODEL || 'claude-sonnet-5-5';
 
+// Text cut in the middle of an emoji (WhatsApp, email) leaves half a character that the AI service rejects (error 400).
+// Remove those halves before sending.
+export const safeJson = (o) => JSON.stringify(o).replace(/\\ud[89ab][0-9a-f]{2}(?!\\ud[c-f][0-9a-f]{2})/gi, '').replace(/(?<!\\ud[89ab][0-9a-f]{2})\\ud[c-f][0-9a-f]{2}/gi, '');
 export async function claude({ system, messages, tools, max_tokens = 1200, model }) {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return mock(messages, tools);
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-    body: JSON.stringify({ model: model || MODEL(), max_tokens, system, messages, ...(tools ? { tools } : {}) }),
+    body: safeJson({ model: model || MODEL(), max_tokens, system, messages, ...(tools ? { tools } : {}) }),
   });
   const j = await r.json().catch(() => ({}));
   // A writing model that is not available falls back to the normal one.
