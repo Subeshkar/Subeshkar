@@ -686,9 +686,9 @@ section{position:relative}
   <div class="wrap">
     <span class="mono rv">Early access</span>
     <h2 class="rv" style="margin-top:20px">Say <span class="acc">yes.</span></h2>
-    <p class="rv">Message us on WhatsApp and we'll set Dioma up with you.</p>
-    <div class="wa rv"><span class="n" id="wa">+971 58 515 5559</span><span class="small">Tap Open WhatsApp: your message is ready. Free early access, for feedback.</span>
-      <div class="ctas" style="justify-content:center"><button class="btn w" type="button" id="copy">Copy number</button><a class="btn" href="https://wa.me/971585155559?text=Hi%20Dioma%21%20I%27m%20ready%20to%20change%20my%20life.%20I%27d%20like%20early%20access." target="_blank" rel="noopener">Open WhatsApp ↗</a></div>
+    <p class="rv">Email us and we'll set Dioma up with you.</p>
+    <div class="wa rv"><span class="n" id="wa">hello@dioma.life</span><span class="small">Free early access, for feedback. We reply within a day.</span>
+      <div class="ctas" style="justify-content:center"><button class="btn w" type="button" id="copy">Copy email</button><a class="btn" href="mailto:hello@dioma.life?subject=Dioma%20early%20access&body=Hi%20Dioma!%20I%27d%20like%20early%20access.">Email us</a></div>
     </div>
   </div>
 </section>
@@ -696,7 +696,7 @@ section{position:relative}
 <div class="tone" role="group" aria-label="Colour"><button type="button" data-t="mono" aria-pressed="false"><i style="background:#fff"></i>Mono</button><button type="button" data-t="sun" aria-pressed="false"><i style="background:#ffb547"></i>Sunrise</button></div>
 <footer><div class="wrap"><span>© 2026 Dioma · Dubai-it · <details class="terms"><summary>Terms</summary><div>
 <b>Concept website for research.</b> This site was built only to collect feedback, gather interest and study the market for Dioma.
-<ul><li>Dioma is not a launched product and is not yet legally registered or approved.</li><li>We do not charge anything and take no payment. Prices shown are ideas we are testing.</li><li>If you message us on WhatsApp, we use your number and message only to collect feedback and contact you about early access. We never sell it. Ask us any time to delete it.</li><li>Companies, lists, stories and summaries on this page are examples, not live data and not investment advice.</li><li>Under 18? Please involve a parent or guardian before signing up.</li></ul></div></details> · <a href="mailto:hello@dioma.life" style="color:inherit">hello@dioma.life</a></span></div></footer>
+<ul><li>Dioma is not a launched product and is not yet legally registered or approved.</li><li>We do not charge anything and take no payment. Prices shown are ideas we are testing.</li><li>If you email us, we use your email and message only to collect feedback and contact you about early access. We never sell it. Ask us any time to delete it.</li><li>Companies, lists, stories and summaries on this page are examples, not live data and not investment advice.</li><li>Under 18? Please involve a parent or guardian before signing up.</li></ul></div></details> · <a href="mailto:hello@dioma.life" style="color:inherit">hello@dioma.life</a></span></div></footer>
 
 <script>
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
@@ -1110,7 +1110,7 @@ $$('.toggle button').forEach(bt=>bt.onclick=()=>{$$('.toggle button').forEach(x=
 })();
 
 (function(){const lg=$('#logo'),mm=$('#mmenu');lg.addEventListener('click',e=>{if(matchMedia('(max-width:760px)').matches){e.preventDefault();const o=mm.hidden;mm.hidden=!o;lg.setAttribute('aria-expanded',o);$('#nav').classList.add('s')}});mm.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{mm.hidden=true;lg.setAttribute('aria-expanded','false');const g=a.dataset.go;if(g){const b=$('.htabs button[data-h='+g+']');b&&b.click()}}))})();
-$('#copy').onclick=async()=>{try{await navigator.clipboard.writeText('+971585155559');$('#copy').textContent='Copied'}catch{const r=document.createRange();r.selectNodeContents($('#wa'));const s=getSelection();s.removeAllRanges();s.addRange(r);$('#copy').textContent='Selected'}};
+$('#copy').onclick=async()=>{try{await navigator.clipboard.writeText('hello@dioma.life');$('#copy').textContent='Copied'}catch{const r=document.createRange();r.selectNodeContents($('#wa'));const s=getSelection();s.removeAllRanges();s.addRange(r);$('#copy').textContent='Selected'}};
 </script>
 
 <script>

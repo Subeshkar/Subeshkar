@@ -60,7 +60,7 @@ ul{margin:0;padding-left:18px;color:var(--dim);font-size:14.5px}li{margin:3px 0}
     <p><b style="font-weight:500">Accounts open very soon.</b> We're finishing the last checks before letting people in.</p>
     <p class="dim" style="font-size:14.5px">Until then, you can try the full demo, or message us and we'll set you up first.</p>
     <a class="btn" href="https://dioma.life/demo/">Try the demo</a>
-    <a class="btn o" id="wa" target="_blank" rel="noopener">Message us on WhatsApp</a>
+    <a class="btn o" id="wa">Email hello@dioma.life</a>
   </div>
   <div class="card" id="mine" hidden>
     <span class="plan" style="color:var(--acc);border-color:var(--acc)">Founding customer #1 · live</span>
@@ -94,7 +94,7 @@ function setMode(m) {
 }
 document.querySelectorAll('[data-m]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.m)));
 setMode(mode);
-document.getElementById('wa').href = 'https://wa.me/971585155559?text=' + encodeURIComponent(`Hi Dioma! I'd like early access${plan ? ' (' + plan + ' plan)' : ''}.`);
+document.getElementById('wa').href = 'mailto:hello@dioma.life?subject=' + encodeURIComponent('Dioma early access') + '&body=' + encodeURIComponent(`Hi Dioma! I'd like early access${plan ? ' (' + plan + ' plan)' : ''}.`);
 
 // Founding customers already live on Dioma. Only a hash of the email is kept here, never the address.
 const FOUNDERS = { '1f1edfbbe25de917543bf8e21fc4947f37f6c56f49c451a430cb7db621b6c4a5': { name: 'Subesh', url: 'https://dioma.life/subeshkar/' } };
