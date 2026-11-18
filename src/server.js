@@ -484,8 +484,7 @@ on('POST', '/api/chat', async (req, res, u) => {
   if (!q) return fail(res, 400, 'Ask something first.');
   if (usedToday(u) >= CAP) return fail(res, 429, `You've used today's ${CAP} asks. They refresh tomorrow.`);
   if (limited('chat:' + u.id, 8, 60e3)) return fail(res, 429, 'One moment, too many at once.');
-  const history = all('SELECT role, text FROM chats WHERE user_id = ? ORDER BY id DESC LIMIT 12', u.id).reverse().map((m) => ({ role: m.role, content: m.text }));
-  while (history.length && history[0].role !== 'user') history.shift();
+  const history = chatHistory(u);
   const ctx = await context(u);
   spend(u);
   try {
@@ -501,7 +500,7 @@ on('POST', '/api/chat', async (req, res, u) => {
     send(res, 200, { reply, cards, changed: out.actions.some((a) => /todo/.test(a.tool)), used: usedToday(u), cap: CAP });
   } catch (e) {
     console.error('chat', e.message);
-    send(res, 502, { error: 'Dioma could not answer just now. Please try again in a moment.' });
+    send(res, 502, { error: 'Dioma could not answer just now. Please try again in a moment.' + (e.status ? ' (' + e.status + ')' : '') });
   }
 });
 
@@ -1085,9 +1084,20 @@ Reply with only JSON: {"people": [{"name": string, "title": string, "company": s
 // ---------- Dioma in WhatsApp: your "Message yourself" chat is your assistant ----------
 const PENDING = new Map(); // uid -> { cards, at }
 const waFmt = (t) => String(t || '').replace(/\*\*(.+?)\*\*/g, '*$1*').replace(/^#+\s*/gm, '').replace(/^\s*[-*]\s+/gm, '• ');
+// The last messages with Dioma, cleaned so the AI always accepts them: no empty messages, user and Dioma take turns,
+// starts with the person and ends with Dioma (a bad old row can never block every new question).
+function chatHistory(u, n = 12) {
+  const out = [];
+  for (const m of all('SELECT role, text FROM chats WHERE user_id = ? ORDER BY id DESC LIMIT ?', u.id, n).reverse()) {
+    const t = String(m.text || '').trim(); if (!t || !['user', 'assistant'].includes(m.role)) continue;
+    if (out.length && out[out.length - 1].role === m.role) out[out.length - 1].content += '\n\n' + t.slice(0, 6000); else out.push({ role: m.role, content: t.slice(0, 6000) });
+  }
+  while (out.length && out[0].role !== 'user') out.shift();
+  while (out.length && out[out.length - 1].role !== 'assistant') out.pop();
+  return out;
+}
 async function askDioma(u, q, channel, blocks = []) {
-  const history = all('SELECT role, text FROM chats WHERE user_id = ? ORDER BY id DESC LIMIT 12', u.id).reverse().map((m) => ({ role: m.role, content: m.text }));
-  while (history.length && history[0].role !== 'user') history.shift();
+  const history = chatHistory(u);
   const ctx = await context(u); spend(u);
   const boxes = (await mailAccounts(u).catch(() => [])).map((a) => `${a.label} (${a.key}${a.email ? ', ' + a.email : ''})`).join(', ');
   const sys = SYSTEM(ctx.text, boxes) + (channel === 'whatsapp' ? '\nYou are answering inside WhatsApp (their own "Message yourself" chat). Keep it short. When you prepare an email or WhatsApp with a draft tool, show the draft (To, Subject, text) in your answer and end with: Reply OK to send it, or tell me what to change.' : '');

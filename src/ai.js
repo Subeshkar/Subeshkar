@@ -28,7 +28,16 @@ export async function converse({ system, messages, tools, handlers, maxTurns = 8
   for (let i = 0; i < maxTurns; i++) {
     let res;
     try { res = await claude({ system, messages: msgs, tools, max_tokens: 2500 }); }
-    catch (e) { if (!tools.some((t) => t.type)) throw e; tools = tools.filter((t) => !t.type); res = await claude({ system, messages: msgs, tools, max_tokens: 2500 }); } // web search not available: carry on without it
+    catch (e) {
+      console.error('converse turn', i, e.status || '', e.message);
+      try {
+        if (i === 0) { // first try: without web search, then with only the question (no older chat)
+          tools = tools.filter((t) => !t.type);
+          try { res = await claude({ system, messages: msgs, tools, max_tokens: 2500 }); }
+          catch (e2) { console.error('converse retry', e2.message); msgs.splice(0, msgs.length, msgs[msgs.length - 1]); res = await claude({ system, messages: msgs, tools, max_tokens: 2500 }); }
+        } else break; // later turn: answer with what was found so far (below)
+      } catch (e3) { console.error('converse failed', e3.message); if (!actions.length) throw e3; break; }
+    }
     if ((res.content || []).length) msgs.push({ role: 'assistant', content: res.content });
     if (res.stop_reason === 'pause_turn') continue; // a long web search: let it carry on
     const uses = (res.content || []).filter((b) => b.type === 'tool_use');
