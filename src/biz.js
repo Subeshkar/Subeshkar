@@ -16,8 +16,8 @@ async function org(uid) {
 }
 
 export async function overview(uid, force) {
-  const c = C.get(uid + ':all'); if (!force && c && Date.now() - c.at < 5 * 60e3) return c.data;
   const on = (await A.connected(uid)).map((x) => x.slug);
+  const c = C.get(uid + ':all'); if (!force && c && Date.now() - c.at < 5 * 60e3 && c.on === on.sort().join(',')) return c.data; // a newly connected app shows at once
   const today = new Date().toISOString().slice(0, 10);
   const out = { books: on.includes('zoho_books'), crm: on.includes('zoho'), invoices: [], bills: [], pos: [], payments: [], leads: [], deals: [], followups: [], errors: [], totals: {} };
   if (out.books) {
@@ -59,7 +59,7 @@ export async function overview(uid, force) {
     youOwe: sum(out.bills, (x) => x.balance), openPOs: out.pos.filter((x) => !/billed|closed|cancel/i.test(x.status || '')).length,
     pipeline: sum(out.deals.filter((x) => !/closed/i.test(x.stage)), (x) => x.amount), cur: (out.invoices[0] || out.bills[0] || {}).cur || 'AED',
   };
-  C.set(uid + ':all', { at: Date.now(), data: out });
+  C.set(uid + ':all', { at: Date.now(), data: out , on: on.sort().join(',') });
   return out;
 }
 
