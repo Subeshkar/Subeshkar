@@ -123,7 +123,10 @@ function saveMessage(uid, m, live) {
          last_at = MAX(wa_chats.last_at, excluded.last_at), name = COALESCE(wa_chats.name, excluded.name),
          unread = CASE WHEN ? THEN (CASE WHEN excluded.last_from_me = 1 THEN 0 ELSE wa_chats.unread + 1 END) ELSE wa_chats.unread END`,
   uid, jid, isJidGroup(jid) ? null : (m.pushName && !fromMe ? m.pushName : nameFor(uid, jid)), isJidGroup(jid) ? 1 : 0, text.slice(0, 300), fromMe, at, fromMe ? 0 : (live ? 1 : 0), live ? 1 : 0);
+  // Photos, videos and documents shared in a chat are backed up to Dioma Files (1:1 chats, new messages).
+  if (live && MEDIACB && media && ['image', 'video', 'doc'].includes(mtype) && !isJidGroup(jid)) setTimeout(() => MEDIACB(uid, jid, m.key.id, mtype, fromMe).catch(() => {}), 1500);
 }
+let MEDIACB = null; export const onMedia = (fn) => { MEDIACB = fn; };
 
 export async function start(uid) {
   const cur = S.get(uid);
