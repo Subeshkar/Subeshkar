@@ -588,6 +588,26 @@ async function sendCard(box, c) {
     };
     return;
   }
+  if (c.card === 'liconnect') {
+    const ppl = c.people || []; c.pick = c.pick || ppl.map((p) => p.canConnect !== false);
+    box.innerHTML = `<div class="card stack" style="margin-top:8px"><b style="font-weight:600">LinkedIn: ${esc(c.query || 'people')} <span class="note">${esc({ uae: 'UAE', gcc: 'UAE and Saudi', world: 'Worldwide' }[c.where] || '')}</span></b>
+      <div class="list">${ppl.map((p, i) => `<label class="item" style="cursor:pointer;align-items:center"><input type="checkbox" data-lp="${i}" ${c.pick[i] ? 'checked' : ''} ${c.job ? 'disabled' : ''}><div class="grow" style="min-width:0"><div class="t">${esc(p.name)}</div><div class="s">${esc(p.headline)}${p.place ? ' · ' + esc(p.place) : ''}${p.canConnect === false ? ' · may already be connected' : ''}</div></div><a class="btn sm" href="${esc(p.url)}" target="_blank" rel="noopener">Profile ↗</a></label>`).join('')}</div>
+      <label class="note">Note (optional, {name} = first name; free LinkedIn allows only a few notes a month)</label><textarea class="field" data-ln rows="3" ${c.job ? 'disabled' : ''}>${esc(c.note || '')}</textarea>
+      <div class="row" style="gap:6px;align-items:center;flex-wrap:wrap"><button class="btn sm pri" data-lgo ${c.job ? 'disabled' : ''}>${c.job ? 'Sending…' : 'Send ' + c.pick.filter(Boolean).length + ' requests'}</button><span class="note" data-lst>${esc(c.status || 'Dioma sends them from your LinkedIn, one by one, like a person would.')}</span></div></div>`;
+    box.querySelectorAll('[data-lp]').forEach((el) => el.onchange = () => { c.pick[+el.dataset.lp] = el.checked; box.querySelector('[data-lgo]').textContent = 'Send ' + c.pick.filter(Boolean).length + ' requests'; });
+    box.querySelector('[data-ln]').oninput = (e) => { c.note = e.target.value; };
+    const go = box.querySelector('[data-lgo]'); if (!c.job) twoTap(go, 'Send ' + c.pick.filter(Boolean).length + ' requests', async () => {
+      const r = await api('POST', '/api/li/connect', { people: ppl.filter((_, i) => c.pick[i]), note: c.note || '' }); c.job = 1; c.status = `Sending ${r.total} requests, about ${r.minutes} minutes. You can leave this screen.`; sendCard(box, c);
+      const poll = setInterval(async () => { const st = await api('GET', '/api/li/connect/status').catch(() => null); if (!st) return; const el = box.querySelector('[data-lst]'); if (el) el.textContent = `${st.done} of ${st.total} done · sent: ${st.sent.length}${st.failed.length ? ' · skipped: ' + st.failed.join('; ') : ''}`; if (!st.running) { clearInterval(poll); c.status = el ? el.textContent : ''; toast(st.sent.length + ' LinkedIn requests sent'); } }, 8000);
+    });
+    return;
+  }
+  if (c.card === 'licomment') {
+    box.innerHTML = `<div class="card stack" style="margin-top:8px"><b style="font-weight:600">Comment on ${esc(c.author || 'this')} LinkedIn post</b>${c.post_text ? `<div class="note" style="white-space:pre-wrap">${esc(c.post_text.slice(0, 220))}…</div>` : ''}<textarea class="field" data-k="text" rows="4">${esc(c.text)}</textarea><div class="row" style="gap:6px"><button class="btn sm pri" data-lcp ${c.sent ? 'disabled' : ''}>${c.sent ? 'Posted ✓' : 'Post comment'}</button>${/^urn:li:/.test(c.urn) ? `<a class="btn sm" href="https://www.linkedin.com/feed/update/${esc(c.urn)}/" target="_blank" rel="noopener">Open post ↗</a>` : ''}</div></div>`;
+    box.querySelector('[data-k=text]').oninput = (e) => { c.text = e.target.value; };
+    const b = box.querySelector('[data-lcp]'); if (!c.sent) twoTap(b, 'Post comment', async () => { await api('POST', '/api/li/comment', { urn: c.urn, text: c.text }); c.sent = 1; toast('Comment posted on LinkedIn'); sendCard(box, c); });
+    return;
+  }
   if (c.card === 'file') {
     box.innerHTML = `<div class="card row" style="margin-top:8px;gap:12px;align-items:center;flex-wrap:wrap"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" style="width:28px;height:28px;stroke:var(--acc)"><path d="M6 3h8l4 4v14H6zM14 3v4h4M9 12l6 6M15 12l-6 6"/></svg><div class="grow" style="min-width:0"><b style="font-weight:600;word-break:break-word">${esc(c.name)}</b><div class="note">Excel · ${kb(c.size || 0)} · saved in Files › Excel</div></div><a class="btn sm pri" href="${esc(c.url)}" download="${esc(c.name)}">Download</a><a class="btn sm" href="#files">Files</a></div>`;
     return;
@@ -1238,11 +1258,11 @@ async function drawTrendNet(v) {
   // Mail-like list: one clean line per story; tap it to see the actions.
   const row = (t, sub) => { const i = L.push(t) - 1; return `<div class="item" data-ti="${i}" style="cursor:pointer"><div class="grow" style="min-width:0"><div class="t" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</div><div class="s" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(sub)}</div></div></div>
     <div class="mexp card stack" id="tx${i}" hidden><div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm pri" data-tin="${esc(url(t))}">Open here</button><button class="btn sm" data-tcm="${i}">Comment</button><button class="btn sm" data-tc="${i}">AI post</button>${t.url ? `<a class="btn sm" href="${esc(t.url)}" target="_blank" rel="noopener">Read ↗</a>` : ''}<a class="btn sm" href="${url(t)}" target="_blank" rel="noopener">${esc(nm)} ↗</a></div><div id="tco${i}"></div></div>`; };
-  const rows = [...d.news.map((n) => row({ title: n.title, source: n.source, url: n.url, topic: n.title }, n.source || 'News')), ...d.topics.map((t) => row(t, [t.source, t.traffic ? t.traffic + ' searches' : ''].filter(Boolean).join(' · ')))];
+  const rows = [...d.news.map((n) => row({ title: n.title, source: n.source, url: n.url, topic: n.title }, n.source || 'News'))]; // search-trend lists (mixed languages, not about posts) are left out
   v.innerHTML = (d.errors || []).map((e) => `<p class="err">${esc(e)}</p>`).join('') +
     (d.posts.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin:4px 0 14px">${d.posts.slice(0, 12).map((p) => `<a href="${esc(p.link)}" target="_blank" rel="noopener" class="card" style="padding:0;overflow:hidden;color:inherit;text-decoration:none;display:flex;flex-direction:column">${p.image ? `<img src="${esc(p.image)}" alt="" loading="lazy" style="width:100%;aspect-ratio:1;object-fit:cover">` : '<div style="aspect-ratio:1;display:grid;place-items:center" class="note">▶ Video</div>'}<div style="padding:8px"><div class="note">#${esc(p.tag)} · <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10"/></svg>${p.likes.toLocaleString('en')} · <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8.5 8.5 0 0 1-12.6 7.4L3 21l1.6-5.2A8.5 8.5 0 1 1 21 12z"/></svg>${p.comments}</div><div class="s" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(p.text)}</div></div></a>`).join('')}</div>` : '') +
     (d.tags.length ? `<div class="row" style="gap:6px;flex-wrap:nowrap;overflow-x:auto;margin:2px 0 8px;padding-bottom:4px">${d.tags.map((t) => `<button class="btn sm" style="flex:none" data-tin="${(STAG[net] || STAG.instagram) + encodeURIComponent(t)}${net === 'linkedin' ? '/' : ''}">#${esc(t)}</button>`).join('')}</div>` : '') +
-    (rows.length ? `<div class="list">${rows.join('')}</div>` : '<div class="empty">Nothing trending right now.</div>');
+    (rows.length ? `<div class="list">${rows.join('')}</div>` : '');
   trendAI(v, L, nm);
 }
 function trendAI(v, L, nm) {
@@ -1258,20 +1278,23 @@ function trendAI(v, L, nm) {
   };
 }
 // Trending posts for you (AI + web): posts and reels doing well in your field right now, each with a way to make your own.
+let HOTREG = 'uae';
 async function hotBox(net) {
   const box = document.createElement('div'); box.className = 'stack'; box.style.marginBottom = '14px';
   const draw = (d) => { const it = (d && d.items) || [];
-    box.innerHTML = `<div class="row" style="gap:8px;align-items:center;flex-wrap:wrap"><b style="font-weight:600">Trending posts for you</b><span class="note grow">${it.length && d.at ? 'Updated ' + ago(d.at) + ' ago' : 'Posts and reels doing well in your field right now'}</span><button class="btn sm pri" data-hot>${it.length ? 'Refresh' : 'Find trending posts'}</button></div>
+    box.innerHTML = `<div class="seg" style="align-self:flex-start">${[['uae', 'UAE'], ['gcc', 'GCC'], ['world', 'Worldwide']].map(([k, l]) => `<button type="button" data-hreg="${k}" class="${HOTREG === k ? 'on' : ''}">${l}</button>`).join('')}</div><div class="row" style="gap:8px;align-items:center;flex-wrap:wrap"><b style="font-weight:600">Trending ${net === 'all' ? '' : (NETN[net] || net) + ' '}posts</b><span class="note grow">${it.length && d.at ? 'Updated ' + ago(d.at) + ' ago' : 'Posts and reels doing well in your field right now'}</span><button class="btn sm pri" data-hot>${it.length ? 'Refresh' : 'Find trending posts'}</button></div>
       ${it.length ? `<div class="list">${it.map((x, i) => `<div class="item"><div class="grow" style="min-width:0"><div class="t">${esc(x.title)} <span class="soon">${esc(x.platform)}</span></div><div class="s">${esc(x.why)}</div>${x.idea ? `<div class="s" style="color:var(--acc)">Your version: ${esc(x.idea)}</div>` : ''}</div><div class="row" style="gap:6px;flex:none;align-self:center">${x.url ? `<a class="btn sm" href="${esc(x.url)}" target="_blank" rel="noopener">Open ↗</a>` : ''}<button class="btn sm pri" data-hmk="${i}">Make mine</button></div></div>`).join('')}</div>` : ''}`;
-    box.querySelector('[data-hot]').onclick = (e) => busyB(e.target, 'Searching… (about a minute)', async () => draw(await api('GET', '/api/social/hot?refresh=1&net=' + net)));
+    box.querySelector('[data-hot]').onclick = (e) => busyB(e.target, 'Searching… (about a minute)', async () => draw(await api('GET', '/api/social/hot?refresh=1&net=' + net + '&region=' + HOTREG)));
+    box.querySelectorAll('[data-hreg]').forEach((b) => b.onclick = async () => { HOTREG = b.dataset.hreg; draw(await api('GET', '/api/social/hot?net=' + net + '&region=' + HOTREG).catch(() => null)); });
     box.querySelectorAll('[data-hmk]').forEach((b) => b.onclick = () => { const x = it[+b.dataset.hmk]; aiSheet(); const q = $('#ashq'); if (!q) return; q.value = `Write my own ${net === 'all' ? x.platform : NETN[net] || net} post inspired by this trend: "${x.title}" (${x.why}). Idea: ${x.idea}. Fit it to my business, my voice, a strong first line, 3 hashtags max, and suggest the photo or video to use.`; $('#ashf').requestSubmit(); });
   };
-  draw(await api('GET', '/api/social/hot?net=' + net).catch(() => null)); return box;
+  draw(await api('GET', '/api/social/hot?net=' + net + '&region=' + HOTREG).catch(() => null)); return box;
 }
 async function drawTrend() {
   const v = $('#sov'); v.onclick = null; v.innerHTML = '<div class="empty">Loading what is trending…</div>';
   const hb = await hotBox(SONET === 'snapchat' ? 'all' : SONET); const put = () => { if ($('#sov') && !$('#sov').contains(hb)) $('#sov').prepend(hb); };
   if (SONET !== 'all' && SONET !== 'snapchat') { await drawTrendNet(v); return put(); }
+  v.innerHTML = '<p class="note" style="margin-top:6px">Ask Dioma AI to act for you, e.g. "comment on the top 5 trending LinkedIn posts" or "find 10 logistics CEOs in the UAE and send them a request".</p>'; return put();
   const d = await api('GET', '/api/social/trending').catch((x) => ({ regions: [], error: x.message })); if (SOT !== 'trending' || !$('#sov')) return;
   const net = SONET === 'all' ? 'linkedin' : SONET, nm = NETN[net] || 'LinkedIn', L = [];
   v.innerHTML = (d.error ? `<p class="err">${esc(d.error)}</p>` : '') + d.regions.map((r) => `<div class="row" style="gap:8px;margin:14px 0 6px"><span class="srcb" style="background:var(--acc);color:var(--accink);border-color:var(--acc)">${r.tag}</span><span class="note">${{ UAE: 'United Arab Emirates', GCC: 'Saudi Arabia and the Gulf', World: 'Worldwide' }[r.tag]}</span></div>${r.items.length ? `<div class="list">${r.items.slice(0, 8).map((t) => { const i = L.push(t) - 1; return `<div class="item" style="flex-direction:column;align-items:stretch;gap:6px"><div class="note">${esc(t.topic)}${t.traffic ? ' · ' + esc(t.traffic) + ' searches' : ''}</div><div class="t">${esc(t.title)}</div>${t.source ? `<div class="s">${esc(t.source)}</div>` : ''}<div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm pri" data-tc="${i}">AI post</button>${t.url ? `<a class="btn sm" href="${esc(t.url)}" target="_blank" rel="noopener">Read ↗</a>` : ''}<a class="btn sm" href="${(SSEARCH[net] || SSEARCH.linkedin) + encodeURIComponent(t.topic)}" target="_blank" rel="noopener">On ${esc(nm)} ↗</a></div><div id="tco${i}"></div></div>`; }).join('')}</div>` : `<div class="empty">${esc(r.error || 'Nothing right now.')}</div>`}`).join('') + `<p class="note" style="margin-top:12px">Apps cannot like or comment under other people's posts. Dioma writes your take as your own post; tap Post or Copy.</p>`;

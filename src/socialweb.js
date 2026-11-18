@@ -184,3 +184,65 @@ export async function liSend(uid, id, text) {
   });
   C.delete(`${uid}:inbox`); return r;
 }
+
+// People search on LinkedIn (as you): name, headline, place, profile link, and whether Connect is open.
+const GEO = { uae: '104305776', gcc: '104305776%22%2C%22100459316', world: '' };
+export function liPeople(uid, q, max = 10, where = 'uae') {
+  q = String(q || '').trim().slice(0, 120); if (!q) throw err('Say who to look for.');
+  const g = GEO[where] ?? GEO.uae;
+  const url = `${LI}/search/results/people/?keywords=${encodeURIComponent(q)}${g ? `&geoUrn=%5B%22${g}%22%5D` : ''}&origin=FACETED_SEARCH`;
+  return cached(`${uid}:people:${q}:${where}`, 10 * 60e3, () => use(uid, 'linkedin', async (page, go) => {
+    const out = [], seen = new Set();
+    for (let pg = 1; pg <= 3 && out.length < max; pg++) {
+      await go(url + (pg > 1 ? '&page=' + pg : '')); await page.waitForSelector('a[href*="/in/"]', { timeout: 20e3 }).catch(() => {});
+      await page.mouse.wheel(0, 1800); await pause(page, 800, 1400);
+      const rows = await page.evaluate(() => [...document.querySelectorAll('li.reusable-search__result-container, div[data-chameleon-result-urn], li[class*="search-result"], div[data-view-name="search-entity-result-universal-template"]')].map((el) => {
+        const a = el.querySelector('a[href*="/in/"]'); if (!a) return null;
+        const nm = (el.querySelector('span[aria-hidden="true"]')?.innerText || a.innerText || '').split('\n')[0].trim();
+        const lines = el.innerText.split('\n').map((x) => x.trim()).filter(Boolean);
+        const head = (el.querySelector('.entity-result__primary-subtitle, div[class*="primary-subtitle"]')?.innerText || lines[lines.indexOf(nm) + 2] || '').trim();
+        const place = (el.querySelector('.entity-result__secondary-subtitle, div[class*="secondary-subtitle"]')?.innerText || '').trim();
+        const btn = [...el.querySelectorAll('button')].find((b) => /connect|invite/i.test((b.getAttribute('aria-label') || '') + ' ' + b.innerText));
+        return { name: nm, headline: head.slice(0, 160), place: place.slice(0, 80), url: a.href.split('?')[0], canConnect: !!btn };
+      }).filter((x) => x && x.name && !/linkedin member/i.test(x.name)));
+      for (const r of rows) { if (seen.has(r.url)) continue; seen.add(r.url); out.push(r); if (out.length >= max) break; }
+    }
+    if (!out.length) throw err('LinkedIn showed no people for that. Try other words.', 404);
+    return { people: out };
+  }));
+}
+
+// Send connection requests (as you), one by one with human pauses. Free accounts can only add a few notes a month;
+// when LinkedIn refuses the note, the request goes without one.
+const sentToday = (uid) => { try { return JSON.parse(one("SELECT v FROM kv WHERE user_id = ? AND k = 'li_sent'", uid)?.v || '{}'); } catch { return {}; } };
+export const JOBS = new Map(); // uid -> { total, done, sent:[], failed:[], running }
+export function liConnectStart(uid, people, note) {
+  const day = new Date().toISOString().slice(0, 10), s = sentToday(uid), used = s.day === day ? s.n : 0, room = Math.max(0, 25 - used);
+  const list = (people || []).filter((p) => /linkedin\.com\/in\//.test(p.url || '')).slice(0, Math.min(15, room));
+  if (!list.length) throw err(room ? 'Pick people first.' : 'LinkedIn limits connection requests. Dioma sends up to 25 a day; try again tomorrow.', 429);
+  if (JOBS.get(uid)?.running) throw err('Dioma is still sending the last batch. Check back in a few minutes.', 409);
+  const job = { total: list.length, done: 0, sent: [], failed: [], running: true, at: Date.now() }; JOBS.set(uid, job);
+  (async () => {
+    for (const p of list) {
+      try {
+        await use(uid, 'linkedin', async (page, go) => {
+          await go(p.url); await pause(page, 1500, 2500);
+          const main = (await page.$('main')) || page;
+          let b = await main.$('button[aria-label*="Invite"][aria-label*="connect" i], button[aria-label^="Connect" i]');
+          if (!b) { const more = await main.$('button[aria-label="More actions"], button[aria-label*="More actions"]'); if (more) { await more.click(); await pause(page, 700, 1200); b = await page.$('div[role="button"][aria-label*="Invite"][aria-label*="connect" i], div[aria-label*="connect" i][role="button"]'); } }
+          if (!b) { const pend = await main.$('button[aria-label*="Pending" i]'); throw err(pend ? 'already pending' : 'no Connect button (already connected or follow-only)', 409); }
+          await b.click(); await pause(page, 900, 1500);
+          let sent = false;
+          if (note) { const add = await page.$('button[aria-label="Add a note"]'); if (add) { await add.click(); await pause(page, 600, 1000); const ta = await page.$('textarea[name="message"], textarea#custom-message'); if (ta) { await ta.fill(String(note).replace(/\{name\}/g, p.name.split(' ')[0]).slice(0, 295)); await pause(page, 500, 900); const sb = await page.$('button[aria-label="Send invitation"], button[aria-label="Send now"], button[aria-label="Send"]'); if (sb && await sb.isEnabled()) { await sb.click(); sent = true; } } else { const back = await page.$('button[aria-label="Dismiss"]'); if (back) await back.click(); await b.click().catch(() => {}); await pause(page); } } }
+          if (!sent) { const sb = await page.$('button[aria-label="Send without a note"], button[aria-label="Send now"], button[aria-label="Send invitation"]'); if (!sb) throw err('LinkedIn did not show the Send button', 502); await sb.click(); }
+          await pause(page, 1500, 2500); return true;
+        });
+        job.sent.push(p.name); const s2 = sentToday(uid), d2 = new Date().toISOString().slice(0, 10); run("INSERT OR REPLACE INTO kv (user_id, k, v) VALUES (?, 'li_sent', ?)", uid, JSON.stringify({ day: d2, n: (s2.day === d2 ? s2.n : 0) + 1 }));
+      } catch (e) { job.failed.push(`${p.name}: ${e.message}`); if (e.status === 428) break; }
+      job.done++; await new Promise((r) => setTimeout(r, 12e3 + Math.random() * 18e3)); // human pace between people
+    }
+    job.running = false; job.at = Date.now();
+  })().catch((e) => { job.running = false; job.failed.push(e.message); });
+  return { ok: true, total: list.length, minutes: Math.ceil(list.length * 0.6) };
+}
+export const liConnectStatus = (uid) => JOBS.get(uid) || { total: 0, done: 0, sent: [], failed: [], running: false };
