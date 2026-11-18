@@ -719,7 +719,7 @@ async function viewFiles() {
 
 // ---------- Me ----------
 async function viewMe() {
-  S.me = await api('GET', '/api/me'); await kvLoad().catch(() => {});
+  S.me = await api('GET', '/api/me'); await kvLoad().catch(() => {}); await loadApps(true).catch(() => {});
   const m = S.me, q = route().q;
   const msg = q.get('google');
   const tone = document.documentElement.dataset.tone === 'sun' ? 'sun' : 'mono';
@@ -731,8 +731,9 @@ async function viewMe() {
         ${m.google ? '<button class="btn sm" id="gd">Disconnect</button>' : m.googleAvailable ? '<a class="btn sm pri" href="/auth/google">Connect</a>' : ''}</div>
       <div class="item"><span class="ficon mono">W</span><div class="grow"><div class="t">WhatsApp</div><div class="s">${m.whatsapp === 'open' ? 'Connected' : 'Not connected'}</div></div><a class="btn sm ${m.whatsapp === 'open' ? '' : 'pri'}" href="#wa">${m.whatsapp === 'open' ? 'Open' : 'Connect'}</a></div>
       <div class="item"><span class="ficon mono">@</span><div class="grow"><div class="t">Email</div><div class="s">${m.mailbox ? 'Connected as ' + esc(m.mailbox) : 'Outlook, Zoho, Yahoo, iCloud or any email'}</div></div><a class="btn sm ${m.mailbox ? '' : 'pri'}" href="#mail">${m.mailbox ? 'Open' : 'Connect'}</a></div>
-      ${[['in', 'LinkedIn', 'Messages and posts'], ['B', 'Zoho Books and CRM', 'Invoices, purchase orders, leads']].map(([i, n, d]) => `<div class="item"><span class="ficon mono">${i}</span><div class="grow"><div class="t">${n}</div><div class="s">${d}</div></div><span class="soon">Coming soon</span></div>`).join('')}
+      ${[['in', 'linkedin', 'LinkedIn', 'Posts and profile'], ['B', 'zoho_books', 'Zoho Books', 'Invoices, payments, customers'], ['C', 'zoho', 'Zoho CRM', 'Leads, deals and contacts'], ['S', 'googlesheets', 'Google Sheets', 'Dioma reads your sheet links'], ['D', 'googledrive', 'Google Drive', 'Your files']].map(([i, k, n, d]) => `<div class="item"><span class="ficon mono">${i}</span><div class="grow"><div class="t">${n}</div><div class="s">${appOn(k) ? 'Connected' : d}</div></div>${appOn(k) ? `<button class="btn sm" data-off="${k}" data-to="me">Disconnect</button>` : APPS && APPS.enabled ? `<a class="btn sm pri" href="/connect/app?slug=${k}&to=me">Connect</a>` : '<span class="soon">Coming soon</span>'}</div>`).join('')}
     </div></section>
+    ${APPS && APPS.enabled ? `<section class="sec"><h2>More apps</h2>${['biz', 'tools', 'social', 'cal'].map((g) => appList(g, 'me', ['linkedin', 'zoho_books', 'zoho', 'googlesheets', 'googledrive'])).join('')}</section>` : ''}
     <section class="sec"><h2>About you</h2><form class="stack" id="pf">
       <input class="field" id="pn" value="${esc(m.name || '')}" placeholder="Name" maxlength="60">
       <textarea class="field" id="pa" rows="2" placeholder="What you do, helps Dioma prioritise" maxlength="300">${esc(m.about || '')}</textarea>
