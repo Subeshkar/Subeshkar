@@ -1453,6 +1453,7 @@ on('GET', '/api/meet', (req, res, u) => { const id = +new URL(req.url, 'http://x
 // Real LinkedIn through the Dioma browser (after the person signs in once and taps Keep me signed in).
 const swq = (req) => new URL(req.url, 'http://x').searchParams;
 const swLim = (u, req) => { if (req && swq(req).get('fresh') === '1') SW.drop(u.id); if (limited('sw:' + u.id, 90, 3600e3)) throw Object.assign(new Error('That is a lot of LinkedIn for one hour. Take a short break so LinkedIn stays happy.'), { status: 429 }); };
+on('GET', '/api/li/people', async (req, res, u) => { const q = new URL(req.url, 'http://x').searchParams; swLim(u); try { send(res, 200, await SW.liPeople(u.id, q.get('q') || '', Math.min(10, Number(q.get('n')) || 5), q.get('where') || 'uae')); } catch (e) { fail(res, e.status || 502, e.message); } });
 on('POST', '/api/li/connect', async (req, res, u) => { const b = await json(req); try { send(res, 200, SW.liConnectStart(u.id, b.people, String(b.note || ''))); } catch (e) { fail(res, e.status || 502, e.message); } });
 on('GET', '/api/li/connect/status', (req, res, u) => send(res, 200, SW.liConnectStatus(u.id)));
 on('POST', '/api/li/comment', async (req, res, u) => { const b = await json(req); swLim(u); try { const urn = String(b.urn || ''); const r = /^urn:li:/.test(urn) ? await SW.liComment(u.id, urn, b.text) : await SO.liComment(u.id, urn, String(b.text || '')); BRN.note(u.id, 'linkedin comment', String(b.text || '').slice(0, 300)); send(res, 200, { ok: true, r: !!r }); } catch (e) { fail(res, e.status || 502, e.message); } });
