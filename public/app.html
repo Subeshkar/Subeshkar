@@ -1916,7 +1916,7 @@ async function viewMail() {
       <div class="wfil" id="mfl" hidden></div>
       <form class="row" id="mcmd" style="gap:6px;margin-bottom:8px"><input class="field grow" id="mcq" placeholder="Tell Dioma what to do, e.g. chase unpaid invoices"><button class="btn sm pri" style="height:48px">Do it</button></form>
       <div id="mcout"></div>
-      <form class="row" id="msf" style="gap:6px"><input class="field grow" id="mq" placeholder="Search this mailbox" value="${esc(MF.q)}"><button class="btn sm" style="height:48px">Go</button><button type="button" class="btn sm" id="mref" style="height:48px" title="Refresh">↻</button><button type="button" class="btn sm" id="mai" style="height:48px" title="Ask Dioma about this mailbox" aria-label="Ask Dioma about this mailbox"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button></form>
+      <form class="row" id="msf" style="gap:6px"><input class="field grow" id="mq" placeholder="Search this mailbox" value="${esc(MF.q)}"><button class="btn sm" style="height:48px">Go</button><button type="button" class="btn sm" id="mref" style="height:48px" title="Refresh">↻</button></form>
       <div class="list" id="mlist"><div class="empty">Loading your mail…</div></div>
     </div>
 `;
@@ -1950,7 +1950,6 @@ async function viewMail() {
   $('#mlist').addEventListener('click', (e) => { const t = e.target.closest('[data-mdone]'); if (t) { e.stopPropagation(); return mailDone(+t.dataset.mdone); } if (e.target.closest('.mexp')) return; const r = e.target.closest('[data-mi]'); if (r) mailOpen(+r.dataset.mi); });
   const mcRun = (t) => { t = String(t || '').trim(); if (!t) return; if (/pay|invoice|owe|owing|due|collect|receivable|follow ?up/i.test(t)) return payFollow($('#mcout')); location.hash = '#ai'; setTimeout(() => { const q = $('#aiq'); if (q) { q.value = t; q.focus(); } }, 700); };
   $('#mcmd').onsubmit = (e) => { e.preventDefault(); mcRun($('#mcq').value); };
-  $('#mai').addEventListener('click', () => aiSheet());
   const addBox = () => { $('#maddbox').innerHTML = `<section class="sec"><h2>Add another mailbox</h2>${mailChooser()}</section>`; wireChooser(); $('#maddbox').scrollIntoView({ behavior: 'smooth' }); };
   $('#madd').addEventListener('click', addBox);
   $('#mmore').addEventListener('click', () => {
@@ -2101,7 +2100,7 @@ function pageCtx() {
   if (open) { const row = open.previousElementSibling; parts.push('Open item: ' + ((row ? row.innerText + '\n' : '') + open.innerText).replace(/\s+\n/g, '\n').slice(0, 1200)); }
   return parts.join('\n');
 }
-const FABHIDE = new Set(['ai', 'ask', 'mail', 'wa', 'biz']); // these screens have their own AI button at the top
+const FABHIDE = new Set(['ai', 'ask', 'biz']); // Business has its own AI button at the top
 function fabSync() {
   let f = $('#aifab'); if (!S.me || !$('#botw')) { f && f.remove(); return; }
   if (!f) { document.body.insertAdjacentHTML('beforeend', `<button type="button" id="aifab" aria-label="Ask Dioma" title="Ask Dioma about this screen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button>`); f = $('#aifab'); f.onclick = aiSheet; }
@@ -2518,7 +2517,7 @@ async function viewWa() {
       <div class="seg wtabs" id="wtab">${[['personal', 'Personal'], ['business', 'Business'], ['other', 'Other']].map(([k, l]) => `<button data-t="${k}" class="${WAF.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       <div id="wfl" hidden></div>
     </div>
-    <form class="row" id="wsf" style="gap:8px;margin-top:10px"><input class="field grow" id="wq" placeholder="Search name or number" value="${esc(WAF.q)}"><button class="btn sm" style="height:48px">Search</button><button type="button" class="btn sm" data-askai style="height:48px" title="Ask Dioma about your WhatsApp" aria-label="Ask Dioma about your WhatsApp"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button></form>
+    <form class="row" id="wsf" style="gap:8px;margin-top:10px"><input class="field grow" id="wq" placeholder="Search name or number" value="${esc(WAF.q)}"><button class="btn sm" style="height:48px">Search</button></form>
     <div class="list" id="wl" style="margin-top:6px"><div class="empty">Loading your chats…</div></div>`;
   const pin = () => { const h = document.querySelector('header.top'), t = $('#tabs'); if (h && $('#wtop')) $('#wtop').style.top = Math.round(h.getBoundingClientRect().height + (t ? t.getBoundingClientRect().height : 0)) + 'px'; };
   pin(); addEventListener('resize', pin, { passive: true });
