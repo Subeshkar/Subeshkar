@@ -151,8 +151,11 @@ export async function start(uid) {
       if (u.connection === 'close') {
         const code = u.lastDisconnect?.error?.output?.statusCode;
         if (code === DisconnectReason.loggedOut) { await forget(uid); return; }
-        st.status = 'off'; st.error = st.tries < 6 ? 'Reaching WhatsApp… one moment.' : 'Could not reach WhatsApp. Tap Try again.';
-        if (st.tries++ < 6) setTimeout(() => { if (S.get(uid) === st) { st.status = 'retry'; start(uid).catch(() => {}); } }, Math.min(30e3, 2000 * st.tries));
+        // Never give up on a linked phone: keep reconnecting (2s, 4s… up to every 2 minutes).
+        // 440 = the session was taken over (during an update the old server is still running for a moment): wait, then come back.
+        st.status = 'off'; st.error = 'Reaching WhatsApp… one moment.';
+        const wait = code === 440 ? 20e3 : Math.min(120e3, 2000 * 2 ** Math.min(st.tries, 6)); st.tries++;
+        setTimeout(() => { if (S.get(uid) === st) { st.status = 'retry'; start(uid).catch(() => {}); } }, wait);
       }
     });
     sock.ev.on('messaging-history.set', ({ chats = [], contacts = [], messages = [] }) => {
