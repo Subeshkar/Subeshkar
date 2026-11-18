@@ -65,6 +65,13 @@ export async function overview(uid, force) {
 
 // ---------- Create and email invoices in Zoho Books (only after the person taps Create / Send) ----------
 const pickTool = async (re) => A.findTool('zoho_books', re);
+// Zoho Books' API through the connection: the connection's own address first, then each Zoho region.
+const BKB = new Map();
+async function booksApi(uid, method, ep, body) {
+  const bases = [...new Set([BKB.get(uid), '', 'https://www.zohoapis.com/books/v3/', 'https://www.zohoapis.eu/books/v3/', 'https://www.zohoapis.in/books/v3/', 'https://www.zohoapis.com.au/books/v3/'].filter((x) => x != null))]; let last;
+  for (const b of bases) { try { const d = await A.proxy(uid, 'zoho_books', { endpoint: (b || '/') + ep, method, body }); if (d && (d.code === 0 || d.estimate || d.message)) { BKB.set(uid, b); return d; } } catch (e) { last = e; } }
+  throw last || new Error('Zoho Books did not answer.');
+}
 export async function customers(uid, q) {
   const oid = await org(uid); if (!oid) throw new Error('Zoho Books has no organization yet.');
   const t = (await pickTool(/^ZOHO_BOOKS_LIST_CONTACTS$/)) || (await pickTool(/LIST_CONTACTS|LIST_CUSTOMERS/));
@@ -93,7 +100,13 @@ export async function createInvoice(uid, b) {
   const tax = b.vat === false ? '' : await vatId(uid, oid);
   const items = (b.items || []).slice(0, 30).map((x) => ({ name: String(x.name || 'Service').slice(0, 100), description: String(x.description || '').slice(0, 1000), rate: Number(x.rate) || 0, quantity: Number(x.quantity) || 1, ...(tax ? { tax_id: tax } : {}) }));
   if (!items.length || !items.some((x) => x.rate)) throw Object.assign(new Error(`The ${what} has no amounts.`), { status: 400 });
-  const t = quote ? (await pickTool(/^ZOHO_BOOKS_CREATE_(AN_)?ESTIMATE$/) || await pickTool(/CREATE.*(ESTIMATE|QUOTE)/)) : (await pickTool(/^ZOHO_BOOKS_CREATE_INVOICE$/) || await pickTool(/CREATE_INVOICE$/)); if (!t) throw new Error(`Creating ${what}s is not available for this Zoho Books connection yet.`);
+  const t = quote ? (await pickTool(/^ZOHO_BOOKS_CREATE_(AN_)?ESTIMATE$/) || await pickTool(/CREATE.*(ESTIMATE|QUOTE)/)) : (await pickTool(/^ZOHO_BOOKS_CREATE_INVOICE$/) || await pickTool(/CREATE_INVOICE$/));
+  if (!t && quote) { // no ready-made quote tool: Zoho Books' own API through the same connection
+    const body = { customer_id: cid, line_items: items, date: b.date || new Date().toISOString().slice(0, 10), notes: String(b.notes || '').slice(0, 2000), reference_number: String(b.reference || '').slice(0, 50) };
+    const d = await booksApi(uid, 'POST', `estimates?organization_id=${oid}`, body); const e = d?.estimate || d?.data?.estimate || {};
+    C.delete(uid + ':all'); return { id: String(e.estimate_id || ''), no: e.estimate_number || '', total: num(e.total), cur: e.currency_code || 'AED', taxed: !!tax, customerId: cid, email: e.email || '' };
+  }
+  if (!t) throw new Error(`Creating ${what}s is not available for this Zoho Books connection yet.`);
   const d = await A.runFill(uid, t, { 'organization_id': oid, 'customer_id': cid, 'line_items': items, 'date': b.date || new Date().toISOString().slice(0, 10), 'notes': String(b.notes || '').slice(0, 2000), 'reference_number': String(b.reference || '').slice(0, 50) });
   const inv = d?.data?.invoice || d?.invoice || d?.data?.estimate || d?.estimate || d?.data || d || {};
   C.delete(uid + ':all');
@@ -101,7 +114,9 @@ export async function createInvoice(uid, b) {
 }
 export async function emailInvoice(uid, id, to, cc, subject, body, kind) {
   const quote = kind === 'quote';
-  const oid = await org(uid); const t = quote ? (await pickTool(/^ZOHO_BOOKS_EMAIL_(AN_)?ESTIMATE$/) || await pickTool(/EMAIL.*(ESTIMATE|QUOTE)/)) : (await pickTool(/^ZOHO_BOOKS_EMAIL_(AN_)?INVOICE$/) || await pickTool(/EMAIL.*INVOICE/)); if (!t) throw new Error(`Emailing ${quote ? 'quotes' : 'invoices'} from Zoho Books is not available yet. Send it from Zoho Books.`);
+  const oid = await org(uid); const t = quote ? (await pickTool(/^ZOHO_BOOKS_EMAIL_(AN_)?ESTIMATE$/) || await pickTool(/EMAIL.*(ESTIMATE|QUOTE)/)) : (await pickTool(/^ZOHO_BOOKS_EMAIL_(AN_)?INVOICE$/) || await pickTool(/EMAIL.*INVOICE/));
+  if (!t && quote) { const list = (x) => String(x || '').split(/[,;\s]+/).filter((e) => /@/.test(e)); await booksApi(uid, 'POST', `estimates/${encodeURIComponent(id)}/email?organization_id=${oid}`, { to_mail_ids: list(to), cc_mail_ids: list(cc), subject: subject || '', body: body || '', send_from_org_email_id: false }); C.delete(uid + ':all'); return { ok: true }; }
+  if (!t) throw new Error(`Emailing ${quote ? 'quotes' : 'invoices'} from Zoho Books is not available yet. Send it from Zoho Books.`);
   const list = (s) => String(s || '').split(/[,;\s]+/).filter((e) => /@/.test(e));
   await A.runFill(uid, t, { 'organization_id': oid, [quote ? 'estimate_id' : 'invoice_id']: id, 'to_mail_ids': list(to), 'cc_mail_ids': list(cc), 'subject': subject || '', 'body': body || '', 'send_from_org_email_id': false });
   C.delete(uid + ':all'); return { ok: true };
