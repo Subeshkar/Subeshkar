@@ -24,20 +24,20 @@ export async function claude({ system, messages, tools, max_tokens = 1200, model
 // The best writer for messages people will read (WhatsApp, email, posts).
 export const WRITER = () => process.env.DIOMA_WRITE_MODEL || 'claude-opus-5-5';
 
-export async function converse({ system, messages, tools, handlers, maxTurns = 8 }) {
+export async function converse({ system, messages, tools, handlers, maxTurns = 8, onStep }) {
   tools = [...(tools || [])];
   const msgs = [...messages];
   const actions = [];
   for (let i = 0; i < maxTurns; i++) {
     let res;
-    try { res = await claude({ system, messages: msgs, tools, max_tokens: 2500 }); }
+    try { res = await claude({ system, messages: msgs, tools, max_tokens: 4000 }); }
     catch (e) {
       console.error('converse turn', i, e.status || '', e.message);
       try {
         if (i === 0) { // first try: without web search, then with only the question (no older chat)
           tools = tools.filter((t) => !t.type);
-          try { res = await claude({ system, messages: msgs, tools, max_tokens: 2500 }); }
-          catch (e2) { console.error('converse retry', e2.message); msgs.splice(0, msgs.length, msgs[msgs.length - 1]); res = await claude({ system, messages: msgs, tools, max_tokens: 2500 }); }
+          try { res = await claude({ system, messages: msgs, tools, max_tokens: 4000 }); }
+          catch (e2) { console.error('converse retry', e2.message); msgs.splice(0, msgs.length, msgs[msgs.length - 1]); res = await claude({ system, messages: msgs, tools, max_tokens: 4000 }); }
         } else break; // later turn: answer with what was found so far (below)
       } catch (e3) { console.error('converse failed', e3.message); if (!actions.length) throw e3; break; }
     }
@@ -49,14 +49,10 @@ export async function converse({ system, messages, tools, handlers, maxTurns = 8
       if (text) return { text, actions };
       break; // no words: ask for the answer below
     }
-    const results = [];
-    for (const u of uses) {
-      let out;
-      try { out = await (handlers[u.name] || (() => ({ error: 'unknown tool' })))(u.input || {}); }
-      catch (e) { out = { error: String(e.message || e) }; }
-      actions.push({ tool: u.name, input: u.input, result: out });
-      results.push({ type: 'tool_result', tool_use_id: u.id, content: JSON.stringify(out).slice(0, 6000) });
-    }
+    // Several tools in one turn run at the same time (faster answers).
+    if (onStep) try { onStep(uses.map((x) => x.name)); } catch {}
+    const outs = await Promise.all(uses.map(async (u) => { try { return await (handlers[u.name] || (() => ({ error: 'unknown tool' })))(u.input || {}); } catch (e) { return { error: String(e.message || e) }; } }));
+    const results = uses.map((u, k) => { actions.push({ tool: u.name, input: u.input, result: outs[k] }); return { type: 'tool_result', tool_use_id: u.id, content: JSON.stringify(outs[k]).slice(0, 8000) }; });
     msgs.push({ role: 'user', content: results });
   }
   // Never answer with an empty "Done.": one clean last call, no tools, with the question and everything found so far.

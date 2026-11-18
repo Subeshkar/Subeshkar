@@ -735,6 +735,7 @@ async function viewMe() {
   $('#main').innerHTML = `<h1>${esc(m.name || 'You')}</h1><p class="dim" style="margin-top:4px">${esc(m.email)}</p>
     ${msg && msg !== 'connected' ? `<p class="err" style="margin-top:12px">${msg === 'cancelled' ? 'Google connect was cancelled.' : esc(msg)}</p>` : ''}
     <div class="card row" style="margin-top:16px;justify-content:space-between;gap:12px;align-items:center"><div><b style="font-weight:600">Automatic AI</b><div class="note">Off: Dioma uses AI only when you tap (saves AI credit). On: reply ideas under every chat, hourly to-do scans, meeting prep and promise to-dos.</div></div><label class="row" style="gap:8px;align-items:center;cursor:pointer;flex:none"><input type="checkbox" id="aiauto" ${KVS && KVS.aiauto ? 'checked' : ''}> <span id="aiautol">${KVS && KVS.aiauto ? 'On' : 'Off'}</span></label></div>
+    <section class="sec"><h2>Dioma Brain</h2><div id="brainbox"><div class="empty">Loading…</div></div></section>
     <section class="sec"><h2>Connected apps</h2><div class="list">
       <div class="item"><span class="ficon mono">G</span><div class="grow"><div class="t">Google · Gmail and Calendar</div><div class="s">${m.google ? 'Connected' + (m.google.account ? ' as ' + esc(m.google.account) : '') + '' : m.googleAvailable ? 'Not connected' : 'Coming soon'}</div></div>
         ${m.google ? '<button class="btn sm" id="gd">Disconnect</button>' : m.googleAvailable ? '<a class="btn sm pri" href="/auth/google">Connect</a>' : ''}</div>
@@ -758,7 +759,7 @@ async function viewMe() {
   $('#pf').addEventListener('submit', async (e) => { e.preventDefault(); await api('POST', '/api/me', { name: $('#pn').value, about: $('#pa').value }); toast('Saved'); viewMe(); });
   $('#tone').addEventListener('click', (e) => { const t = e.target.dataset.t; if (t) setTone(t); });
   wirePicker(viewMe); wirePhone(viewMe); planSection(); shortcutCard();
-  $('#lo').addEventListener('click', signOutAsk);
+  $('#lo').addEventListener('click', signOutAsk); brainDraw();
   $('#del').addEventListener('click', () => {
     $('#delrow').innerHTML = `<form class="stack card" id="df" style="margin-top:12px"><p>This deletes your account, to-dos, chats and files, and disconnects Google. It can't be undone.</p><input class="field" id="dc" placeholder="Type ${esc(m.email)} to confirm" autocomplete="off"><button class="btn sm bad" style="justify-self:start">Delete everything</button><div class="err" id="derr"></div></form>`;
     $('#df').addEventListener('submit', async (e) => { e.preventDefault(); try { await api('DELETE', '/api/me', { confirm: $('#dc').value.trim() }); S.me = null; renderAuth(); toast('Account deleted'); } catch (x) { $('#derr').textContent = x.message; } });
@@ -2533,6 +2534,18 @@ async function sugClick(e) {
 }
 const wsGrow = (t) => { t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight + 2, 220) + 'px'; };
 // Attach from the chat list: each file goes to that chat; what you typed goes as the caption of the first one.
+// Dioma Brain: what Dioma has learned from what you do. You can read it, change it, teach it now, or wipe it.
+async function brainDraw(edit) {
+  const box = $('#brainbox'); if (!box) return; let b; try { b = await api('GET', '/api/brain'); } catch { box.innerHTML = '<div class="note">Could not load.</div>'; return; }
+  box.innerHTML = `<div class="card stack" style="gap:10px"><div class="note">Dioma learns from what you do here: emails and WhatsApps you send, quotes and invoices, your corrections and questions. Every answer uses it, so Dioma prices, writes and decides like you. ${b.at ? 'Last learned ' + ago(b.at) + ' ago.' : 'Nothing learned yet.'}${b.pending ? ' ' + b.pending + ' new action' + (b.pending > 1 ? 's' : '') + ' waiting.' : ''}</div>
+    ${edit ? `<label class="note">You told Dioma (one per line)</label><textarea class="field" id="brt" rows="5">${esc(b.told)}</textarea><label class="note">What Dioma learned</label><textarea class="field" id="brx" rows="14">${esc(b.text)}</textarea><div class="row" style="gap:6px"><button class="btn sm pri" id="brs">Save</button><button class="btn sm" id="brc">Cancel</button></div>`
+      : `${b.told ? `<div><b style="font-weight:600">You told Dioma</b><div class="md">${md(b.told)}</div></div>` : ''}${b.text ? `<div class="md" style="max-height:420px;overflow:auto">${md(b.text)}</div>` : '<div class="note">Use Dioma for a day, or tap Learn now.</div>'}
+      <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm pri" id="brl">Learn now</button><button class="btn sm" id="bre">Edit</button><button class="btn sm bad" id="brf">Forget all</button></div>`}</div>`;
+  if (edit) { $('#brs').onclick = async () => { await api('POST', '/api/brain', { text: $('#brx').value, told: $('#brt').value }); toast('Saved'); brainDraw(); }; $('#brc').onclick = () => brainDraw(); return; }
+  $('#brl').onclick = (e) => busyB(e.target, 'Learning…', async () => { const r = await api('POST', '/api/brain', { do: 'learn' }); toast(r.learned ? 'Learned from ' + r.learned + ' actions' : 'Nothing new to learn yet'); brainDraw(); });
+  $('#bre').onclick = () => brainDraw(true);
+  twoTap($('#brf'), 'Forget all', async () => { await api('POST', '/api/brain', { do: 'forget' }); toast('Dioma Brain cleared'); brainDraw(); });
+}
 document.addEventListener('change', (e) => { if (e.target.id !== 'aiauto') return; kvSave('aiauto', e.target.checked); $('#aiautol').textContent = e.target.checked ? 'On' : 'Off'; toast(e.target.checked ? 'Automatic AI is on' : 'AI runs only when you tap'); });
 document.addEventListener('change', async (e) => {
   const inp = e.target; if (!inp.matches || !inp.matches('[data-safile]')) return; const bar = inp.closest('.wsug'), jid = bar.dataset.sj, k = bar.dataset.sk, ta = bar.querySelector('.wsta');
