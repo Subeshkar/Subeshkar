@@ -501,7 +501,7 @@ on('POST', '/api/chat', async (req, res, u) => {
     send(res, 200, { reply, cards, changed: out.actions.some((a) => /todo/.test(a.tool)), used: usedToday(u), cap: CAP });
   } catch (e) {
     console.error('chat', e.message);
-    send(res, 502, { error: 'Dioma could not answer just now. Please try again in a moment.' + (e.status ? ' (' + e.status + ': ' + String(e.message || '').replace(/[^\w .,:'"()-]/g, '').slice(0, 140) + ')' : '') });
+    send(res, 502, { error: /credit balance|billing|quota/i.test(e.message || '') ? 'Dioma\'s AI credit has run out, so it is paused. Top up the AI credit to continue.' : 'Dioma could not answer just now. Please try again in a moment.' + (e.status ? ' (' + e.status + ')' : '') });
   }
 });
 
