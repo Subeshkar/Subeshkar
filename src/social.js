@@ -152,7 +152,8 @@ export async function dmSend(uid, net, to, text) {
 const TR = new Map();
 export async function trending() {
   const c = TR.get('t'); if (c && Date.now() - c.at < 30 * 60e3) return c.data;
-  const dec = (t) => String(t || '').replace(/<!\[CDATA\[|\]\]>/g, '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
+  const ent = (t) => t.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&(#39|apos);/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n)).replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)));
+  const dec = (t) => ent(ent(String(t || '').replace(/<!\[CDATA\[|\]\]>/g, ''))).trim(); // twice: some feeds encode twice (&amp;apos;)
   const tag = (x, n) => dec((x.match(new RegExp(`<${n}[^>]*>([\\s\\S]*?)</${n}>`)) || [])[1]);
   const regions = [];
   for (const [id, label, geo] of [['uae', 'UAE', 'AE'], ['gcc', 'GCC', 'SA'], ['world', 'World', 'US']]) {
