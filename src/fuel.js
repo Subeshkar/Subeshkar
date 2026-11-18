@@ -30,22 +30,33 @@ const when = (v) => v instanceof Date ? v : new Date(String(v || '').replace(' '
 // Read the statement: finds the columns by their names, keeps the fuel purchases.
 export function read(buf) {
   const wb = XLSX.read(buf, { type: 'buffer', cellDates: true });
+  let best = null;
+  // Look at every sheet and keep the one with the most real purchases (a date, a plate, litres and money):
+  // summary sheets (one row per vehicle, no dates) are skipped.
   for (const sn of wb.SheetNames) {
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: true, defval: null });
-    const hi = rows.findIndex((r) => r.some((c) => /plate|vehicle/i.test(String(c))) && r.some((c) => /quantity|litre|liter|volume/i.test(String(c))));
+    const hi = rows.findIndex((r) => r.some((c) => /plate|vehicle/i.test(String(c))) && r.some((c) => /quantity|litre|liter|volume/i.test(String(c))) && r.some((c) => /date/i.test(String(c))));
     if (hi < 0) continue;
     const H = rows[hi].map((c) => String(c || '').toLowerCase()), col = (re, not) => H.findIndex((h) => re.test(h) && !(not && not.test(h)));
-    const c = { date: col(/date/), plate: col(/plate|vehicle/), odo: col(/odometer|odo|km/), type: col(/transaction type|^type$/), prod: col(/product|fuel type|grade/), qty: col(/quantity|litre|liter|volume/), price: col(/unit price|price per|rate/), total: col(/total amount|^total|amount incl/), };
+    const pick = (...res) => { for (const re of res) { const k = col(re); if (k >= 0) return k; } return -1; };
+    const c = { date: col(/date/), plate: col(/plate|vehicle/), odo: pick(/odometer.*(checked|filled|corrected)/, /^odometer$/, /odometer|odo\b/), type: col(/transaction type|^type$/), prod: col(/product|fuel type|grade/), qty: col(/quantity|litre|liter|volume/), price: col(/unit price|price per|^rate$/), total: pick(/total amount/, /amount incl/, /^total$/), };
+    if (c.price < 0 && c.total < 0) continue;
     const out = [];
     rows.slice(hi + 1).forEach((r, i) => {
+      if (!r || !r[c.plate] || /total/i.test(String(r[c.plate]))) return;
       if (c.type >= 0 && r[c.type] && !/purchase|sale|fuel/i.test(String(r[c.type]))) return;
-      const qty = num(r[c.qty]); const k = kind(r[c.prod]); if (!qty || !r[c.plate]) return;
-      const total = c.total >= 0 ? num(r[c.total]) : 0, price = c.price >= 0 ? num(r[c.price]) : total && qty ? total / qty : 0;
-      out.push({ row: hi + 2 + i, at: when(r[c.date]), plate: String(r[c.plate]).trim(), odo: c.odo >= 0 && num(r[c.odo]) ? Math.round(num(r[c.odo])) : 0, product: String(r[c.prod] || ''), kind: k || 'eplus91', qty, price, total: total || qty * price });
+      const at = when(r[c.date]); if (isNaN(at)) return;
+      let qty = num(r[c.qty]); const k = kind(r[c.prod]); if (!qty) return;
+      const total = c.total >= 0 ? num(r[c.total]) : 0; let price = c.price >= 0 ? num(r[c.price]) : 0;
+      if (!price && total) price = total / qty;
+      // litres must match the money: if quantity x price is off from the amount paid by more than 2%, litres = amount / price
+      if (total && price && Math.abs(qty * price - total) / total > 0.02) qty = total / price;
+      out.push({ row: hi + 2 + i, at, plate: String(r[c.plate]).trim(), odo: c.odo >= 0 && num(r[c.odo]) ? Math.round(num(r[c.odo])) : 0, product: String(r[c.prod] || ''), kind: k || 'eplus91', qty, price, total: total || qty * price });
     });
-    if (out.length) return { sheet: sn, rows: out };
+    if (out.length && (!best || out.length > best.rows.length)) best = { sheet: sn, rows: out };
   }
-  throw Object.assign(new Error('Dioma could not find fuel purchases in this file (it needs plate number and quantity columns).'), { status: 400 });
+  if (best) return best;
+  throw Object.assign(new Error('Dioma could not find fuel purchases in this file. It needs a sheet with date, plate number, quantity and price or amount columns.'), { status: 400 });
 }
 
 // The month most of the purchases are in, e.g. "2026-10".
@@ -104,4 +115,19 @@ export function workbook(rows, a, month, baseMonth, base) {
   const wt = XLSX.utils.aoa_to_sheet(T); wt['!cols'] = [18, 14, 12, 10, 12, 10, 16, 16, 16].map((w) => ({ wch: w }));
   XLSX.utils.book_append_sheet(wb, wt, 'Transactions');
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+}
+
+// The grade each litre was really paid as: if the price paid matches the official price of another grade that month
+// (e.g. "E Plus 91" at 4.28 when Special 95 was 4.28), use that grade. `as` forces one grade for everything.
+export function regrade(rows, monthPrices, as) {
+  const notes = [];
+  for (const r of rows) {
+    if (as && LABEL[as]) { r.kind = as; continue; }
+    if (!monthPrices) continue;
+    const own = monthPrices[r.kind];
+    if (own && Math.abs(r.price - own) < 0.015) continue;
+    const hit = Object.keys(LABEL).find((k) => monthPrices[k] && Math.abs(r.price - monthPrices[k]) < 0.015);
+    if (hit) { notes.push(`${r.product || LABEL[r.kind]} at ${r.price} matches the ${LABEL[hit]} price, counted as ${LABEL[hit]}`); r.kind = hit; }
+  }
+  return [...new Set(notes)];
 }
