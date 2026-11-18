@@ -10,8 +10,18 @@ const isOffice = (f) => /\.(docx|pptx)$/i.test(f.name || '') || /wordprocessingm
 export function officeText(f) {
   const buf = Buffer.from(f.data, 'base64');
   if (isSheet(f)) {
-    const wb = XLSX.read(buf, { type: 'buffer', cellDates: true });
-    return wb.SheetNames.slice(0, 12).map((n) => `Sheet "${n}":\n` + XLSX.utils.sheet_to_csv(wb.Sheets[n], { blankrows: false }).split('\n').slice(0, 1500).join('\n')).join('\n\n');
+    const wb = XLSX.read(buf, { type: 'buffer', cellDates: true, cellFormula: true, sheetStubs: true });
+    // Every line starts with its Excel row number (e.g. "12| ...", columns from A), so Dioma can point at and change exact cells.
+    return wb.SheetNames.slice(0, 25).map((n) => {
+      const ws = wb.Sheets[n]; if (!ws || !ws['!ref']) return `Sheet "${n}": (empty)`;
+      const rg = XLSX.utils.decode_range(ws['!ref']), lines = [];
+      const c0 = XLSX.utils.encode_col(rg.s.c);
+      for (let r = rg.s.r; r <= Math.min(rg.e.r, rg.s.r + 4000); r++) {
+        const vals = []; for (let c = rg.s.c; c <= Math.min(rg.e.c, rg.s.c + 60); c++) { const cell = ws[XLSX.utils.encode_cell({ r, c })]; const val = !cell || cell.t === 'z' ? '' : (cell.w ?? cell.v ?? ''); let v = val === '' && cell && cell.f ? '=' + cell.f : val; v = String(v).replace(/\s+/g, ' ').trim(); vals.push(/[",]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v); }
+        while (vals.length && vals[vals.length - 1] === '') vals.pop(); if (vals.length) lines.push(`${r + 1}| ${vals.join(',')}`);
+      }
+      return `Sheet "${n}" (columns start at ${c0}):\n` + lines.join('\n');
+    }).join('\n\n');
   }
   const zip = XLSX.CFB.read(buf, { type: 'buffer' }), get = (p) => { const e = XLSX.CFB.find(zip, '/' + p) || XLSX.CFB.find(zip, p); return e ? Buffer.from(e.content).toString('utf8') : ''; };
   const strip = (x) => x.replace(/<\/w:p>|<\/a:p>/g, '\n').replace(/<w:tab\/>/g, '\t').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/\n{3,}/g, '\n\n').trim();
@@ -45,10 +55,10 @@ If asked what powers you: Dioma is built on Claude by Anthropic.`;
 
 // Stream an answer. write(text) gets each new piece. Returns the full answer.
 // Save a question and an answer made elsewhere (the assistant with mail, WhatsApp and Zoho) into a Dioma AI chat.
-export function save(u, tid, text, reply, write) {
+export function save(u, tid, text, reply, write, files) {
   let t = tid && one('SELECT id FROM ai_threads WHERE id = ? AND user_id = ?', tid, u.id);
   if (!t) { const r = run('INSERT INTO ai_threads (user_id, title, at) VALUES (?, ?, ?)', u.id, text.slice(0, 60) || 'New chat', Date.now()); t = { id: Number(r.lastInsertRowid) }; write({ thread: t.id }); }
-  run('INSERT INTO ai_msgs (thread_id, role, text, at) VALUES (?, ?, ?, ?)', t.id, 'user', text, Date.now());
+  run('INSERT INTO ai_msgs (thread_id, role, text, files, at) VALUES (?, ?, ?, ?, ?)', t.id, 'user', text, (files || []).length ? JSON.stringify(files) : null, Date.now());
   run('INSERT INTO ai_msgs (thread_id, role, text, at) VALUES (?, ?, ?, ?)', t.id, 'assistant', reply, Date.now());
   run('UPDATE ai_threads SET at = ? WHERE id = ?', Date.now(), t.id);
 }
