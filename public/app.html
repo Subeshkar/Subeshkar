@@ -104,6 +104,7 @@ nav.bot .wrap{display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
 .bzh{display:flex;align-items:center;justify-content:space-between;gap:10px}.bzapps{display:flex;gap:6px;flex-wrap:wrap;min-width:0}.bzchip{background:none;cursor:pointer;font:inherit;display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--line);font-size:13px;color:inherit;text-decoration:none;white-space:nowrap}.bzchip.on{background:var(--acc);color:var(--accink);border-color:transparent}.bzchip i{width:7px;height:7px;border-radius:50%;background:#4cc38a}.bzchip.add{border-style:dashed;opacity:.85}.bzic{display:flex;gap:6px;flex:none}.bzbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:16px}.btn.ib{width:40px;height:40px;padding:0;display:inline-flex;align-items:center;justify-content:center}
 .bzst{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}.bzst::-webkit-scrollbar{display:none}.bzst button{flex:1 1 0;min-width:96px}.bzst button{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end;gap:2px;height:76px;padding:9px 12px;border-radius:14px;border:1px solid #2a2a2a;background:none;color:inherit;font:inherit;cursor:pointer;text-align:left;min-width:108px}.bzst button em{font-style:normal;font-size:11px;letter-spacing:.06em;opacity:.65}.bzst button b{font-size:18px;font-weight:600;line-height:1.1;white-space:nowrap}.bzst button span{font-size:12px;opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}.bzst button.hi{background:var(--acc);border-color:transparent;color:var(--accink)}.bzst button.hi em,.bzst button.hi span{opacity:.8}
 .ash-fl{display:flex;gap:6px;flex-wrap:wrap;padding:0 12px}.ash-fl:empty{display:none}#aisheet.drop{outline:2px dashed var(--acc);outline-offset:-6px}
+.ohere{flex-basis:100%;width:100%;grid-column:1/-1;min-width:0}
 .sihot{box-shadow:0 0 0 3px rgba(var(--accrgb),.55)!important}
 @media(max-width:520px){.aiatt span{display:none}.aiatt .ic{margin-right:0!important}}
 .jsec{display:flex;align-items:baseline;gap:8px;padding:18px 0 6px;border-bottom:1px solid var(--line2)}.jsec span{font-weight:600;font-size:15px}.jsec b{color:var(--acc);font-weight:600}.jsec em{font-style:normal;color:var(--dim);font-size:13px;margin-left:auto;text-align:right}
@@ -271,6 +272,17 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<'
 // Text with tappable links (http, www, wa.me, plain domains like nickramil.com)
 const linky = (t) => esc(t).replace(/(?:https?:\/\/|www\.)[^\s<]+|\b[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|ai|ae|life|co|me|app|dev|in|uk|lk|sa|info|biz|link|ly)(?:\/[^\s<]*)?\b/gi, (u, i, all) => { if (/[@\w.\/-]/.test(all[i - 1] || '')) return u; const m = u.match(/^(.*?)([.,;:!?)\]'"]*)$/); const url = m[1], tail = m[2]; if (/@/.test(url)) return u; const href = /^https?:/i.test(url) ? url : 'https://' + url; return `<a class="lnk" href="${href}" target="_blank" rel="noopener noreferrer">${url}</a>${tail}`; });
 document.addEventListener('click', (e) => { if (e.target.closest('a.lnk') && !e.target.closest('.jpan')) e.stopPropagation(); }, true);
+// Stay in Dioma: any web link (news, posts, jobs, profiles, sources, links in AI answers) opens right where you tapped it,
+// signed in as you, instead of a new tab. Meetings, WhatsApp, email, phone and your own files still open normally.
+const STAYOUT = /(^|\.)(meet\.google\.com|zoom\.us|teams\.microsoft\.com|teams\.live\.com|wa\.me|whatsapp\.com|apps\.apple\.com|play\.google\.com)$/i;
+window.addEventListener('click', (e) => {
+  const a = e.target.closest && e.target.closest('a[href]'); if (!a || e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || a.hasAttribute('download') || a.dataset.ext !== undefined) return;
+  let u; try { u = new URL(a.href, location.href); } catch { return; }
+  if (!/^https?:$/.test(u.protocol) || u.origin === location.origin || STAYOUT.test(u.hostname)) return;
+  if (a.target !== '_blank' && !a.classList.contains('lnk')) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  const at = a.closest('.item, .jml, .card, li, p') || a.parentElement || a; openHere(at, u.href, (a.textContent || '').trim().slice(0, 60) || u.hostname);
+}, true);
 const S = { me: null, folder: '', newFolders: [], chat: null, busy: false };
 document.documentElement.dataset.tone = 'sun';
 try { if (localStorage.getItem('dioma-tone') === 'mono') delete document.documentElement.dataset.tone; } catch {}
@@ -474,16 +486,17 @@ function wireTodos(el, after) {
   });
 }
 // "Do it": Dioma finds what this to-do needs and gets the action ready (email, WhatsApp, quote, invoice). You say OK.
-async function todoDo(it, id, text, after, change) {
+async function todoDo(it, id, text, after, change, files) {
   let p = it.nextElementSibling; if (!p || !p.classList.contains('tdp')) { p = document.createElement('div'); p.className = 'tdp card stack'; p.style.margin = '4px 0 10px'; it.after(p); }
   p.innerHTML = '<div class="note tds">Dioma is getting this ready…</div>';
   const tick = setInterval(() => { const w = p.querySelector('.tds'); if (w) w.textContent = ['Reading your mail and WhatsApp…', 'Checking Zoho and your files…', 'Preparing the action…'][Math.floor(Date.now() / 4000) % 3]; }, 1000);
   try {
-    const r = await api('POST', '/api/chat', { text: `Do this to-do for me: "${text}". Find everything it needs (who, which email or chat, numbers) in my mail, WhatsApp, Zoho and files, then prepare the ready-to-send action with your tools (draft_email, draft_whatsapp, draft_quote, draft_invoice) or do it (add_todo, remember). In 2 lines say what you found and what is ready. If it is already done, say so.${change ? ' Change: ' + change : ''}`, page: 'Screen: To-do' });
+    const r = await api('POST', '/api/chat', { text: `Do this to-do for me: "${text}". Find everything it needs (who, which email or chat, numbers) in my mail, WhatsApp, Zoho and files, then prepare the ready-to-send action with your tools (draft_email, draft_whatsapp, draft_quote, draft_invoice) or do it (add_todo, remember). In 2 lines say what you found and what is ready. If it is already done, say so.${change ? ' Change: ' + change : ''}${files && files.length ? ' Use the files I attached.' : ''}`, page: 'Screen: To-do', files: files || [] });
     clearInterval(tick);
-    p.innerHTML = `<div class="md">${md(r.reply)}</div>${(r.cards || []).map((_, j) => `<div data-tdc="${j}"></div>`).join('')}<div class="row" style="gap:6px;flex-wrap:wrap"><input class="field grow" data-tch placeholder="Change something, e.g. make it shorter" style="min-height:40px;min-width:180px"><button type="button" class="btn sm" data-tre>Redo</button><button type="button" class="btn sm pri" data-tok>OK, done</button></div>`;
+    p.innerHTML = `<div class="md">${md(r.reply)}</div>${(r.cards || []).map((_, j) => `<div data-tdc="${j}"></div>`).join('')}<div class="row" style="gap:6px;flex-wrap:wrap"><input class="field grow" data-tch placeholder="Change something, e.g. make it shorter" style="min-height:40px;min-width:180px"><label class="btn sm" style="cursor:pointer" title="Attach files for Dioma to use">Attach<input type="file" data-tatt multiple hidden></label><button type="button" class="btn sm" data-tre>Redo</button><button type="button" class="btn sm pri" data-tok>OK, done</button></div>`;
     p.querySelectorAll('[data-tdc]').forEach((el) => sendCard(el, r.cards[+el.dataset.tdc]));
-    p.querySelector('[data-tre]').onclick = () => todoDo(it, id, text, after, p.querySelector('[data-tch]').value.trim());
+    p.querySelector('[data-tre]').onclick = () => todoDo(it, id, text, after, p.querySelector('[data-tch]').value.trim(), p._files);
+    p.querySelector('[data-tatt]').onchange = async (ev) => { p._files = p._files || []; for (const f of ev.target.files) p._files.push(...(await aiPrep(f))); toast(p._files.length + ' file' + (p._files.length > 1 ? 's' : '') + ' added. Tap Redo.'); };
     p.querySelector('[data-tch]').onkeydown = (ev) => { if (ev.key === 'Enter') p.querySelector('[data-tre]').click(); };
     p.querySelector('[data-tok]').onclick = async () => { await api('PATCH', `/api/todos/${id}`, { done: true }).catch((x) => toast(x.message)); p.remove(); it.classList.add('done'); toast('Done'); setTimeout(after, 350); };
   } catch (x) { clearInterval(tick); p.innerHTML = `<p class="err">${esc(x.message)}</p><button type="button" class="btn sm" data-tre>Try again</button>`; p.querySelector('[data-tre]').onclick = () => todoDo(it, id, text, after, change); }
