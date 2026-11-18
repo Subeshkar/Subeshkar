@@ -83,19 +83,26 @@ async function vatId(uid, oid) {
 export async function createInvoice(uid, b) {
   const oid = await org(uid); if (!oid) throw new Error('Zoho Books has no organization yet.');
   let cid = String(b.customer_id || '');
-  if (!cid) { const c = await customers(uid, b.customer); if (!c.length) throw Object.assign(new Error(`No customer called "${b.customer}" in Zoho Books. Add them in Zoho Books first, or check the name.`), { status: 404 }); if (c.length > 1 && c[0].score === c[1].score) throw Object.assign(new Error('Pick the customer'), { status: 409, choices: c }); cid = c[0].id; }
+  const quote = b.kind === 'quote', what = quote ? 'quote' : 'invoice';
+  if (!cid) { const c = await customers(uid, b.customer);
+    if (!c.length && quote && b.customer) { // a new prospect: add them to Zoho Books so the quote can be made
+      const tc = await pickTool(/^ZOHO_BOOKS_CREATE_(A_)?CONTACT$/) || await pickTool(/CREATE_(A_)?CONTACT$|CREATE_CUSTOMER$/);
+      if (tc) { const d = await A.runFill(uid, tc, { 'organization_id': oid, 'contact_name': String(b.customer).slice(0, 100), 'company_name': String(b.customer).slice(0, 100), 'contact_type': 'customer', ...(b.email ? { 'contact_persons': [{ email: String(b.email), is_primary_contact: true }] } : {}) }).catch(() => null); const ct = d?.data?.contact || d?.contact || d?.data || {}; if (ct.contact_id) { cid = String(ct.contact_id); C.delete(uid + ':all'); } }
+    }
+    if (!cid && !c.length) throw Object.assign(new Error(`No customer called "${b.customer}" in Zoho Books. Add them in Zoho Books first, or check the name.`), { status: 404 }); if (c.length > 1 && c[0].score === c[1].score) throw Object.assign(new Error('Pick the customer'), { status: 409, choices: c }); cid = c[0].id; }
   const tax = b.vat === false ? '' : await vatId(uid, oid);
   const items = (b.items || []).slice(0, 30).map((x) => ({ name: String(x.name || 'Service').slice(0, 100), description: String(x.description || '').slice(0, 1000), rate: Number(x.rate) || 0, quantity: Number(x.quantity) || 1, ...(tax ? { tax_id: tax } : {}) }));
-  if (!items.length || !items.some((x) => x.rate)) throw Object.assign(new Error('The invoice has no amounts.'), { status: 400 });
-  const t = await pickTool(/^ZOHO_BOOKS_CREATE_INVOICE$/) || await pickTool(/CREATE_INVOICE$/); if (!t) throw new Error('Creating invoices is not available for this Zoho Books connection yet.');
+  if (!items.length || !items.some((x) => x.rate)) throw Object.assign(new Error(`The ${what} has no amounts.`), { status: 400 });
+  const t = quote ? (await pickTool(/^ZOHO_BOOKS_CREATE_(AN_)?ESTIMATE$/) || await pickTool(/CREATE.*(ESTIMATE|QUOTE)/)) : (await pickTool(/^ZOHO_BOOKS_CREATE_INVOICE$/) || await pickTool(/CREATE_INVOICE$/)); if (!t) throw new Error(`Creating ${what}s is not available for this Zoho Books connection yet.`);
   const d = await A.runFill(uid, t, { 'organization_id': oid, 'customer_id': cid, 'line_items': items, 'date': b.date || new Date().toISOString().slice(0, 10), 'notes': String(b.notes || '').slice(0, 2000), 'reference_number': String(b.reference || '').slice(0, 50) });
-  const inv = d?.data?.invoice || d?.invoice || d?.data || d || {};
+  const inv = d?.data?.invoice || d?.invoice || d?.data?.estimate || d?.estimate || d?.data || d || {};
   C.delete(uid + ':all');
-  return { id: String(inv.invoice_id || ''), no: inv.invoice_number || '', total: num(inv.total), cur: inv.currency_code || 'AED', taxed: !!tax, customerId: cid, email: inv.email || '' };
+  return { id: String(inv.invoice_id || inv.estimate_id || ''), no: inv.invoice_number || inv.estimate_number || '', total: num(inv.total), cur: inv.currency_code || 'AED', taxed: !!tax, customerId: cid, email: inv.email || '' };
 }
-export async function emailInvoice(uid, id, to, cc, subject, body) {
-  const oid = await org(uid); const t = await pickTool(/^ZOHO_BOOKS_EMAIL_(AN_)?INVOICE$/) || await pickTool(/EMAIL.*INVOICE/); if (!t) throw new Error('Emailing invoices from Zoho Books is not available yet. Send it from Zoho Books.');
+export async function emailInvoice(uid, id, to, cc, subject, body, kind) {
+  const quote = kind === 'quote';
+  const oid = await org(uid); const t = quote ? (await pickTool(/^ZOHO_BOOKS_EMAIL_(AN_)?ESTIMATE$/) || await pickTool(/EMAIL.*(ESTIMATE|QUOTE)/)) : (await pickTool(/^ZOHO_BOOKS_EMAIL_(AN_)?INVOICE$/) || await pickTool(/EMAIL.*INVOICE/)); if (!t) throw new Error(`Emailing ${quote ? 'quotes' : 'invoices'} from Zoho Books is not available yet. Send it from Zoho Books.`);
   const list = (s) => String(s || '').split(/[,;\s]+/).filter((e) => /@/.test(e));
-  await A.runFill(uid, t, { 'organization_id': oid, 'invoice_id': id, 'to_mail_ids': list(to), 'cc_mail_ids': list(cc), 'subject': subject || '', 'body': body || '', 'send_from_org_email_id': false });
+  await A.runFill(uid, t, { 'organization_id': oid, [quote ? 'estimate_id' : 'invoice_id']: id, 'to_mail_ids': list(to), 'cc_mail_ids': list(cc), 'subject': subject || '', 'body': body || '', 'send_from_org_email_id': false });
   C.delete(uid + ':all'); return { ok: true };
 }
