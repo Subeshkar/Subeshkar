@@ -22,11 +22,15 @@ export async function claude({ system, messages, tools, max_tokens = 1200, model
 export const WRITER = () => process.env.DIOMA_WRITE_MODEL || 'claude-opus-5-5';
 
 export async function converse({ system, messages, tools, handlers, maxTurns = 8 }) {
+  tools = [...(tools || [])];
   const msgs = [...messages];
   const actions = [];
   for (let i = 0; i < maxTurns; i++) {
-    const res = await claude({ system, messages: msgs, tools, max_tokens: 2500 });
+    let res;
+    try { res = await claude({ system, messages: msgs, tools, max_tokens: 2500 }); }
+    catch (e) { if (!tools.some((t) => t.type)) throw e; tools = tools.filter((t) => !t.type); res = await claude({ system, messages: msgs, tools, max_tokens: 2500 }); } // web search not available: carry on without it
     if ((res.content || []).length) msgs.push({ role: 'assistant', content: res.content });
+    if (res.stop_reason === 'pause_turn') continue; // a long web search: let it carry on
     const uses = (res.content || []).filter((b) => b.type === 'tool_use');
     if (res.stop_reason !== 'tool_use' || !uses.length) {
       const text = (res.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
