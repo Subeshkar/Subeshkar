@@ -170,6 +170,7 @@ nav.bot a.on svg{stroke:var(--acc)}
 .sec{display:grid;gap:10px;margin-top:26px}
 .list{border-top:1px solid var(--line)}
 .item{display:flex;gap:12px;align-items:flex-start;padding:13px 0;border-bottom:1px solid var(--line);min-width:0}
+button.item{appearance:none;-webkit-appearance:none;background:transparent;border:0;border-bottom:1px solid var(--line);border-radius:0;font:inherit;color:inherit;cursor:pointer;text-align:left;width:100%}button.item:hover{background:rgba(255,255,255,.03)}button.item .s{display:block;margin-top:3px}
 .item .t{font-size:15px;overflow-wrap:anywhere}
 .item .s{font-size:13px;color:var(--dim);overflow-wrap:anywhere}
 .when{font-family:var(--mono);font-size:12px;color:var(--dim);width:54px;flex:none;padding-top:2px}
@@ -806,7 +807,7 @@ function drawNav() {
   const top = n.top.filter((k) => KEYS.includes(k));
   // Top bar: the items that fit in one row, never scrolling. The rest open in a drop-down panel under "More ▾".
   // The open screen always stays visible in the row. Change what goes where under More > Customize your bars.
-  const cols = innerWidth < 520 ? 5 : innerWidth < 820 ? 7 : 9;
+  const cols = innerWidth < 520 ? 5 : 7; // phone: 4 + More; tablet and laptop: 6 + More
   let show = top, rest = [];
   if (top.length > cols) { show = top.slice(0, cols - 1); if (top.includes(v) && !show.includes(v)) show[show.length - 1] = v; rest = top.filter((k) => !show.includes(k)); }
   const tg = rest.length ? `<button type="button" class="ntg${NAVOPEN ? ' on' : ''}" id="ntg" aria-expanded="${NAVOPEN}"><svg viewBox="0 0 24 24"><path d="${NAVOPEN ? 'm6 15 6-6 6 6' : 'm6 9 6 6 6-6'}"/></svg>More${rest.some((k) => BADGE[k]) ? '<b class="bdg">•</b>' : ''}</button>` : '';
