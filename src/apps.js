@@ -244,7 +244,16 @@ export async function zohoMessage(uid, mid, trace = []) {
   const order = [known, ...fl.filter((f) => /inbox/.test(f.type)).map((f) => f.id), ...fl.filter((f) => /sent/.test(f.type)).map((f) => f.id), ...fl.map((f) => f.id)].filter(Boolean);
   const tries = [...new Set(order)].slice(0, 8); if (!tries.length) trace.push('no folders found');
   const got = (r) => { const d = r?.data?.data ?? r?.data ?? r; const c = d?.content ?? d?.data?.content ?? d?.body ?? d?.html; return typeof c === 'string' ? c : null; };
-  const attsOf = async (fid, base) => { try { const a = base == null ? null : await proxy(uid, 'zoho_mail', { endpoint: `${base}/api/accounts/${acc.id}/folders/${fid}/messages/${mid}/attachmentinfo` }); return ((a?.data?.attachments) || a?.attachments || []).map((x) => ({ id: String(x.attachmentId), name: x.attachmentName || 'file', size: x.attachmentSize || 0 })); } catch (e) { trace.push('attachmentinfo: ' + e.message.slice(0, 120)); return []; } };
+  // The attachment list: Zoho's own tool first, then Zoho's API (the address that worked, or each region).
+  const attsOf = async (fid, base) => {
+    const norm = (list) => (list || []).map((x) => ({ id: String(x.attachmentId || x.attachment_id || x.id || ''), name: x.attachmentName || x.fileName || x.name || 'file', size: x.attachmentSize || x.size || 0 })).filter((x) => x.id);
+    const lt = (await zohoTools(uid)).find((t) => /ATTACH.*(INFO|LIST|DETAIL)|LIST.*ATTACH/.test(t));
+    if (lt) { try { const d = await runFill(uid, lt, { 'account_id|accountId': acc.id, 'folder_id|folderId': fid, 'message_id|messageId': mid }); const dd = d?.data?.data ?? d?.data ?? d; const l = norm(dd?.attachments || firstArray(dd)); if (l.length) return l; } catch (e) { trace.push(lt + ': ' + e.message.slice(0, 120)); } }
+    for (const b of [...new Set([base, ZBASE.get(uid), '', 'https://mail.zoho.com', 'https://mail.zoho.eu', 'https://mail.zoho.in'].filter((x) => x != null))]) {
+      try { const a = await proxy(uid, 'zoho_mail', { endpoint: `${b}/api/accounts/${acc.id}/folders/${fid}/messages/${mid}/attachmentinfo` }); const l = norm(a?.data?.attachments || a?.attachments); ZBASE.set(uid, b); return l; } catch (e) { trace.push(`attachmentinfo ${b || 'conn'}: ` + e.message.slice(0, 100)); }
+    }
+    return [];
+  };
   // 1. Zoho's own tool for an email's content (never the attachment tool).
   const tools = await zohoTools(uid), ct = tools.find((t) => /MESSAGE.*CONTENT|CONTENT.*MESSAGE|EMAIL.*CONTENT|GET.*MESSAGE.*(BODY|DETAIL)/.test(t) && !/ATTACH/.test(t));
   if (ct) for (const fid of tries.slice(0, 4)) {
@@ -265,3 +274,19 @@ export async function zohoMessage(uid, mid, trace = []) {
   return null;
 }
 const ZBASE = new Map();
+
+// Download one Zoho attachment: Zoho's own tool (it hands back a file link), then Zoho's API.
+const fileIn = (o, d = 0) => { if (!o || d > 5) return null; if (typeof o === 'string') return null; for (const k of ['s3url', 's3_url', 'url', 'downloadUrl', 'download_url', 'file_url']) if (typeof o[k] === 'string' && /^https?:\/\//.test(o[k])) return { url: o[k] }; for (const k of ['content', 'base64', 'file_content', 'data']) if (typeof o[k] === 'string' && o[k].length > 100) return { b64: o[k] }; for (const v of Object.values(o)) if (v && typeof v === 'object') { const r = fileIn(v, d + 1); if (r) return r; } return null; };
+export async function zohoAttachment(uid, mid, att) {
+  mid = String(mid).replace(/^zm:/, ''); const tr = []; const z = await zohoMessage(uid, mid, tr); const acc = await zohoAccount(uid); const fid = z?.fid || ZMF.get(uid + ':' + mid) || '';
+  const toBuf = async (f) => { if (!f) return null; if (f.url) { const x = await fetch(f.url); return Buffer.from(await x.arrayBuffer()); } return Buffer.from(f.b64, 'base64'); };
+  const t = (await zohoTools(uid)).find((x) => /ATTACHMENT.*(DOWNLOAD|CONTENT|GET)|DOWNLOAD.*ATTACHMENT|GET.*ATTACHMENT/.test(x) && !/INFO|LIST/.test(x));
+  if (t) { try { const d = await runFill(uid, t, { 'account_id|accountId': acc.id, 'folder_id|folderId': fid, 'message_id|messageId': mid, 'attachment_id|attachmentId': att }); const b = await toBuf(fileIn(d)); if (b && b.length) return b; tr.push(t + ': no file in ' + JSON.stringify(d).slice(0, 160)); } catch (e) { tr.push(t + ': ' + e.message.slice(0, 160)); } }
+  for (const b of [...new Set([z?.base, ZBASE.get(uid), '', 'https://mail.zoho.com', 'https://mail.zoho.eu', 'https://mail.zoho.in'].filter((x) => x != null))]) {
+    try { const r = await proxy(uid, 'zoho_mail', { endpoint: `${b}/api/accounts/${acc.id}/folders/${fid}/messages/${mid}/attachments/${att}` }); const f = typeof r === 'string' ? { raw: r } : fileIn(r) || (r?.type === 'Buffer' ? { arr: r.data } : null);
+      const buf = f?.raw ? Buffer.from(f.raw, /^[A-Za-z0-9+/=\s]+$/.test(f.raw.slice(0, 200)) ? 'base64' : 'latin1') : f?.arr ? Buffer.from(f.arr) : await toBuf(f); if (buf && buf.length) return buf; tr.push(`api ${b || 'conn'}: no file`); }
+    catch (e) { tr.push(`api ${b || 'conn'}: ` + e.message.slice(0, 120)); }
+  }
+  console.error('zoho attachment failed', mid, att, tr.join(' | ').slice(0, 1200));
+  return null;
+}
