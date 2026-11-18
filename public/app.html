@@ -115,6 +115,10 @@ nav.bot .wrap{display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
 .wst{cursor:pointer;background:transparent;color:var(--fg);font:inherit;border:1px solid var(--line2);border-radius:12px;padding:8px 6px;text-align:center;display:flex;flex-direction:column;gap:2px}
 .wst b{font-size:17px;font-weight:600;line-height:1.1}.wst span{font-size:10.5px;color:var(--dim);line-height:1.2}
 .wst.hi{background:var(--acc);border-color:var(--acc)}.wst.hi b,.wst.hi span{color:var(--accink)}
+/* Stat tiles: one small line you can swipe, never a second row */
+.wstats,#mst.wstats,#wst.wstats,#cst.wstats{display:flex!important;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:6px}.wstats::-webkit-scrollbar{display:none}
+.wstats .wst,#mst .wst,#wst .wst{flex:1 0 auto;min-width:0;flex-direction:row;align-items:baseline;justify-content:center;gap:6px;padding:6px 12px;border-radius:999px;white-space:nowrap}
+.wstats .wst b{font-size:14px}.wstats .wst span{font-size:12px}
 .wtabs{display:grid;grid-template-columns:repeat(3,1fr);border-radius:12px}.wtabs button{border-radius:9px}.seg.wtabs button.on{background:var(--acc);color:var(--accink)}.wtabs button{padding:10px 6px;font-size:14px}
 .wfil{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;background:#0b0b0b;border-radius:12px;padding:4px}.wfil::-webkit-scrollbar{display:none}#mfl.wfil{flex-wrap:wrap}
 .wfil button{flex:none;border:0;background:transparent;color:var(--fg);padding:8px 12px;border-radius:9px;font:500 13.5px var(--sans);cursor:pointer;white-space:nowrap}
