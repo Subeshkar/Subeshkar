@@ -200,6 +200,8 @@ export const markRead = (uid, jid) => run('UPDATE wa_chats SET unread = 0 WHERE 
 export async function react(uid, jid, id, emoji) {
   const st = S.get(uid);
   if (!st || st.status !== 'open') throw Object.assign(new Error('WhatsApp is not connected right now.'), { status: 409 });
+  // no message picked (a 👍 from the chat list): react to their latest message in this chat
+  if (!id) { const js = typeof twins === 'function' ? twins(uid, jid) : [jid]; const l = one(`SELECT id, jid FROM wa_messages WHERE user_id = ? AND jid IN (${js.map(() => '?').join(',')}) AND from_me = 0 ORDER BY at DESC LIMIT 1`, uid, ...js); if (!l) throw Object.assign(new Error('No message from them to react to yet.'), { status: 404 }); id = l.id; jid = l.jid; }
   const m = one('SELECT from_me, participant FROM wa_messages WHERE user_id = ? AND jid = ? AND id = ?', uid, jid, id);
   if (!m) throw Object.assign(new Error('Message not found.'), { status: 404 });
   const key = { remoteJid: jid, id, fromMe: !!m.from_me }; if (m.participant) key.participant = m.participant;
