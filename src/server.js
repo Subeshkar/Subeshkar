@@ -37,6 +37,8 @@ const DEV = process.env.DIOMA_DEV === '1';
 const SECRET = process.env.APP_SECRET || '';
 if (SECRET.length < 24) { console.error('APP_SECRET must be set (24+ characters).'); process.exit(1); }
 const CAP = Number(process.env.AI_DAILY_CAP || 30);         // AI asks per user per day
+// No daily limit for the owner (and any email listed in AI_UNLIMITED).
+const capOf = (u) => O.isOwner(u) || String(process.env.AI_UNLIMITED || '').toLowerCase().split(/[\s,]+/).includes(String(u?.email || '').toLowerCase()) ? 1e9 : CAP;
 const MAX_USERS = Number(process.env.MAX_USERS || 100);     // early-access seats; beyond this, waitlist
 const FILE_MAX = 100 * 1024 * 1024, QUOTA = 1024 * 1024 * 1024;
 const DAY = 864e5;
@@ -488,7 +490,7 @@ on('GET', '/api/me', (req, res, u) => {
   const g = one(`SELECT account FROM connections WHERE user_id = ? AND kind = 'google'`, u.id);
   const used = one('SELECT COALESCE(SUM(size),0) s FROM files WHERE user_id = ?', u.id).s;
   send(res, 200, { email: u.email, name: u.name, about: u.about, role: u.role, tz: u.tz, onboarded: !!u.onboarded, plan: u.plan,
-    owner: O.isOwner(u), ownerPath: O.isOwner(u) ? '/' + O.ownerSlug() : null, voice: V.enabled(), whatsapp: W.status(u.id).status, nav: navOf(u), mailbox: M.account(u.id), google: g ? { account: g.account } : null, googleAvailable: G.enabled(), ai: { used: usedToday(u), cap: CAP, live: !!process.env.ANTHROPIC_API_KEY }, storage: { used, quota: QUOTA } });
+    owner: O.isOwner(u), ownerPath: O.isOwner(u) ? '/' + O.ownerSlug() : null, voice: V.enabled(), whatsapp: W.status(u.id).status, nav: navOf(u), mailbox: M.account(u.id), google: g ? { account: g.account } : null, googleAvailable: G.enabled(), ai: { used: usedToday(u), cap: capOf(u), live: !!process.env.ANTHROPIC_API_KEY }, storage: { used, quota: QUOTA } });
 });
 on('POST', '/api/me', async (req, res, u) => {
   const b = await json(req);
@@ -553,7 +555,7 @@ on('DELETE', '/api/todos/:id', (req, res, u, p) => { const t = one('SELECT ref F
 on('POST', '/api/todos/clear-auto', (req, res, u) => { for (const t of all("SELECT ref FROM todos WHERE user_id = ? AND done = 0 AND source IN ('whatsapp','mail','calendar','zoho books','zoho crm')", u.id)) AT.handled(u.id, t.ref); const r = run("DELETE FROM todos WHERE user_id = ? AND done = 0 AND source IN ('whatsapp','mail','calendar','zoho books','zoho crm')", u.id); send(res, 200, { removed: Number(r.changes || 0) }); });
 
 // Ask (chat)
-on('GET', '/api/chat', (req, res, u) => send(res, 200, { messages: all('SELECT role, text, at FROM chats WHERE user_id = ? ORDER BY id DESC LIMIT 40', u.id).reverse(), used: usedToday(u), cap: CAP }));
+on('GET', '/api/chat', (req, res, u) => send(res, 200, { messages: all('SELECT role, text, at FROM chats WHERE user_id = ? ORDER BY id DESC LIMIT 40', u.id).reverse(), used: usedToday(u), cap: capOf(u) }));
 on('DELETE', '/api/chat', (req, res, u) => { run('DELETE FROM chats WHERE user_id = ?', u.id); send(res, 200, { ok: true }); });
 // Files sent to the assistant (like Claude): photos and PDFs go in as they are, Excel / Word / PowerPoint / CSV / text as text,
 // fuel statements are kept so the fuel_surcharge tool can work on them.
@@ -578,7 +580,7 @@ on('POST', '/api/chat', async (req, res, u) => {
   const b = await json(req, 30 * 1024 * 1024); const files = (Array.isArray(b.files) ? b.files : []).filter((f) => f && typeof f.data === 'string' && f.data.length < 14e6);
   const q = String(b.text || '').trim().slice(0, 20000) || (files.length ? 'Please look at this.' : '');
   if (!q) return fail(res, 400, 'Ask something first.');
-  if (usedToday(u) >= CAP) return fail(res, 429, `You've used today's ${CAP} asks. They refresh tomorrow.`);
+  if (usedToday(u) >= capOf(u)) return fail(res, 429, `You've used today's ${CAP} asks. They refresh tomorrow.`);
   if (limited('chat:' + u.id, 8, 60e3)) return fail(res, 429, 'One moment, too many at once.');
   const history = chatHistory(u);
   const ctx = await context(u);
@@ -594,7 +596,7 @@ on('POST', '/api/chat', async (req, res, u) => {
     run('INSERT INTO chats (user_id, role, text, at) VALUES (?, ?, ?, ?)', u.id, 'user', q + (files.length ? '\n[Files: ' + files.map((f) => f.name).join(', ') + ']' : ''), now());
     run('INSERT INTO chats (user_id, role, text, at) VALUES (?, ?, ?, ?)', u.id, 'assistant', reply, now());
     const cards = out.actions.filter((a) => a.result && a.result.card).map((a) => a.result);
-    send(res, 200, { reply, cards, changed: out.actions.some((a) => /todo/.test(a.tool)), used: usedToday(u), cap: CAP });
+    send(res, 200, { reply, cards, changed: out.actions.some((a) => /todo/.test(a.tool)), used: usedToday(u), cap: capOf(u) });
   } catch (e) {
     console.error('chat', e.message);
     send(res, 502, { error: /credit balance|billing|quota/i.test(e.message || '') ? 'Dioma\'s AI credit has run out, so it is paused. Top up the AI credit to continue.' : 'Dioma could not answer just now. Please try again in a moment.' + (e.status ? ' (' + e.status + ')' : '') });
@@ -609,7 +611,7 @@ on('POST', '/api/ai/ask', async (req, res, u) => {
   const b = JSON.parse((await readBody(req, 25 * 1024 * 1024)).toString('utf8') || '{}');
   const text = String(b.text || '').trim().slice(0, 20000), files = (Array.isArray(b.files) ? b.files : []).slice(0, 12).filter((f) => f && typeof f.data === 'string' && f.data.length < 14e6);
   if (!text && !files.length) return fail(res, 400, 'Ask something first.');
-  if (limited('aiask:' + u.id, Number(process.env.AI_CHAT_CAP || 150), 864e5)) return fail(res, 429, 'You have used today\'s Dioma AI questions. They refresh tomorrow.');
+  if (capOf(u) < 1e9 && limited('aiask:' + u.id, Number(process.env.AI_CHAT_CAP || 150), 864e5)) return fail(res, 429, 'You have used today\'s Dioma AI questions. They refresh tomorrow.');
   res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store', 'x-accel-buffering': 'no' });
   const write = (o) => res.write(JSON.stringify(o) + '\n');
   // Questions about their own email, WhatsApp, calendar, Zoho or to-dos go to the assistant that can open them.
@@ -1378,7 +1380,7 @@ W.onSelfMessage(async (uid, jid, text) => {
       }
       return await W.sendSelf(uid, jid, done.join('\n'));
     }
-    if (usedToday(u) >= CAP) return await W.sendSelf(uid, jid, `You've used today's ${CAP} asks. They refresh tomorrow.`);
+    if (usedToday(u) >= capOf(u)) return await W.sendSelf(uid, jid, `You've used today's ${CAP} asks. They refresh tomorrow.`);
     const r = await askDioma(u, text.slice(0, 4000), 'whatsapp');
     if (r.cards.length) PENDING.set(uid, { cards: r.cards, at: Date.now() }); else PENDING.delete(uid);
     await W.sendSelf(uid, jid, waFmt(r.reply));
