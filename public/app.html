@@ -235,7 +235,7 @@ function setTone(t) {
   document.querySelectorAll('#tone button').forEach((b) => b.classList.toggle('on', b.dataset.t === t));
 }
 document.addEventListener('click', (e) => { const b = e.target.closest('.tg [data-tone]'); if (b) setTone(b.dataset.tone); });
-const ITEMS = [['home','Home','home'],['ai','Dioma AI','ai'],['todo','To-do','todo'],['wa','WhatsApp','wa'],['social','Social','social'],['mail','Mail','mail'],['cal','Calendar','cal'],['act','Activity','act'],['wealth','Wealth','wealth'],['biz','Business','biz'],['career','Career','career'],['grow','Grow','grow'],['network','Network','network'],['pulse','Pulse','pulse'],['learn','Learn AI','learn'],['plan','Master Plan','plan'],['money','Money','money'],['lab','AI Horizon','lab'],['ask','Assistant','ai'],['files','Files','files'],['browser','Browser','browser'],['me','Me','me']];
+const ITEMS = [['home','Home','home'],['ai','Dioma AI','ai'],['todo','To-do','todo'],['wa','WhatsApp','wa'],['social','Social','social'],['mail','Mail','mail'],['cal','Calendar','cal'],['act','Activity','act'],['wealth','Wealth','wealth'],['biz','Business','biz'],['career','Career','career'],['grow','Grow','grow'],['network','Network','network'],['pulse','Pulse','pulse'],['learn','Learn AI','learn'],['plan','Master Plan','plan'],['money','Money','money'],['lab','AI Horizon','lab'],['files','Files','files'],['browser','Browser','browser'],['me','Me','me']];
 const KEYS = ITEMS.map((i) => i[0]);
 const LABEL = Object.fromEntries(ITEMS.map((i) => [i[0], i[1]])), ICON = Object.fromEntries(ITEMS.map((i) => [i[0], i[2]]));
 const DEF_NAV = { top: ['todo','wa','social','mail','cal','act','biz','ask'], bottom: ['home','ai','wealth','files','me'] };
@@ -263,7 +263,8 @@ async function api(method, url, body, raw) {
 function toast(t) { document.querySelectorAll('.toast').forEach((x) => x.remove()); const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 2600); }
 const route = () => {
   const h = location.hash.slice(1); const [p, q] = h.split('?'); let [v, sub] = p.split('/');
-  if (v === 'assistant') v = sub ? ({ me: 'todo', ai: 'ask' }[sub] || sub) : 'todo';
+  if (v === 'assistant') v = sub ? ({ me: 'todo', ai: 'ai' }[sub] || sub) : 'todo';
+  if (v === 'ask') v = 'ai'; // the Assistant is now part of Dioma AI (it reads mail, WhatsApp, calendar and Zoho there)
   if (!KEYS.includes(v) && v !== 'more') v = 'home';
   return { view: v, q: new URLSearchParams(q || '') };
 };
@@ -1258,7 +1259,7 @@ function drawBz() {
 
 // ---------- helpers for the Dioma Live sections ----------
 const aiAsk = (prompt) => aiw('ask', prompt);
-const askIn = (text) => { location.hash = '#ask'; setTimeout(() => { const q = $('#q'); if (q) { q.value = text; q.focus(); } }, 450); };
+const askIn = (text) => { location.hash = '#ai'; setTimeout(() => { const q = $('#aiq'); if (q) { q.value = text; q.focus(); } }, 700); };
 const addTodo = (text, due) => api('POST', '/api/todos', { text: String(text).slice(0, 300), due: due || '' }).catch(() => {});
 const uidS = () => Math.random().toString(36).slice(2, 10);
 const twoTap = (b, label, fn) => { b.onclick = async () => { if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = 'Tap again to ' + label.toLowerCase(); return; } b.disabled = true; try { await fn(); } catch (x) { toast(x.message); b.disabled = false; b.dataset.sure = ''; b.textContent = label; } }; };
@@ -1847,9 +1848,9 @@ async function viewMail() {
   $('#mref').addEventListener('click', load);
   MREF = load;
   $('#mlist').addEventListener('click', (e) => { const t = e.target.closest('[data-mdone]'); if (t) { e.stopPropagation(); return mailDone(+t.dataset.mdone); } if (e.target.closest('.mexp')) return; const r = e.target.closest('[data-mi]'); if (r) mailOpen(+r.dataset.mi); });
-  const mcRun = (t) => { t = String(t || '').trim(); if (!t) return; if (/pay|invoice|owe|owing|due|collect|receivable|follow ?up/i.test(t)) return payFollow($('#mcout')); location.hash = '#ask'; setTimeout(() => { const q = $('#q'); if (q) { q.value = t; q.focus(); } }, 450); };
+  const mcRun = (t) => { t = String(t || '').trim(); if (!t) return; if (/pay|invoice|owe|owing|due|collect|receivable|follow ?up/i.test(t)) return payFollow($('#mcout')); location.hash = '#ai'; setTimeout(() => { const q = $('#aiq'); if (q) { q.value = t; q.focus(); } }, 700); };
   $('#mcmd').onsubmit = (e) => { e.preventDefault(); mcRun($('#mcq').value); };
-  $('#mai').addEventListener('click', () => { location.hash = '#ask'; setTimeout(() => { const q = $('#q'); if (q) { q.value = 'Go through my email: which ones need my reply today, and draft short replies for the top 3.'; q.focus(); } }, 400); });
+  $('#mai').addEventListener('click', () => { location.hash = '#ai'; setTimeout(() => { const q = $('#aiq'); if (q) { q.value = 'Go through my email: which ones need my reply today, and draft short replies for the top 3.'; q.focus(); } }, 700); });
   const addBox = () => { $('#maddbox').innerHTML = `<section class="sec"><h2>Add another mailbox</h2>${mailChooser()}</section>`; wireChooser(); $('#maddbox').scrollIntoView({ behavior: 'smooth' }); };
   $('#madd').addEventListener('click', addBox);
   $('#mmore').addEventListener('click', () => {
@@ -1882,7 +1883,7 @@ async function mailOpen(i) {
     <input class="field" data-mto value="${esc(to)}" placeholder="To">
     <textarea class="field" rows="5" placeholder="Your reply…" data-draft="mail:${esc(m.id)}"></textarea>
     <div class="row" style="gap:6px"><input class="field grow" data-mins placeholder="Tell AI what to say, e.g. yes, freezer confirmed for 8am" style="min-height:40px"><button class="btn sm" data-mx="write">Write</button></div>
-    <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm" data-mx="reply">AI reply</button><button class="btn sm" data-mx="fix"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/></svg>Fix</button><button class="btn sm" data-emo title="Emoji" aria-label="Emoji"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M8.5 14.5s1.3 1.8 3.5 1.8 3.5-1.8 3.5-1.8M9 9.5h.01M15 9.5h.01"/></svg></button><label class="btn sm" style="cursor:pointer"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7.1-7.1l8.6-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/></svg>Attach<input type="file" data-mfile multiple hidden></label><button class="btn sm pri" data-mx="send">Send</button><button class="btn sm" data-mx="done">✓ Done</button>${MACC === 'gmail' && m.thread ? `<a class="btn sm" href="https://mail.google.com/mail/u/0/#all/${esc(m.thread)}" target="_blank" rel="noopener">Open in Gmail ↗</a>` : ''}</div>
+    <div class="row" style="gap:6px;flex-wrap:wrap"><button type="button" class="btn sm" data-askai title="Ask Dioma about this"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/></svg>Ask AI</button><button class="btn sm" data-mx="reply">AI reply</button><button class="btn sm" data-mx="fix"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/></svg>Fix</button><button class="btn sm" data-emo title="Emoji" aria-label="Emoji"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M8.5 14.5s1.3 1.8 3.5 1.8 3.5-1.8 3.5-1.8M9 9.5h.01M15 9.5h.01"/></svg></button><label class="btn sm" style="cursor:pointer"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7.1-7.1l8.6-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/></svg>Attach<input type="file" data-mfile multiple hidden></label><button class="btn sm pri" data-mx="send">Send</button><button class="btn sm" data-mx="done">✓ Done</button>${MACC === 'gmail' && m.thread ? `<a class="btn sm" href="https://mail.google.com/mail/u/0/#all/${esc(m.thread)}" target="_blank" rel="noopener">Open in Gmail ↗</a>` : ''}</div>
     <div class="note" data-mfiles></div>${canSend ? '' : '<p class="note">Sending from this mailbox is not available yet. AI can still write the reply for you to copy.</p>'}`;
   const top = ($('#tabs') ? $('#tabs').getBoundingClientRect().bottom : 0) + 6; window.scrollBy({ top: row.getBoundingClientRect().top - top, behavior: 'smooth' });
   const files = [];
@@ -1894,6 +1895,7 @@ async function mailOpen(i) {
   const ta = box.querySelector('textarea');
   box.querySelector('[data-mfile]').onchange = async (ev) => { const fl = [...ev.target.files]; ev.target.value = ''; for (const f of fl) { if (f.size > 15 * 1048576) { toast(f.name + ' is over 15 MB'); continue; } box.querySelector('[data-mfiles]').textContent = 'Adding ' + f.name + '…'; try { const r = await fetch('/api/mail/file?name=' + encodeURIComponent(f.name), { method: 'POST', headers: { 'content-type': f.type || 'application/octet-stream', 'x-dioma': '1' }, body: f }); const j = await r.json(); if (!r.ok) throw new Error(j.error); files.push({ id: j.id, name: f.name }); } catch (x) { toast(x.message || 'Could not add the file'); } } box.querySelector('[data-mfiles]').textContent = files.length ? 'Attached: ' + files.map((f) => f.name).join(', ') + ' (sent as private download links)' : ''; };
   box.querySelector('[data-mins]').onkeydown = (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); box.querySelector('[data-mx=write]').click(); } };
+  box.dataset.acct = MACC; box.dataset.mid = m.id; box.dataset.who = m.fromAddr || m.from || '';
   box.onclick = async (e) => {
     const b = e.target.closest('[data-mx]'); if (!b) return; const k = b.dataset.mx;
     if (k === 'done') return mailDone(i);
@@ -1993,6 +1995,8 @@ function pageCtx() {
   const v = cur(), parts = [`Screen: ${VLAB[v] || v}`];
   if (v === 'mail' && typeof MACC !== 'undefined') parts.push('Mailbox: ' + MACC);
   const open = document.querySelector('#main .mexp:not([hidden]), #main .wexp');
+  if (open && open.dataset.mid) parts.push(`Open email: account ${open.dataset.acct}, id ${open.dataset.mid}, with ${open.dataset.who}. Use read_email and read_attachments with this account and id, and find_emails / read_whatsapp for this person, before answering.`);
+  if (open && open.dataset.jid) parts.push(`Open WhatsApp chat: ${open.dataset.name}. Use read_whatsapp for this person (and find_emails if useful) before answering.`);
   if (open) { const row = open.previousElementSibling; parts.push('Open item: ' + ((row ? row.innerText + '\n' : '') + open.innerText).replace(/\s+\n/g, '\n').slice(0, 1200)); }
   return parts.join('\n');
 }
@@ -2003,6 +2007,7 @@ function fabSync() {
   f.hidden = FABHIDE.has(cur()) || !!$('#aisheet');
 }
 addEventListener('hashchange', () => setTimeout(fabSync, 50));
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-askai]'); if (!b) return; e.preventDefault(); e.stopPropagation(); aiSheet(); });
 let SHEETMSG = [];
 function aiSheet() {
   if ($('#aisheet')) return;
@@ -2229,7 +2234,7 @@ async function waExpand(jid, name) {
   const sk = Object.keys(WSUG).find((k) => k.startsWith(jid + ':')), pre = sk && !WSUG[sk].sent ? WSUG[sk].text : '';
   box.innerHTML = `<div class="wexm wmsgs">${d.messages.slice(-10).map((m) => wbub(jid, m, name)).join('') || '<div class="note">No messages yet.</div>'}</div>
     <textarea class="field" rows="2" placeholder="Your reply…" data-draft="wa:${esc(jid)}">${esc(pre)}</textarea>
-    <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm" data-x="reply">AI reply</button><button class="btn sm" data-x="fix">Fix</button><button class="btn sm pri" data-x="send">Send</button><button class="btn sm" data-emo title="Emoji" aria-label="Emoji"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M8.5 14.5s1.3 1.8 3.5 1.8 3.5-1.8 3.5-1.8M9 9.5h.01M15 9.5h.01"/></svg></button><button class="btn sm" data-x="voice"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>Voice</button><label class="btn sm" style="cursor:pointer"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7.1-7.1l8.6-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/></svg>Attach<input type="file" class="wexf" hidden></label><button class="btn sm" data-x="ignore">Ignore</button><button class="btn sm" data-x="noise">Move to Noise</button><button class="btn sm" data-x="full" style="margin-left:auto">Full chat ↗</button></div><div class="vrec" hidden></div>`;
+    <div class="row" style="gap:6px;flex-wrap:wrap"><button type="button" class="btn sm" data-askai title="Ask Dioma about this"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/></svg>Ask AI</button><button class="btn sm" data-x="reply">AI reply</button><button class="btn sm" data-x="fix">Fix</button><button class="btn sm pri" data-x="send">Send</button><button class="btn sm" data-emo title="Emoji" aria-label="Emoji"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M8.5 14.5s1.3 1.8 3.5 1.8 3.5-1.8 3.5-1.8M9 9.5h.01M15 9.5h.01"/></svg></button><button class="btn sm" data-x="voice"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>Voice</button><label class="btn sm" style="cursor:pointer"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7.1-7.1l8.6-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/></svg>Attach<input type="file" class="wexf" hidden></label><button class="btn sm" data-x="ignore">Ignore</button><button class="btn sm" data-x="noise">Move to Noise</button><button class="btn sm" data-x="full" style="margin-left:auto">Full chat ↗</button></div><div class="vrec" hidden></div>`;
   box.querySelector('.wexf').onchange = async (ev) => { const f = ev.target.files[0], ta = box.querySelector('textarea'); ev.target.value = ''; if (!f) return; if (f.size > 15 * 1048576) return toast('Files up to 15 MB.'); toast('Sending ' + f.name + '…');
     try { const r = await fetch(`/api/wa/sendfile?jid=${encodeURIComponent(jid)}&name=${encodeURIComponent(f.name)}&caption=${encodeURIComponent(ta.value.trim())}`, { method: 'POST', headers: { 'content-type': f.type || 'application/octet-stream', 'x-dioma': '1' }, body: f }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'Could not send the file.'); ta.value = ''; toast('Sent'); waDone(jid); } catch (x) { toast(x.message); } };
   const m = box.querySelector('.wexm'); m.scrollTop = m.scrollHeight;
