@@ -1816,7 +1816,7 @@ async function viewMail() {
       <div class="wfil" id="mfl" hidden></div>
       <form class="row" id="mcmd" style="gap:6px;margin-bottom:8px"><input class="field grow" id="mcq" placeholder="Tell Dioma what to do, e.g. chase unpaid invoices"><button class="btn sm pri" style="height:48px">Do it</button></form>
       <div id="mcout"></div>
-      <form class="row" id="msf" style="gap:6px"><input class="field grow" id="mq" placeholder="Search this mailbox" value="${esc(MF.q)}"><button class="btn sm" style="height:48px">Go</button><button type="button" class="btn sm" id="mref" style="height:48px" title="Refresh">↻</button><button type="button" class="btn sm" id="mai" style="height:48px">AI</button></form>
+      <form class="row" id="msf" style="gap:6px"><input class="field grow" id="mq" placeholder="Search this mailbox" value="${esc(MF.q)}"><button class="btn sm" style="height:48px">Go</button><button type="button" class="btn sm" id="mref" style="height:48px" title="Refresh">↻</button><button type="button" class="btn sm" id="mai" style="height:48px" title="Ask Dioma about this mailbox" aria-label="Ask Dioma about this mailbox"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button></form>
       <div class="list" id="mlist"><div class="empty">Loading your mail…</div></div>
     </div>
 `;
@@ -1850,7 +1850,7 @@ async function viewMail() {
   $('#mlist').addEventListener('click', (e) => { const t = e.target.closest('[data-mdone]'); if (t) { e.stopPropagation(); return mailDone(+t.dataset.mdone); } if (e.target.closest('.mexp')) return; const r = e.target.closest('[data-mi]'); if (r) mailOpen(+r.dataset.mi); });
   const mcRun = (t) => { t = String(t || '').trim(); if (!t) return; if (/pay|invoice|owe|owing|due|collect|receivable|follow ?up/i.test(t)) return payFollow($('#mcout')); location.hash = '#ai'; setTimeout(() => { const q = $('#aiq'); if (q) { q.value = t; q.focus(); } }, 700); };
   $('#mcmd').onsubmit = (e) => { e.preventDefault(); mcRun($('#mcq').value); };
-  $('#mai').addEventListener('click', () => { location.hash = '#ai'; setTimeout(() => { const q = $('#aiq'); if (q) { q.value = 'Go through my email: which ones need my reply today, and draft short replies for the top 3.'; q.focus(); } }, 700); });
+  $('#mai').addEventListener('click', () => aiSheet());
   const addBox = () => { $('#maddbox').innerHTML = `<section class="sec"><h2>Add another mailbox</h2>${mailChooser()}</section>`; wireChooser(); $('#maddbox').scrollIntoView({ behavior: 'smooth' }); };
   $('#madd').addEventListener('click', addBox);
   $('#mmore').addEventListener('click', () => {
@@ -1993,7 +1993,7 @@ let CALF = 'all';
 const VLAB = { home: 'Home', todo: 'To-do', wa: 'WhatsApp', social: 'Social', mail: 'Mail', cal: 'Calendar', biz: 'Business', wealth: 'Wealth', network: 'Network', career: 'Career', files: 'Files', browser: 'Browser', act: 'Activity' };
 function pageCtx() {
   const v = cur(), parts = [`Screen: ${VLAB[v] || v}`];
-  if (v === 'mail' && typeof MACC !== 'undefined') parts.push('Mailbox: ' + MACC);
+  if (v === 'mail' && typeof MACC !== 'undefined') { const lb = (MACCTS || []).find((a) => a.key === MACC); parts.push(`Mailbox open: ${(lb && lb.label) || MACC} (key ${MACC}). Search this mailbox first: find_emails with mailbox "${MACC}".`); }
   const open = document.querySelector('#main .mexp:not([hidden]), #main .wexp');
   if (open && open.dataset.mid) parts.push(`Open email: account ${open.dataset.acct}, id ${open.dataset.mid}, with ${open.dataset.who}. Use read_email and read_attachments with this account and id, and find_emails / read_whatsapp for this person, before answering.`);
   if (open && open.dataset.jid) parts.push(`Open WhatsApp chat: ${open.dataset.name}. Use read_whatsapp for this person (and find_emails if useful) before answering.`);
@@ -2012,7 +2012,7 @@ let SHEETMSG = [];
 function aiSheet() {
   if ($('#aisheet')) return;
   const where = VLAB[cur()] || 'Dioma';
-  const hints = { mail: ['What is this email about and what should I reply?', 'Check my email and WhatsApp with this person and draft a reply'], wa: ['Summarise this chat and suggest a reply', 'What did I promise here?'], biz: ['Who owes me money?', 'Draft payment reminders'], social: ['Write a LinkedIn post about this week'], cal: ['Prepare me for my next meeting'] }[cur()] || ['What is pending today?'];
+  const hints = { career: ['Job application updates from my email in the last 3 months, with next steps', 'Which recruiters should I follow up with this week?'], mail: ['Which emails need my reply today?', 'Job application updates from the last 3 months, with next steps', "Check Matt's reply from Waytrack today, compare it with their last proposal and give me the email to send"], wa: ['Who is waiting for my reply?', 'Summarise this chat and suggest a reply', 'What did I promise here?'], biz: ['Who owes me money?', 'Draft payment reminders'], social: ['Write a LinkedIn post about this week'], cal: ['Prepare me for my next meeting'] }[cur()] || ['What is pending today?'];
   document.body.insertAdjacentHTML('beforeend', `<div id="aisheet" role="dialog" aria-label="Ask Dioma"><div class="ash-h"><b>Dioma</b><span class="soon">${esc(where)}</span><span class="grow"></span><button type="button" class="btn sm" id="ashx" aria-label="Close">✕</button></div>
     <div class="ash-m" id="ashm">${SHEETMSG.length ? '' : `<div class="note" style="margin-bottom:8px">Ask anything about this screen. Dioma checks your mail, WhatsApp, calendar and Zoho.</div><div class="row" style="gap:6px;flex-wrap:wrap">${hints.map((h) => `<button type="button" class="btn sm" data-ash="${esc(h)}">${esc(h)}</button>`).join('')}</div>`}</div>
     <form class="ash-f" id="ashf"><textarea id="ashq" class="field grow" rows="1" placeholder="e.g. Check Ibrahim's email and WhatsApp, tell me what he wants and draft my reply" data-draft="sheet"></textarea><button class="btn pri" id="ashs" aria-label="Send">↑</button></form></div>`);
@@ -2385,7 +2385,7 @@ async function viewWa() {
       <div class="seg wtabs" id="wtab">${[['personal', 'Personal'], ['business', 'Business'], ['other', 'Other']].map(([k, l]) => `<button data-t="${k}" class="${WAF.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       <div id="wfl" hidden></div>
     </div>
-    <form class="row" id="wsf" style="gap:8px;margin-top:10px"><input class="field grow" id="wq" placeholder="Search name or number" value="${esc(WAF.q)}"><button class="btn sm" style="height:48px">Search</button></form>
+    <form class="row" id="wsf" style="gap:8px;margin-top:10px"><input class="field grow" id="wq" placeholder="Search name or number" value="${esc(WAF.q)}"><button class="btn sm" style="height:48px">Search</button><button type="button" class="btn sm" data-askai style="height:48px" title="Ask Dioma about your WhatsApp" aria-label="Ask Dioma about your WhatsApp"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button></form>
     <div class="list" id="wl" style="margin-top:6px"><div class="empty">Loading your chats…</div></div>`;
   const pin = () => { const h = document.querySelector('header.top'), t = $('#tabs'); if (h && $('#wtop')) $('#wtop').style.top = Math.round(h.getBoundingClientRect().height + (t ? t.getBoundingClientRect().height : 0)) + 'px'; };
   pin(); addEventListener('resize', pin, { passive: true });
