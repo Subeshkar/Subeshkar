@@ -73,3 +73,20 @@ Rules: only facts shown by their own actions or words; mark a guess with "(likel
     return { learned: ev.length };
   } finally { RUNNING.delete(uid); }
 }
+
+// ---------- One conversation across Dioma ----------
+// Every AI box (Dioma AI, the AI button on each screen, Business, Mail, WhatsApp, To-do, Radar, WhatsApp-to-Dioma)
+// writes a short line here, and every AI box reads the latest lines. So a question asked in Business is known in
+// Dioma AI and the other way round, and Dioma keeps one thread of what you are working on.
+db.exec(`CREATE TABLE IF NOT EXISTS ai_log (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, at INTEGER NOT NULL, place TEXT, ask TEXT, answer TEXT);
+CREATE INDEX IF NOT EXISTS ai_log_u ON ai_log(user_id, id);`);
+export function log(uid, place, ask, answer) {
+  try { if (!uid || !String(ask || '').trim()) return; run('INSERT INTO ai_log (user_id, at, place, ask, answer) VALUES (?, ?, ?, ?, ?)', uid, Date.now(), clip(place, 30), clip(ask, 600), clip(answer, 900));
+    if (Math.random() < 0.05) run('DELETE FROM ai_log WHERE user_id = ? AND id < (SELECT MIN(id) FROM (SELECT id FROM ai_log WHERE user_id = ? ORDER BY id DESC LIMIT 400))', uid, uid); } catch {}
+}
+export function recent(uid, n = 12, hours = 72) {
+  const rows = all('SELECT at, place, ask, answer FROM ai_log WHERE user_id = ? AND at > ? ORDER BY id DESC LIMIT ?', uid, Date.now() - hours * 3600e3, n).reverse();
+  if (!rows.length) return '';
+  const t = (ms) => new Date(ms).toISOString().slice(5, 16).replace('T', ' ');
+  return `What they asked Dioma lately, in any part of the app (one shared conversation; continue it, never ask them to repeat):\n${rows.map((r) => `- ${t(r.at)} UTC in ${r.place}: they asked "${r.ask}"${r.answer ? ` | Dioma: ${r.answer}` : ''}`).join('\n')}`;
+}
