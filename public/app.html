@@ -62,6 +62,9 @@ textarea.field{height:auto;min-height:48px;padding:12px 14px;resize:none;line-he
 .stabs a{display:flex;flex-direction:column;align-items:center;gap:5px;padding:7px 2px;color:var(--dim);font-size:12.5px;text-decoration:none;border-radius:12px}
 .stabs a svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .stabs.fold{grid-auto-flow:row;grid-template-columns:repeat(var(--cols),minmax(0,1fr));overflow:visible}
+.stabs.fixed{grid-auto-flow:row;grid-template-columns:repeat(var(--cols),minmax(0,1fr));overflow:visible}.ntg.on{background:var(--acc);color:var(--accink)}
+.ndrop{position:absolute;left:0;right:0;top:100%;margin-top:-4px;background:#0b0b0b;border:1px solid var(--line2);border-radius:16px;box-shadow:0 18px 40px rgba(0,0,0,.6);padding:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px;z-index:20;animation:mdrop .15s ease}
+.ndrop a{position:relative;display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:12px;color:var(--fg);text-decoration:none;font-size:14.5px}.ndrop a:hover,.ndrop a.on{background:rgba(var(--accrgb),.12)}.ndrop a svg{width:20px;height:20px;flex:none;fill:none;stroke:var(--acc);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .ntg{position:relative;display:flex;flex-direction:column;align-items:center;gap:5px;padding:7px 2px;color:var(--acc);font:inherit;font-size:13.5px;font-weight:500;background:rgba(var(--accrgb),.1);border:1px solid rgba(var(--accrgb),.35);border-radius:12px;cursor:pointer}.stabs.open .ntg{background:var(--acc);color:var(--accink)}.stabs.fold a{font-size:13.5px}.stabs.fold a svg,.ntg svg{width:26px;height:26px}.stabs.open{padding-bottom:12px}.ntg svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.stabs.fold a{min-width:0}.stabs.fold a,.ntg{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stabs a.on{color:var(--fg);background:rgba(var(--accrgb),.12)}
 .stabs a.on svg{stroke:var(--acc)}
@@ -801,17 +804,13 @@ function drawNav() {
   $('#botw').innerHTML = [...bot, 'more'].map((k) => a(k)).join('');
   setTimeout(fabSync, 0);
   const top = n.top.filter((k) => KEYS.includes(k));
-  // Show what fits in one row, the rest behind ▾ (tap again ▴ to close). The open screen always stays visible.
-  const cols = innerWidth < 520 ? 5 : innerWidth < 820 ? 7 : 10;
-  let show = top;
-  if (!NAVOPEN && top.length > cols) { show = top.slice(0, cols - 1); if (top.includes(v) && !show.includes(v)) show[show.length - 1] = v; }
-  const tg = top.length > cols && v !== 'more' ? `<button type="button" class="ntg" id="ntg" aria-expanded="${NAVOPEN}"><svg viewBox="0 0 24 24"><path d="${NAVOPEN ? 'm6 15 6-6 6 6' : 'm6 9 6 6 6-6'}"/></svg>${NAVOPEN ? 'Less' : 'All'}${!NAVOPEN && top.slice(cols - 1).some((k) => BADGE[k] && !show.includes(k)) ? '<b class="bdg">•</b>' : ''}</button>` : '';
-  // The All / Less button keeps its place at the end of the first row, so closing is always where opening was.
-  const items = show.map((k) => a(k, true));
-  if (tg) items.splice(Math.min(cols - 1, items.length), 0, tg);
-  // One clean row: your top items, swipe for the rest (no drop-down). Change what is here under More > Customize your bars.
-  $('#tabs').innerHTML = top.length ? `<div class="stabs" role="tablist">${top.map((k) => a(k, true)).join('')}</div>` : '';
-  const on = document.querySelector('#tabs a.on'), row = document.querySelector('#tabs .stabs'); if (on && row && on.offsetLeft + on.offsetWidth > row.clientWidth) row.scrollLeft = on.offsetLeft - 40;
+  // Top bar: the items that fit in one row, never scrolling. The rest open in a drop-down panel under "More ▾".
+  // The open screen always stays visible in the row. Change what goes where under More > Customize your bars.
+  const cols = innerWidth < 520 ? 5 : innerWidth < 820 ? 7 : 9;
+  let show = top, rest = [];
+  if (top.length > cols) { show = top.slice(0, cols - 1); if (top.includes(v) && !show.includes(v)) show[show.length - 1] = v; rest = top.filter((k) => !show.includes(k)); }
+  const tg = rest.length ? `<button type="button" class="ntg${NAVOPEN ? ' on' : ''}" id="ntg" aria-expanded="${NAVOPEN}"><svg viewBox="0 0 24 24"><path d="${NAVOPEN ? 'm6 15 6-6 6 6' : 'm6 9 6 6 6-6'}"/></svg>More${rest.some((k) => BADGE[k]) ? '<b class="bdg">•</b>' : ''}</button>` : '';
+  $('#tabs').innerHTML = top.length ? `<div class="stabs fixed" role="tablist" style="--cols:${Math.min(cols, show.length + (tg ? 1 : 0))}">${show.map((k) => a(k, true)).join('')}${tg}</div>${NAVOPEN && rest.length ? `<div class="ndrop" role="menu">${rest.map((k) => `<a href="#${k}" class="${v === k ? 'on' : ''}"><svg viewBox="0 0 24 24">${I[ICON[k]]}</svg>${bd(k)}<span>${LABEL[k]}</span></a>`).join('')}</div>` : ''}` : '';
 }
 let NAVOPEN = false;
 document.addEventListener('click', (e) => { if (e.target.closest('#ntg')) { NAVOPEN = !NAVOPEN; drawNav(); return; } if (NAVOPEN && (e.target.closest('#tabs a') || !e.target.closest('#tabs'))) { NAVOPEN = false; drawNav(); } });
