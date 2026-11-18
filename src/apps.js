@@ -234,21 +234,32 @@ export async function proxy(uid, slug, { endpoint, method = 'GET', body, headers
 }
 
 // Open one Zoho email: its text and its attachment list. Zoho needs the folder, so we use the one seen in the list, or try Inbox, Sent and the rest.
-export async function zohoMessage(uid, mid) {
-  const acc = await zohoAccount(uid); if (!acc.id) return null;
-  const known = ZMF.get(uid + ':' + mid), fl = await zohoFolders(uid, acc).catch(() => []);
+// Three ways, first that works wins: Zoho's own "message content" tool, then Zoho's API through the connection, then the regional Zoho addresses.
+// trace collects what failed, so a blank email says why.
+export async function zohoTools(uid) { const r = await call('GET', `/tools?toolkit_slug=zoho_mail&limit=200`).catch(() => ({ items: [] })); return (r.items || []).map((x) => x.slug); }
+export async function zohoMessage(uid, mid, trace = []) {
+  const acc = await zohoAccount(uid); if (!acc.id) { trace.push('no Zoho account id'); return null; }
+  mid = String(mid).replace(/^zm:/, '');
+  const known = ZMF.get(uid + ':' + mid), fl = await zohoFolders(uid, acc).catch((e) => { trace.push('folders: ' + e.message); return []; });
   const order = [known, ...fl.filter((f) => /inbox/.test(f.type)).map((f) => f.id), ...fl.filter((f) => /sent/.test(f.type)).map((f) => f.id), ...fl.map((f) => f.id)].filter(Boolean);
-  const tries = [...new Set(order)].slice(0, 8);
-  for (const base of ZBASE.get(uid) ? [ZBASE.get(uid)] : ['https://mail.zoho.com', 'https://mail.zoho.eu', 'https://mail.zoho.in', 'https://mail.zoho.com.au']) {
+  const tries = [...new Set(order)].slice(0, 8); if (!tries.length) trace.push('no folders found');
+  const got = (r) => { const d = r?.data?.data ?? r?.data ?? r; const c = d?.content ?? d?.data?.content ?? d?.body ?? d?.html; return typeof c === 'string' ? c : null; };
+  const attsOf = async (fid, base) => { try { const a = base == null ? null : await proxy(uid, 'zoho_mail', { endpoint: `${base}/api/accounts/${acc.id}/folders/${fid}/messages/${mid}/attachmentinfo` }); return ((a?.data?.attachments) || a?.attachments || []).map((x) => ({ id: String(x.attachmentId), name: x.attachmentName || 'file', size: x.attachmentSize || 0 })); } catch (e) { trace.push('attachmentinfo: ' + e.message.slice(0, 120)); return []; } };
+  // 1. Zoho's own tool for an email's content (never the attachment tool).
+  const tools = await zohoTools(uid), ct = tools.find((t) => /MESSAGE.*CONTENT|CONTENT.*MESSAGE|EMAIL.*CONTENT|GET.*MESSAGE.*(BODY|DETAIL)/.test(t) && !/ATTACH/.test(t));
+  if (ct) for (const fid of tries.slice(0, 4)) {
+    try { const d = await runFill(uid, ct, { 'account_id|accountId': acc.id, 'folder_id|folderId': fid, 'message_id|messageId': mid }); const c = got(d); if (c != null && c !== '') { ZMF.set(uid + ':' + mid, fid); return { html: c, atts: await attsOf(fid, ZBASE.get(uid) || ''), fid, base: ZBASE.get(uid) || '', acc: acc.id, via: ct }; } trace.push(ct + ' folder ' + fid + ': empty ' + JSON.stringify(d).slice(0, 160)); }
+    catch (e) { trace.push(ct + ' folder ' + fid + ': ' + e.message.slice(0, 160)); }
+  } else trace.push('no Zoho content tool among ' + tools.length + ' tools');
+  // 2 and 3. Zoho's API through the customer's connection: the connection's own address first, then each region.
+  for (const base of ZBASE.get(uid) ? [ZBASE.get(uid)] : ['', 'https://mail.zoho.com', 'https://mail.zoho.eu', 'https://mail.zoho.in', 'https://mail.zoho.com.au']) {
     for (const fid of tries) {
       try {
         const r = await proxy(uid, 'zoho_mail', { endpoint: `${base}/api/accounts/${acc.id}/folders/${fid}/messages/${mid}/content?includeBlockContent=true` });
-        const c = r?.data?.content ?? r?.content; if (c == null) continue;
+        const c = got(r); if (c == null) { trace.push(`api ${base || 'conn'} ${fid}: ${JSON.stringify(r).slice(0, 140)}`); continue; }
         ZBASE.set(uid, base); ZMF.set(uid + ':' + mid, fid);
-        let atts = [];
-        try { const a = await proxy(uid, 'zoho_mail', { endpoint: `${base}/api/accounts/${acc.id}/folders/${fid}/messages/${mid}/attachmentinfo` }); atts = (a?.data?.attachments || a?.attachments || []).map((x) => ({ id: String(x.attachmentId), name: x.attachmentName || 'file', size: x.attachmentSize || 0 })); } catch {}
-        return { html: String(c), atts, fid, base, acc: acc.id };
-      } catch (e) { if (/invalid|not found|404|URL_RULE|does not exist/i.test(e.message)) continue; }
+        return { html: c, atts: await attsOf(fid, base), fid, base, acc: acc.id, via: 'api' };
+      } catch (e) { trace.push(`api ${base || 'conn'} ${fid}: ${e.message.slice(0, 140)}`); if (!/invalid|not found|404|URL_RULE|does not exist|folder|message/i.test(e.message)) break; }
     }
   }
   return null;
