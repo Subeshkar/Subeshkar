@@ -245,10 +245,22 @@ export async function sendSelf(uid, jid, text) {
   if (r?.key?.id) OURS.add(r.key.id);
 }
 
+// A chat Dioma has not seen yet: for a phone number, check it is on WhatsApp and start the chat, so a new number can be messaged first.
+async function knownChat(uid, st, jid) {
+  jid = String(jid || '');
+  if (one('SELECT 1 FROM wa_chats WHERE user_id = ? AND jid = ?', uid, jid)) return jid;
+  const num = jid.replace(/@.*$/, '').replace(/\D/g, '');
+  if (/@g\.us$/.test(jid) || num.length < 7 || num.length > 15) throw Object.assign(new Error('Dioma can only start new chats with a phone number.'), { status: 404 });
+  let real = num + '@s.whatsapp.net';
+  try { const [hit] = await st.sock.onWhatsApp(num); if (hit && hit.exists === false) throw Object.assign(new Error('This number is not on WhatsApp.'), { status: 404 }); if (hit?.jid) real = hit.jid; } catch (e) { if (e.status) throw e; }
+  run('INSERT INTO wa_chats (user_id, jid, name, is_group, unread) VALUES (?, ?, ?, 0, 0) ON CONFLICT(user_id, jid) DO NOTHING', uid, real, '+' + num);
+  return real;
+}
+
 export async function send(uid, jid, text) {
   const st = S.get(uid);
   if (!st || st.status !== 'open') throw Object.assign(new Error('WhatsApp is not connected right now.'), { status: 409 });
-  if (!one('SELECT 1 FROM wa_chats WHERE user_id = ? AND jid = ?', uid, jid)) throw Object.assign(new Error('Unknown chat.'), { status: 404 });
+  jid = await knownChat(uid, st, jid);
   const r = await st.sock.sendMessage(jid, { text: String(text).slice(0, 4000) });
   saveMessage(uid, { key: { remoteJid: jid, id: r?.key?.id || String(Date.now()), fromMe: true }, message: { conversation: text }, messageTimestamp: Math.floor(Date.now() / 1000) }, true);
   return { ok: true };
@@ -258,7 +270,7 @@ export async function send(uid, jid, text) {
 export async function sendFile(uid, jid, name, mime, buf, caption) {
   const st = S.get(uid);
   if (!st || st.status !== 'open') throw Object.assign(new Error('WhatsApp is not connected right now.'), { status: 409 });
-  if (!one('SELECT 1 FROM wa_chats WHERE user_id = ? AND jid = ?', uid, jid)) throw Object.assign(new Error('Unknown chat.'), { status: 404 });
+  jid = await knownChat(uid, st, jid);
   const content = /^image\//.test(mime) ? { image: buf, caption: caption || undefined, mimetype: mime } : { document: buf, fileName: name, mimetype: mime || 'application/octet-stream', caption: caption || undefined };
   const r = await st.sock.sendMessage(jid, content);
   saveMessage(uid, { key: { remoteJid: jid, id: r?.key?.id || String(Date.now()), fromMe: true }, message: { conversation: (/^image\//.test(mime) ? '📷 ' : '📄 ') + name }, messageTimestamp: Math.floor(Date.now() / 1000) }, true);
@@ -326,7 +338,7 @@ export async function voice(uid, jid, id) {
 export async function sendVoice(uid, jid, buf, mime) {
   const st = S.get(uid);
   if (!st || st.status !== 'open') throw Object.assign(new Error('WhatsApp is not connected right now.'), { status: 409 });
-  if (!one('SELECT 1 FROM wa_chats WHERE user_id = ? AND jid = ?', uid, jid)) throw Object.assign(new Error('Unknown chat.'), { status: 404 });
+  jid = await knownChat(uid, st, jid);
   let audio = buf, mimetype = mime || 'audio/mp4', ptt = false;
   if (AU.available()) { audio = await AU.toOpus(buf); mimetype = 'audio/ogg; codecs=opus'; ptt = true; }
   const r = await st.sock.sendMessage(jid, { audio, mimetype, ptt });
