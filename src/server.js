@@ -1520,6 +1520,26 @@ on('POST', '/api/social/web/li/comment', async (req, res, u) => { swLim(u); cons
 
 // Business
 on('POST', '/api/biz/payfollow', async (req, res, u) => { if (limited('pf:' + u.id, 10, 3600e3)) return fail(res, 429, 'Try again in a little while.'); send(res, 200, await PF.plan(u)); });
+// One overdue invoice -> a ready email card (To from Zoho Books or the invoice email thread, reply in that thread when found), short and humble.
+on('POST', '/api/biz/remind', async (req, res, u) => {
+  const b = await json(req); if (limited('bzrem:' + u.id, 60, 3600e3)) return fail(res, 429, 'Try again in a little while.');
+  const biz = await BZ.overview(u.id); const inv = (biz.invoices || []).find((x) => String(x.id) === String(b.id) || x.no === b.no);
+  if (!inv) return fail(res, 404, 'That invoice is not in Zoho Books any more.');
+  const on = (await A.connected(u.id).catch(() => [])).map((x) => x.slug);
+  const th = await PF.findThread(u.id, on, inv).catch(() => null);
+  const accts = await mailAccounts(u).catch(() => []);
+  const acct = (th && accts.find((a) => a.key === th.slug)) || accts.find((a) => a.key === 'zoho_mail') || accts[0];
+  const amt = `${inv.cur || 'AED'} ${Number(inv.balance || 0).toLocaleString('en', { maximumFractionDigits: 2 })}`;
+  let body = '';
+  try {
+    const r = await claude({ model: WRITER(), max_tokens: 600, system: `${BRN.prompt(u.id)}\n\nYou write a payment reminder email for ${u.name || 'the sender'}${u.about ? ' (' + u.about + ')' : ''}. ${STYLE}\nShort: 3 to 6 lines. Humble and collaborative, friendly but clear: thank them for working together, mention the invoice number, amount and how overdue it is, ask kindly for the payment or an expected date, offer to resend the invoice or sort out anything that is holding it. No blame. Plain text, no subject line, end with their usual sign-off. Never use the em dash.`,
+      messages: [{ role: 'user', content: JSON.stringify({ customer: inv.who, invoice: inv.no, amount: amt, due: inv.due, overdue_days: inv.days || 0, reply_in_existing_thread: !!th }) }] });
+    body = (r.content || []).filter((x) => x.type === 'text').map((x) => x.text).join('').replace(/—/g, ',').trim();
+  } catch (e) { console.error('bz remind', e.message); }
+  if (!body) body = `Hi ${inv.who},\n\nHope all is well! A quick reminder that invoice ${inv.no} for ${amt} was due on ${inv.due}. Could you please arrange the payment or share an expected date?\n\nThank you so much for your support.`;
+  BRN.log(u.id, 'Business', `payment reminder for ${inv.who} ${inv.no}`, body.slice(0, 300));
+  send(res, 200, { card: 'email', acct: acct ? acct.key : '', to: inv.email || th?.to || '', cc: '', subject: th?.subject ? (/^re:/i.test(th.subject) ? th.subject : 'Re: ' + th.subject) : `Payment reminder: Invoice ${inv.no}`, body, reply_id: th?.msgId ? (th.slug === 'gmail' ? 'gm:' : 'zm:') + th.msgId : '', thread: th?.thread || '' });
+});
 on('POST', '/api/biz/payfollow/run', async (req, res, u) => send(res, 200, await PF.run(u, await json(req))));
 on('GET', '/api/biz', async (req, res, u) => send(res, 200, await BZ.overview(u.id, new URL(req.url, 'http://x').searchParams.get('fresh') === '1')));
 

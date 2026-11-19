@@ -12,7 +12,7 @@ const bad = (m, s = 400) => Object.assign(new Error(m), { status: s });
 const txt = (r) => (r.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
 const json = (t, open = '[') => { try { return JSON.parse(t.slice(t.indexOf(open), t.lastIndexOf(open === '[' ? ']' : '}') + 1)); } catch { return null; } };
 
-async function findThread(uid, on, inv) {
+export async function findThread(uid, on, inv) {
   for (const slug of ['zoho_mail', 'gmail'].filter((s) => on.includes(s))) {
     try {
       const list = await A.mailbox(uid, slug, slug === 'gmail' ? 'all' : 'inbox', String(inv.no));
